@@ -1,0 +1,450 @@
+# ========================================
+# MAGIC TRAVEL SPA - COMANDOS ESENCIALES
+# ========================================
+
+# ========================================
+# 🐳 DOCKER - GESTIÓN DE CONTENEDORES
+# ========================================
+
+# Levantar todos los servicios
+docker-compose up -d
+
+# Parar todos los servicios
+docker-compose down
+
+# Ver estado de contenedores
+docker-compose ps
+
+# Reconstruir contenedor específico
+docker-compose build php
+docker-compose build nginx
+
+# Ver logs de un servicio
+docker-compose logs -f php
+docker-compose logs -f mysql
+
+# Entrar al contenedor PHP (recomendado para Laravel)
+docker exec -it magictravel_php bash
+
+# Entrar al contenedor MySQL
+docker exec -it magictravel_mysql bash
+
+# Reiniciar un servicio específico
+docker-compose restart php
+docker-compose restart mysql
+
+# ========================================
+# 🔄 MIGRACIONES Y BASE DE DATOS
+# ========================================
+
+# Crear nueva migración
+php artisan make:migration create_tabla_name_table
+
+# Ejecutar todas las migraciones pendientes
+php artisan migrate
+
+# Ver estado de migraciones
+php artisan migrate:status
+
+# Rollback última migración
+php artisan migrate:rollback
+
+# Rollback N migraciones
+php artisan migrate:rollback --step=3
+
+# Rollback todas las migraciones
+php artisan migrate:reset
+
+# Rollback y re-ejecutar migraciones
+php artisan migrate:refresh
+
+# Rollback, re-ejecutar y ejecutar seeders
+php artisan migrate:refresh --seed
+
+# Ejecutar migraciones en producción (forzar)
+php artisan migrate --force
+
+# ========================================
+# 🎯 MODELOS LARAVEL
+# ========================================
+
+# Crear modelo básico
+php artisan make:model TipoPersona
+
+# Crear modelo con migración
+php artisan make:model Persona -m
+
+# Crear modelo con migración, factory y seeder
+php artisan make:model Cliente -mfs
+
+# Crear modelo con controlador de recursos
+php artisan make:model Empleado -mc
+
+# Crear modelo completo (migración, factory, seeder, controller, resource)
+php artisan make:model Vehiculo -a
+
+# Modelos específicos Magic Travel
+php artisan make:model TipoPersona
+php artisan make:model Pais
+php artisan make:model Role
+php artisan make:model EstadoEmpleado
+php artisan make:model TipoCliente
+php artisan make:model TipoLicencia
+php artisan make:model TipoVehiculo
+php artisan make:model TipoCombustible
+php artisan make:model EstadoVehiculo
+php artisan make:model TipoAgencia
+php artisan make:model FormaPago
+php artisan make:model EstadoComercial
+php artisan make:model EstadoRuta
+php artisan make:model EstadoReserva
+php artisan make:model TipoVenta
+php artisan make:model EstadoVenta
+php artisan make:model EstadoPago
+php artisan make:model Persona
+php artisan make:model Empleado
+php artisan make:model Cliente
+php artisan make:model ChoferDetalle
+php artisan make:model Vehiculo
+php artisan make:model Agencia
+php artisan make:model Ruta
+php artisan make:model Reserva
+php artisan make:model RutaEjecutada
+php artisan make:model Venta
+php artisan make:model Auditoria
+
+# ========================================
+# 🎮 CONTROLADORES API
+# ========================================
+
+# Crear controlador de recursos API
+php artisan make:controller Api/PersonaController --api
+
+# Crear controlador de recursos completo
+php artisan make:controller Api/EmpleadoController --resource
+
+# Crear controlador básico
+php artisan make:controller Api/DashboardController
+
+# Controladores específicos Magic Travel API
+php artisan make:controller Api/TipoPersonaController --api
+php artisan make:controller Api/PaisController --api
+php artisan make:controller Api/RoleController --api
+php artisan make:controller Api/EstadoEmpleadoController --api
+php artisan make:controller Api/TipoClienteController --api
+php artisan make:controller Api/TipoLicenciaController --api
+php artisan make:controller Api/TipoVehiculoController --api
+php artisan make:controller Api/TipoCombustibleController --api
+php artisan make:controller Api/EstadoVehiculoController --api
+php artisan make:controller Api/TipoAgenciaController --api
+php artisan make:controller Api/FormaPagoController --api
+php artisan make:controller Api/EstadoComercialController --api
+php artisan make:controller Api/EstadoRutaController --api
+php artisan make:controller Api/EstadoReservaController --api
+php artisan make:controller Api/TipoVentaController --api
+php artisan make:controller Api/EstadoVentaController --api
+php artisan make:controller Api/EstadoPagoController --api
+php artisan make:controller Api/PersonaController --api
+php artisan make:controller Api/EmpleadoController --api
+php artisan make:controller Api/ClienteController --api
+php artisan make:controller Api/ChoferDetalleController --api
+php artisan make:controller Api/VehiculoController --api
+php artisan make:controller Api/AgenciaController --api
+php artisan make:controller Api/RutaController --api
+php artisan make:controller Api/ReservaController --api
+php artisan make:controller Api/RutaEjecutadaController --api
+php artisan make:controller Api/VentaController --api
+php artisan make:controller Api/AuditoriaController --api
+php artisan make:controller Api/DashboardController
+
+# ========================================
+# 📚 RECURSOS API (API RESOURCES)
+# ========================================
+
+# Crear resource individual
+php artisan make:resource PersonaResource
+
+# Crear resource collection
+php artisan make:resource PersonaCollection
+
+# Crear ambos (resource y collection)
+php artisan make:resource Persona --collection
+
+# Resources específicos Magic Travel
+php artisan make:resource TipoPersonaResource
+php artisan make:resource PaisResource
+php artisan make:resource RoleResource
+php artisan make:resource EstadoEmpleadoResource
+php artisan make:resource TipoClienteResource
+php artisan make:resource TipoLicenciaResource
+php artisan make:resource TipoVehiculoResource
+php artisan make:resource TipoCombustibleResource
+php artisan make:resource EstadoVehiculoResource
+php artisan make:resource TipoAgenciaResource
+php artisan make:resource FormaPagoResource
+php artisan make:resource EstadoComercialResource
+php artisan make:resource EstadoRutaResource
+php artisan make:resource EstadoReservaResource
+php artisan make:resource TipoVentaResource
+php artisan make:resource EstadoVentaResource
+php artisan make:resource EstadoPagoResource
+php artisan make:resource PersonaResource
+php artisan make:resource EmpleadoResource
+php artisan make:resource ClienteResource
+php artisan make:resource ChoferDetalleResource
+php artisan make:resource VehiculoResource
+php artisan make:resource AgenciaResource
+php artisan make:resource RutaResource
+php artisan make:resource ReservaResource
+php artisan make:resource RutaEjecutadaResource
+php artisan make:resource VentaResource
+php artisan make:resource AuditoriaResource
+
+# ========================================
+# 🔐 AUTENTICACIÓN Y MIDDLEWARES
+# ========================================
+
+# Crear middleware personalizado
+php artisan make:middleware AuditoriaMiddleware
+php artisan make:middleware RoleMiddleware
+php artisan make:middleware ApiAuthMiddleware
+
+# Crear requests de validación
+php artisan make:request StorePersonaRequest
+php artisan make:request UpdatePersonaRequest
+php artisan make:request StoreEmpleadoRequest
+php artisan make:request UpdateEmpleadoRequest
+
+# ========================================
+# 🌱 SEEDERS Y FACTORIES
+# ========================================
+
+# Crear seeder
+php artisan make:seeder TipoPersonaSeeder
+php artisan make:seeder PaisSeeder
+php artisan make:seeder RoleSeeder
+php artisan make:seeder DatabaseSeeder
+
+# Ejecutar todos los seeders
+php artisan db:seed
+
+# Ejecutar seeder específico
+php artisan db:seed --class=TipoPersonaSeeder
+
+# Crear factory
+php artisan make:factory PersonaFactory
+php artisan make:factory EmpleadoFactory
+
+# ========================================
+# 🔧 CACHE Y OPTIMIZACIÓN
+# ========================================
+
+# Limpiar cache de configuración
+php artisan config:clear
+
+# Limpiar cache de rutas
+php artisan route:clear
+
+# Limpiar cache de vistas
+php artisan view:clear
+
+# Limpiar todos los caches
+php artisan optimize:clear
+
+# Crear cache optimizado para producción
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+
+# ========================================
+# 📊 COMANDOS DE INFORMACIÓN
+# ========================================
+
+# Ver todas las rutas de la aplicación
+php artisan route:list
+
+# Ver rutas de API específicamente
+php artisan route:list --name=api
+
+# Ver información del entorno
+php artisan about
+
+# Ver configuración de base de datos
+php artisan config:show database
+
+# Inspeccionar modelo
+php artisan model:show Persona
+
+# ========================================
+# 🧪 TESTING
+# ========================================
+
+# Crear test de feature
+php artisan make:test PersonaApiTest
+
+# Crear test de unit
+php artisan make:test PersonaModelTest --unit
+
+# Ejecutar tests
+php artisan test
+
+# Ejecutar tests específicos
+php artisan test --filter PersonaApiTest
+
+# ========================================
+# 📦 COMPOSER - GESTIÓN DE DEPENDENCIAS
+# ========================================
+
+# Instalar dependencias
+composer install
+
+# Actualizar dependencias
+composer update
+
+# Instalar paquete específico
+composer require package/name
+
+# Instalar paquete de desarrollo
+composer require --dev package/name
+
+# Paquetes útiles para Magic Travel
+composer require laravel/sanctum
+composer require spatie/laravel-cors
+composer require spatie/laravel-query-builder
+
+# ========================================
+# ⚛️ FRONTEND REACT/VITE
+# ========================================
+
+# Instalar dependencias de Node
+npm install
+
+# Ejecutar servidor de desarrollo
+npm run dev
+
+# Construir para producción
+npm run build
+
+# Ejecutar con hot reload
+npm run dev -- --host 0.0.0.0
+
+# ========================================
+# 🚀 COMANDOS DE DESARROLLO ESPECÍFICOS
+# ========================================
+
+# Generar clave de aplicación
+php artisan key:generate
+
+# Crear enlace simbólico para storage
+php artisan storage:link
+
+# Crear comando artisan personalizado
+php artisan make:command ProcessReservations
+
+# Crear job para colas
+php artisan make:job ProcessPayment
+
+# Crear event y listener
+php artisan make:event ReservaCreated
+php artisan make:listener SendReservaNotification
+
+# ========================================
+# 📋 COMANDOS ESPECÍFICOS MAGIC TRAVEL
+# ========================================
+
+# Comando personalizado para generar códigos
+php artisan make:command GenerateReservationCode
+
+# Comando para monitor inteligente de rutas
+php artisan make:command MonitorRutasCapacidad
+
+# Comando para respaldo automático
+php artisan make:command BackupDatabase
+
+# ========================================
+# 🔄 FLUJO DE TRABAJO COMPLETO
+# ========================================
+
+# 1. Crear modelo completo con todo
+php artisan make:model NuevoModelo -a
+
+# 2. Crear migración
+php artisan make:migration create_nuevo_modelo_table
+
+# 3. Ejecutar migración
+php artisan migrate
+
+# 4. Crear controlador API
+php artisan make:controller Api/NuevoModeloController --api
+
+# 5. Crear resource
+php artisan make:resource NuevoModeloResource
+
+# 6. Crear requests de validación
+php artisan make:request StoreNuevoModeloRequest
+php artisan make:request UpdateNuevoModeloRequest
+
+# 7. Crear factory y seeder
+php artisan make:factory NuevoModeloFactory
+php artisan make:seeder NuevoModeloSeeder
+
+# 8. Limpiar cache
+php artisan optimize:clear
+
+# ========================================
+# 🚨 COMANDOS DE EMERGENCIA
+# ========================================
+
+# Rollback completo de migraciones
+php artisan migrate:reset
+
+# Recrear base de datos completa
+php artisan migrate:fresh
+
+# Recrear con seeders
+php artisan migrate:fresh --seed
+
+# Limpiar todo el cache
+php artisan optimize:clear
+
+# Reconstruir autoload de composer
+composer dump-autoload
+
+# ========================================
+# 📝 NOTAS IMPORTANTES
+# ========================================
+
+# 1. Siempre ejecutar comandos desde el contenedor PHP:
+#    docker exec -it magictravel_php bash
+
+# 2. Para accesos directos, verificar que PHP esté instalado localmente
+
+# 3. Los comandos de migración son irreversibles en producción
+
+# 4. Siempre respaldar base de datos antes de cambios importantes
+
+# 5. Usar --force solo en producción cuando sea necesario
+
+# ========================================
+# 🔗 ACCESOS RÁPIDOS
+# ========================================
+
+# Laravel App: http://localhost:8080
+# PhpMyAdmin: http://localhost:8081
+# React Dev: http://localhost:5173
+# MySQL directo: localhost:3306
+
+# ========================================
+# 📞 CREDENCIALES
+# ========================================
+
+# MySQL:
+# Host: mysql (interno) / localhost:3306 (externo)
+# Usuario: mt_app
+# Contraseña: MagicTravel_2025!
+# Base de datos: magictravel
+
+# PhpMyAdmin:
+# URL: http://localhost:8081
+# Usuario: mt_app
+# Contraseña: MagicTravel_2025!
