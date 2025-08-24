@@ -12,6 +12,7 @@
     },
     "devDependencies": {
         "@babel/core": "^7.28.0",
+        "@babel/plugin-syntax-jsx": "^7.27.1",
         "@babel/preset-react": "^7.27.1",
         "@vitejs/plugin-react": "^4.2.0",
         "autoprefixer": "^10.4.16",
