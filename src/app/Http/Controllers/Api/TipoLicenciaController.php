@@ -2,48 +2,29 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Models\TipoLicencia;
+use App\Http\Resources\TipoLicenciaResource;
 
-class TipoLicenciaController extends Controller
+class TipoLicenciaController extends BaseCatalogoController
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function __construct()
     {
-        //
-    }
+        $this->model = TipoLicencia::class;
+        $this->resource = TipoLicenciaResource::class;
+        $this->searchField = 'nombre_tipo';
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
+        $this->storeRules = [
+            'codigo' => 'required|string|max:5|unique:tipos_licencia,codigo',
+            'nombre_tipo' => 'required|string|max:100',
+            'descripcion' => 'nullable|string'
+        ];
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
+        $this->updateRules = [
+            'codigo' => 'sometimes|required|string|max:5|unique:tipos_licencia,codigo',
+            'nombre_tipo' => 'sometimes|required|string|max:100',
+            'descripcion' => 'sometimes|nullable|string'
+        ];
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        $this->relationships = [];
     }
 }

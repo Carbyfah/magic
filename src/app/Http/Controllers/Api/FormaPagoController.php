@@ -2,48 +2,35 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Models\FormaPago;
+use App\Http\Resources\FormaPagoResource;
 
-class FormaPagoController extends Controller
+class FormaPagoController extends BaseCatalogoController
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function __construct()
     {
-        //
-    }
+        $this->model = FormaPago::class;
+        $this->resource = FormaPagoResource::class;
+        $this->searchField = 'nombre_forma';
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
+        $this->storeRules = [
+            'codigo' => 'required|string|max:10|unique:formas_pago,codigo',
+            'nombre_forma' => 'required|string|max:100',
+            'descripcion' => 'nullable|string',
+            'requiere_comprobante' => 'boolean',
+            'genera_credito' => 'boolean',
+            'dias_credito' => 'integer|min:0'
+        ];
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
+        $this->updateRules = [
+            'codigo' => 'sometimes|required|string|max:10|unique:formas_pago,codigo',
+            'nombre_forma' => 'sometimes|required|string|max:100',
+            'descripcion' => 'sometimes|nullable|string',
+            'requiere_comprobante' => 'sometimes|boolean',
+            'genera_credito' => 'sometimes|boolean',
+            'dias_credito' => 'sometimes|integer|min:0'
+        ];
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        $this->relationships = [];
     }
 }

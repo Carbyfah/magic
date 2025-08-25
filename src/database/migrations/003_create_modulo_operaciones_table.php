@@ -32,12 +32,14 @@ return new class extends Migration
             $table->date('vencimiento_tarjeta_circulacion')->nullable();
             $table->string('poliza_seguro', 100)->nullable();
             $table->date('vencimiento_seguro')->nullable();
+            $table->integer('kilometraje_actual')->default(0); // Para mantenimiento
+            $table->date('fecha_ultimo_servicio')->nullable(); // Control mantenimiento
             $table->unsignedBigInteger('estado_vehiculo_id');
             $table->boolean('situacion')->default(1);
             $table->timestamps();
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();
-            $table->timestamp('deleted_at')->nullable();
+            $table->softDeletes();
 
             // Foreign Keys
             $table->foreign('tipo_vehiculo_id')->references('id')->on('tipos_vehiculo');
@@ -65,13 +67,15 @@ return new class extends Migration
             $table->string('contacto_email', 255)->nullable();
             $table->unsignedBigInteger('tipo_agencia_id');
             $table->decimal('comision_porcentaje', 5, 2)->default(10.00);
+            $table->decimal('limite_credito', 10, 2)->default(0.00); // Control crediticio
+            $table->date('fecha_inicio_relacion')->nullable(); // Historial
             $table->unsignedBigInteger('forma_pago_id');
             $table->unsignedBigInteger('estado_comercial_id');
             $table->boolean('situacion')->default(1);
             $table->timestamps();
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();
-            $table->timestamp('deleted_at')->nullable();
+            $table->softDeletes();
 
             // Foreign Keys
             $table->foreign('pais_id')->references('id')->on('paises');
@@ -85,6 +89,7 @@ return new class extends Migration
             $table->id();
             $table->string('codigo_ruta', 50)->unique();
             $table->string('nombre_ruta', 255);
+            $table->enum('tipo_servicio', ['shuttle', 'tour', 'transfer', 'privado'])->default('shuttle');
             $table->string('ciudad_origen', 100);
             $table->string('ciudad_destino', 100);
             $table->string('punto_salida', 255)->nullable();
@@ -92,25 +97,20 @@ return new class extends Migration
             $table->decimal('distancia_km', 8, 2)->nullable();
             $table->time('hora_salida');
             $table->time('hora_llegada_estimada')->nullable();
-            $table->integer('duracion_vehiculo')->nullable();
+            $table->integer('duracion_minutos')->nullable(); // Más claro que "duracion_vehiculo"
             $table->integer('capacidad_maxima')->default(50);
             $table->integer('capacidad_recomendada')->default(45);
             $table->unsignedBigInteger('tipo_vehiculo_id');
-            $table->boolean('opera_lunes')->default(1);
-            $table->boolean('opera_martes')->default(1);
-            $table->boolean('opera_miercoles')->default(1);
-            $table->boolean('opera_jueves')->default(1);
-            $table->boolean('opera_viernes')->default(1);
-            $table->boolean('opera_sabado')->default(1);
-            $table->boolean('opera_domingo')->default(1);
+            $table->string('dias_operacion', 7)->default('1111111'); // "1111111" = todos los días
             $table->decimal('precio_adulto', 8, 2);
             $table->decimal('precio_nino', 8, 2)->nullable();
+            $table->text('incluye')->nullable(); // Qué incluye el servicio
             $table->unsignedBigInteger('estado_ruta_id');
             $table->boolean('situacion')->default(1);
             $table->timestamps();
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();
-            $table->timestamp('deleted_at')->nullable();
+            $table->softDeletes();
 
             // Foreign Keys
             $table->foreign('tipo_vehiculo_id')->references('id')->on('tipos_vehiculo');

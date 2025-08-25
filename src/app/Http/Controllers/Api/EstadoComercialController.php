@@ -2,48 +2,31 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Models\EstadoComercial;
+use App\Http\Resources\EstadoComercialResource;
 
-class EstadoComercialController extends Controller
+class EstadoComercialController extends BaseCatalogoController
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function __construct()
     {
-        //
-    }
+        $this->model = EstadoComercial::class;
+        $this->resource = EstadoComercialResource::class;
+        $this->searchField = 'nombre_estado';
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
+        $this->storeRules = [
+            'codigo' => 'required|string|max:10|unique:estados_comercial,codigo',
+            'nombre_estado' => 'required|string|max:100',
+            'descripcion' => 'nullable|string',
+            'color_hex' => 'nullable|string|max:7|regex:/^#[0-9A-Fa-f]{6}$/'
+        ];
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
+        $this->updateRules = [
+            'codigo' => 'sometimes|required|string|max:10|unique:estados_comercial,codigo',
+            'nombre_estado' => 'sometimes|required|string|max:100',
+            'descripcion' => 'sometimes|nullable|string',
+            'color_hex' => 'sometimes|nullable|string|max:7|regex:/^#[0-9A-Fa-f]{6}$/'
+        ];
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        $this->relationships = [];
     }
 }

@@ -3,16 +3,19 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Traits\HasAudit;
 
 class Persona extends Model
 {
+    use SoftDeletes, HasAudit;
+
     protected $table = 'personas';
 
     protected $fillable = [
         'nombres',
         'apellidos',
+        'documento_identidad',
         'email',
         'telefono_principal',
         'whatsapp',
@@ -23,28 +26,48 @@ class Persona extends Model
 
     protected $casts = [
         'situacion' => 'boolean',
-        'deleted_at' => 'datetime'
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime'
     ];
 
-    // Relaciones
-    public function tipoPersona(): BelongsTo
+    protected $hidden = [
+        'created_by',
+        'updated_by',
+        'deleted_at'
+    ];
+
+    public function getNombreCompletoAttribute()
+    {
+        return $this->nombres . ' ' . $this->apellidos;
+    }
+
+    public function tipoPersona()
     {
         return $this->belongsTo(TipoPersona::class);
     }
 
-    public function empleado(): HasOne
+    public function empleado()
     {
         return $this->hasOne(Empleado::class);
     }
 
-    public function cliente(): HasOne
+    public function cliente()
     {
         return $this->hasOne(Cliente::class);
     }
 
-    // Accessor para nombre completo
-    public function getNombreCompletoAttribute(): string
+    public function scopeBuscar($query, $termino)
     {
-        return "{$this->nombres} {$this->apellidos}";
+        return $query->where(function ($q) use ($termino) {
+            $q->where('nombres', 'like', "%{$termino}%")
+                ->orWhere('apellidos', 'like', "%{$termino}%")
+                ->orWhere('documento_identidad', 'like', "%{$termino}%")
+                ->orWhere('email', 'like', "%{$termino}%");
+        });
+    }
+
+    public function scopePorTipo($query, $tipoId)
+    {
+        return $query->where('tipo_persona_id', $tipoId);
     }
 }

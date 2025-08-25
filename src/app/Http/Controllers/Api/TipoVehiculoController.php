@@ -2,48 +2,31 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Models\TipoVehiculo;
+use App\Http\Resources\TipoVehiculoResource;
 
-class TipoVehiculoController extends Controller
+class TipoVehiculoController extends BaseCatalogoController
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function __construct()
     {
-        //
-    }
+        $this->model = TipoVehiculo::class;
+        $this->resource = TipoVehiculoResource::class;
+        $this->searchField = 'nombre_tipo';
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
+        $this->storeRules = [
+            'codigo' => 'required|string|max:10|unique:tipos_vehiculo,codigo',
+            'nombre_tipo' => 'required|string|max:100',
+            'capacidad_estandar' => 'integer|min:1',
+            'descripcion' => 'nullable|string'
+        ];
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
+        $this->updateRules = [
+            'codigo' => 'sometimes|required|string|max:10|unique:tipos_vehiculo,codigo',
+            'nombre_tipo' => 'sometimes|required|string|max:100',
+            'capacidad_estandar' => 'sometimes|integer|min:1',
+            'descripcion' => 'sometimes|nullable|string'
+        ];
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        $this->relationships = [];
     }
 }

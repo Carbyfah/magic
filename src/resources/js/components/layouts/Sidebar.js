@@ -1,16 +1,91 @@
 // src/resources/js/components/layouts/Sidebar.js
 import React from 'react';
-const { createElement: e } = React;
+import Icons from '../../utils/Icons'; // Importar iconos
+const { createElement: e, useState } = React;
 
 function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
-    const menuItems = [
-        { id: 'dashboard', icon: '🏠', label: 'Dashboard' },
-        { id: 'reservaciones', icon: '📅', label: 'Reservaciones' },
-        { id: 'rutas', icon: '🛣️', label: 'Rutas & Servicios' },
-        { id: 'agencias', icon: '🏢', label: 'Agencias' },
-        { id: 'clientes', icon: '👥', label: 'Clientes' },
-        { id: 'flota', icon: '🚌', label: 'Flota' },
-        { id: 'finanzas', icon: '💰', label: 'Finanzas' }
+    const [expandedSections, setExpandedSections] = useState({
+        operacion: true,
+        comercial: false,
+        flota: false,
+        reportes: false,
+        configuracion: false
+    });
+
+    const toggleSection = (section) => {
+        if (!collapsed) {
+            setExpandedSections(prev => ({
+                ...prev,
+                [section]: !prev[section]
+            }));
+        }
+    };
+
+    const menuStructure = [
+        {
+            id: 'dashboard',
+            label: 'Dashboard',
+            icon: Icons.dashboard(),
+            type: 'single'
+        },
+        {
+            id: 'operacion',
+            label: 'OPERACIÓN DIARIA',
+            icon: Icons.operacion(),
+            type: 'section',
+            children: [
+                { id: 'reservas', label: 'Reservas', icon: Icons.calendar() },
+                { id: 'rutas-dia', label: 'Rutas del Día', icon: Icons.map() },
+                { id: 'control-flota', label: 'Control de Flota', icon: Icons.truck() },
+                { id: 'pasajeros', label: 'Pasajeros', icon: Icons.users() }
+            ]
+        },
+        {
+            id: 'comercial',
+            label: 'COMERCIAL',
+            icon: Icons.comercial(),
+            type: 'section',
+            children: [
+                { id: 'ventas', label: 'Ventas', icon: Icons.dollar() },
+                { id: 'pagos', label: 'Pagos', icon: Icons.creditCard() },
+                { id: 'agencias', label: 'Agencias', icon: Icons.building() },
+                { id: 'clientes', label: 'Clientes', icon: Icons.user() }
+            ]
+        },
+        {
+            id: 'flota',
+            label: 'FLOTA Y PERSONAL',
+            icon: Icons.flota(),
+            type: 'section',
+            children: [
+                { id: 'vehiculos', label: 'Vehículos', icon: Icons.truck() },
+                { id: 'choferes', label: 'Choferes', icon: Icons.user() },
+                { id: 'empleados', label: 'Empleados', icon: Icons.users() }
+            ]
+        },
+        {
+            id: 'reportes',
+            label: 'REPORTES',
+            icon: Icons.reportes(),
+            type: 'section',
+            children: [
+                { id: 'reporte-ventas', label: 'Ventas', icon: Icons.dollar() },
+                { id: 'reporte-operacion', label: 'Operación', icon: Icons.truck() },
+                { id: 'reporte-financiero', label: 'Financiero', icon: Icons.creditCard() },
+                { id: 'auditoria', label: 'Auditoría', icon: Icons.calendar() }
+            ]
+        },
+        {
+            id: 'configuracion',
+            label: 'CONFIGURACIÓN',
+            icon: Icons.configuracion(),
+            type: 'section',
+            children: [
+                { id: 'rutas-servicios', label: 'Rutas y Servicios', icon: Icons.map() },
+                { id: 'catalogos', label: 'Catálogos', icon: Icons.calendar() },
+                { id: 'usuarios', label: 'Usuarios y Permisos', icon: Icons.users() }
+            ]
+        }
     ];
 
     return e('aside', {
@@ -18,111 +93,146 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
             position: 'fixed',
             left: 0,
             top: '64px',
-            width: collapsed ? '80px' : '260px', // ← ANCHO DINÁMICO
+            width: collapsed ? '80px' : '280px',
             height: 'calc(100vh - 64px)',
-            backgroundColor: 'white',
+            backgroundColor: '#ffffff',
             borderRight: '1px solid #e2e8f0',
             overflowY: 'auto',
             overflowX: 'hidden',
             zIndex: 900,
-            transition: 'width 0.3s ease' // ← ANIMACIÓN
+            transition: 'width 0.3s ease'
         }
     }, [
-        // Quick Stats - Solo mostrar si no está colapsado
-        !collapsed && e('div', {
-            key: 'quickStats',
-            style: {
-                padding: '1rem',
-                borderBottom: '1px solid #f1f5f9'
-            }
-        }, [
-            e('div', {
-                key: 'statsGrid',
-                style: {
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: '8px'
-                }
-            }, [
-                e('div', {
-                    key: 'stat1',
-                    style: {
-                        backgroundColor: '#dbeafe',
-                        padding: '8px',
-                        borderRadius: '6px',
-                        textAlign: 'center'
-                    }
-                }, [
-                    e('div', {
-                        key: 'value1',
-                        style: { fontWeight: 'bold', color: '#1d4ed8' }
-                    }, '24'),
-                    e('div', {
-                        key: 'label1',
-                        style: { fontSize: '10px', color: '#3730a3' }
-                    }, 'Reservas')
-                ]),
-                e('div', {
-                    key: 'stat2',
-                    style: {
-                        backgroundColor: '#dcfce7',
-                        padding: '8px',
-                        borderRadius: '6px',
-                        textAlign: 'center'
-                    }
-                }, [
-                    e('div', {
-                        key: 'value2',
-                        style: { fontWeight: 'bold', color: '#166534' }
-                    }, '6'),
-                    e('div', {
-                        key: 'label2',
-                        style: { fontSize: '10px', color: '#15803d' }
-                    }, 'Rutas')
-                ])
-            ])
-        ]),
-
-        // Navigation Menu
+        // Navigation Menu (SIN STATS)
         e('nav', {
             key: 'nav',
-            style: { padding: '1rem 0' }
-        }, menuItems.map((item) =>
-            e('div', {
-                key: item.id,
-                style: { marginBottom: '4px' }
-            }, [
-                e('div', {
-                    key: 'mainItem',
+            style: {
+                padding: collapsed ? '0.5rem 0' : '1rem 0'
+            }
+        }, menuStructure.map((item) => {
+            if (item.type === 'single') {
+                return e('div', {
+                    key: item.id,
                     onClick: () => onModuleChange(item.id),
-                    title: collapsed ? item.label : '', // ← TOOLTIP cuando está colapsado
+                    title: collapsed ? item.label : '',
                     style: {
                         display: 'flex',
                         alignItems: 'center',
                         gap: '12px',
-                        padding: collapsed ? '10px' : '10px 16px', // ← PADDING DINÁMICO
-                        margin: '0 8px',
+                        padding: collapsed ? '12px' : '12px 20px',
+                        margin: '0 8px 4px 8px',
                         borderRadius: '8px',
-                        backgroundColor: activeModule === item.id ? '#eff6ff' : 'transparent',
-                        color: activeModule === item.id ? '#1d4ed8' : '#374151',
+                        backgroundColor: activeModule === item.id ? '#f0f4ff' : 'transparent',
+                        color: activeModule === item.id ? '#4f46e5' : '#4b5563',
                         cursor: 'pointer',
                         transition: 'all 0.2s',
-                        justifyContent: collapsed ? 'center' : 'flex-start' // ← CENTRAR ICONO
+                        justifyContent: collapsed ? 'center' : 'flex-start'
+                    },
+                    onMouseEnter: (e) => {
+                        if (activeModule !== item.id) {
+                            e.currentTarget.style.backgroundColor = '#f9fafb';
+                        }
+                    },
+                    onMouseLeave: (e) => {
+                        if (activeModule !== item.id) {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                        }
                     }
                 }, [
-                    e('span', {
-                        key: 'icon',
-                        style: { fontSize: collapsed ? '24px' : '20px' } // ← ICONO MÁS GRANDE
-                    }, item.icon),
-                    !collapsed && e('span', { // ← OCULTAR TEXTO
+                    e('div', { key: 'icon', style: { display: 'flex', alignItems: 'center' } }, item.icon),
+                    !collapsed && e('span', {
                         key: 'label',
                         style: { fontWeight: activeModule === item.id ? '600' : '500' }
                     }, item.label)
-                ])
-            ])
-        )),
+                ]);
+            } else {
+                // Section with children
+                const isExpanded = expandedSections[item.id];
+                return e('div', { key: item.id, style: { marginBottom: '4px' } }, [
+                    // Section Header
+                    e('div', {
+                        key: 'header',
+                        onClick: () => toggleSection(item.id),
+                        style: {
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: collapsed ? 'center' : 'space-between',
+                            padding: collapsed ? '12px' : '10px 20px',
+                            margin: '0 8px',
+                            borderRadius: '8px',
+                            backgroundColor: collapsed ? 'transparent' : '#f9fafb',
+                            color: '#6b7280',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            fontSize: collapsed ? '20px' : '11px',
+                            fontWeight: '600',
+                            letterSpacing: collapsed ? '0' : '0.05em',
+                            textTransform: collapsed ? 'none' : 'uppercase'
+                        }
+                    }, [
+                        e('div', {
+                            key: 'left',
+                            style: {
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px'
+                            }
+                        }, [
+                            e('div', { key: 'icon', style: { display: 'flex', alignItems: 'center' } }, item.icon),
+                            !collapsed && e('span', { key: 'label' }, item.label)
+                        ]),
+                        !collapsed && e('div', {
+                            key: 'chevron',
+                            style: {
+                                transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                transition: 'transform 0.2s'
+                            }
+                        }, Icons.chevronDown())
+                    ]),
+                    // Children Items
+                    !collapsed && isExpanded && e('div', {
+                        key: 'children',
+                        style: {
+                            marginLeft: '20px',
+                            marginTop: '4px'
+                        }
+                    }, item.children.map(child =>
+                        e('div', {
+                            key: child.id,
+                            onClick: () => onModuleChange(child.id),
+                            style: {
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                padding: '8px 20px',
+                                marginBottom: '2px',
+                                borderRadius: '6px',
+                                backgroundColor: activeModule === child.id ? '#f0f4ff' : 'transparent',
+                                color: activeModule === child.id ? '#4f46e5' : '#6b7280',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                fontSize: '14px'
+                            },
+                            onMouseEnter: (e) => {
+                                if (activeModule !== child.id) {
+                                    e.currentTarget.style.backgroundColor = '#f9fafb';
+                                }
+                            },
+                            onMouseLeave: (e) => {
+                                if (activeModule !== child.id) {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                }
+                            }
+                        }, [
+                            e('div', { key: 'icon', style: { display: 'flex', alignItems: 'center', opacity: 0.7 } }, child.icon),
+                            e('span', { key: 'label' }, child.label)
+                        ])
+                    ))
+                ]);
+            }
+        })),
 
-        // Botón de colapsar al final
+        // Toggle Button
         e('div', {
             key: 'toggleBtn',
             style: {
@@ -135,7 +245,7 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
             e('button', {
                 onClick: onToggle,
                 style: {
-                    width: collapsed ? '40px' : '200px',
+                    width: collapsed ? '40px' : '240px',
                     height: '40px',
                     backgroundColor: '#f3f4f6',
                     border: 'none',
@@ -148,6 +258,12 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
                     transition: 'all 0.3s',
                     fontSize: '14px',
                     color: '#6b7280'
+                },
+                onMouseEnter: (e) => {
+                    e.currentTarget.style.backgroundColor = '#e5e7eb';
+                },
+                onMouseLeave: (e) => {
+                    e.currentTarget.style.backgroundColor = '#f3f4f6';
                 }
             }, [
                 e('span', { key: 'icon' }, collapsed ? '→' : '←'),

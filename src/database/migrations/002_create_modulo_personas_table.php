@@ -18,6 +18,7 @@ return new class extends Migration
             $table->id();
             $table->string('nombres', 100);
             $table->string('apellidos', 100);
+            $table->string('documento_identidad', 50)->nullable()->index(); // DPI/Pasaporte
             $table->string('email', 255)->nullable();
             $table->string('telefono_principal', 20)->nullable();
             $table->string('whatsapp', 20)->nullable();
@@ -27,7 +28,10 @@ return new class extends Migration
             $table->timestamps();
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();
-            $table->timestamp('deleted_at')->nullable();
+            $table->softDeletes();
+
+            // Indexes
+            $table->index(['nombres', 'apellidos']); // Búsquedas rápidas
 
             // Foreign Keys
             $table->foreign('tipo_persona_id')->references('id')->on('tipos_persona');
@@ -39,13 +43,16 @@ return new class extends Migration
             $table->unsignedBigInteger('persona_id')->unique();
             $table->string('codigo_empleado', 50)->unique();
             $table->string('password', 255)->nullable();
+            $table->date('fecha_ingreso')->nullable(); // Para antigüedad/prestaciones
+            $table->date('fecha_baja')->nullable(); // Si ya no trabaja
             $table->unsignedBigInteger('rol_id');
             $table->unsignedBigInteger('estado_empleado_id');
+            $table->datetime('ultimo_acceso')->nullable(); // Control de acceso
             $table->boolean('situacion')->default(1);
             $table->timestamps();
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();
-            $table->timestamp('deleted_at')->nullable();
+            $table->softDeletes();
 
             // Foreign Keys
             $table->foreign('persona_id')->references('id')->on('personas');
@@ -61,11 +68,14 @@ return new class extends Migration
             $table->unsignedBigInteger('tipo_cliente_id');
             $table->unsignedBigInteger('pais_residencia_id')->nullable();
             $table->string('ciudad_residencia', 100)->nullable();
+            $table->date('fecha_registro')->nullable(); // Primera vez como cliente
+            $table->decimal('limite_credito', 10, 2)->default(0.00); // Control crediticio
+            $table->string('referido_por', 100)->nullable(); // Marketing/tracking
             $table->boolean('situacion')->default(1);
             $table->timestamps();
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();
-            $table->timestamp('deleted_at')->nullable();
+            $table->softDeletes();
 
             // Foreign Keys
             $table->foreign('persona_id')->references('id')->on('personas');
@@ -77,17 +87,18 @@ return new class extends Migration
         Schema::create('choferes_detalle', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('empleado_id')->unique();
-            $table->string('dpi', 20)->unique();
             $table->string('numero_licencia', 50)->unique();
             $table->unsignedBigInteger('tipo_licencia_id');
             $table->date('fecha_emision_licencia');
             $table->date('fecha_vencimiento_licencia');
-            $table->boolean('licencia_vigente')->default(1);
+            $table->date('fecha_ultimo_examen_medico')->nullable(); // Control médico
+            $table->boolean('apto_turismo')->default(1); // Si puede manejar con turistas
+            $table->integer('anos_experiencia')->default(0); // Experiencia
             $table->boolean('situacion')->default(1);
             $table->timestamps();
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();
-            $table->timestamp('deleted_at')->nullable();
+            $table->softDeletes();
 
             // Foreign Keys
             $table->foreign('empleado_id')->references('id')->on('empleados');

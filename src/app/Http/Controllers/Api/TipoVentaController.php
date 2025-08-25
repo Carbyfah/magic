@@ -2,48 +2,33 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Models\TipoVenta;
+use App\Http\Resources\TipoVentaResource;
 
-class TipoVentaController extends Controller
+class TipoVentaController extends BaseCatalogoController
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function __construct()
     {
-        //
-    }
+        $this->model = TipoVenta::class;
+        $this->resource = TipoVentaResource::class;
+        $this->searchField = 'nombre_tipo';
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
+        $this->storeRules = [
+            'codigo' => 'required|string|max:10|unique:tipos_venta,codigo',
+            'nombre_tipo' => 'required|string|max:100',
+            'descripcion' => 'nullable|string',
+            'genera_comision' => 'boolean',
+            'requiere_voucher' => 'boolean'
+        ];
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
+        $this->updateRules = [
+            'codigo' => 'sometimes|required|string|max:10|unique:tipos_venta,codigo',
+            'nombre_tipo' => 'sometimes|required|string|max:100',
+            'descripcion' => 'sometimes|nullable|string',
+            'genera_comision' => 'sometimes|boolean',
+            'requiere_voucher' => 'sometimes|boolean'
+        ];
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        $this->relationships = [];
     }
 }

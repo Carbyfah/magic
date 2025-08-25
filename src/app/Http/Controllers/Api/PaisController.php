@@ -2,48 +2,31 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Models\Pais;
+use App\Http\Resources\PaisResource;
 
-class PaisController extends Controller
+class PaisController extends BaseCatalogoController
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function __construct()
     {
-        //
-    }
+        $this->model = Pais::class;
+        $this->resource = PaisResource::class;
+        $this->searchField = 'nombre_pais';
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
+        $this->storeRules = [
+            'nombre_pais' => 'required|string|max:100',
+            'codigo_iso2' => 'required|string|size:2|unique:paises,codigo_iso2',
+            'codigo_iso3' => 'required|string|size:3|unique:paises,codigo_iso3',
+            'codigo_telefono' => 'nullable|string|max:5'
+        ];
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
+        $this->updateRules = [
+            'nombre_pais' => 'sometimes|required|string|max:100',
+            'codigo_iso2' => 'sometimes|required|string|size:2|unique:paises,codigo_iso2',
+            'codigo_iso3' => 'sometimes|required|string|size:3|unique:paises,codigo_iso3',
+            'codigo_telefono' => 'sometimes|nullable|string|max:5'
+        ];
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        $this->relationships = [];
     }
 }

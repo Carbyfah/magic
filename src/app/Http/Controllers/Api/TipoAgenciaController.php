@@ -2,48 +2,29 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Models\TipoAgencia;
+use App\Http\Resources\TipoAgenciaResource;
 
-class TipoAgenciaController extends Controller
+class TipoAgenciaController extends BaseCatalogoController
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function __construct()
     {
-        //
-    }
+        $this->model = TipoAgencia::class;
+        $this->resource = TipoAgenciaResource::class;
+        $this->searchField = 'nombre_tipo';
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
+        $this->storeRules = [
+            'codigo' => 'required|string|max:10|unique:tipos_agencia,codigo',
+            'nombre_tipo' => 'required|string|max:100',
+            'descripcion' => 'nullable|string'
+        ];
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
+        $this->updateRules = [
+            'codigo' => 'sometimes|required|string|max:10|unique:tipos_agencia,codigo',
+            'nombre_tipo' => 'sometimes|required|string|max:100',
+            'descripcion' => 'sometimes|nullable|string'
+        ];
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        $this->relationships = [];
     }
 }

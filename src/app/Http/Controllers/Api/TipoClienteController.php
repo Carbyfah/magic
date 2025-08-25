@@ -2,48 +2,37 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Models\TipoCliente;
+use App\Http\Resources\TipoClienteResource;
 
-class TipoClienteController extends Controller
+class TipoClienteController extends BaseCatalogoController
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function __construct()
     {
-        //
-    }
+        $this->model = TipoCliente::class;
+        $this->resource = TipoClienteResource::class;
+        $this->searchField = 'nombre_tipo';
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
+        $this->storeRules = [
+            'codigo' => 'required|string|max:10|unique:tipos_cliente,codigo',
+            'nombre_tipo' => 'required|string|max:100',
+            'descripcion' => 'nullable|string',
+            'descuento_default' => 'numeric|min:0|max:100',
+            'requiere_credito' => 'boolean',
+            'dias_credito' => 'integer|min:0',
+            'prioridad' => 'integer|min:1'
+        ];
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
+        $this->updateRules = [
+            'codigo' => 'sometimes|required|string|max:10|unique:tipos_cliente,codigo',
+            'nombre_tipo' => 'sometimes|required|string|max:100',
+            'descripcion' => 'sometimes|nullable|string',
+            'descuento_default' => 'sometimes|numeric|min:0|max:100',
+            'requiere_credito' => 'sometimes|boolean',
+            'dias_credito' => 'sometimes|integer|min:0',
+            'prioridad' => 'sometimes|integer|min:1'
+        ];
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        $this->relationships = [];
     }
 }

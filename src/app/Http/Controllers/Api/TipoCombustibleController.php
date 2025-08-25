@@ -2,48 +2,29 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Models\TipoCombustible;
+use App\Http\Resources\TipoCombustibleResource;
 
-class TipoCombustibleController extends Controller
+class TipoCombustibleController extends BaseCatalogoController
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function __construct()
     {
-        //
-    }
+        $this->model = TipoCombustible::class;
+        $this->resource = TipoCombustibleResource::class;
+        $this->searchField = 'nombre_combustible';
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
+        $this->storeRules = [
+            'codigo' => 'required|string|max:10|unique:tipos_combustible,codigo',
+            'nombre_combustible' => 'required|string|max:50',
+            'unidad_medida' => 'required|string|max:10'
+        ];
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
+        $this->updateRules = [
+            'codigo' => 'sometimes|required|string|max:10|unique:tipos_combustible,codigo',
+            'nombre_combustible' => 'sometimes|required|string|max:50',
+            'unidad_medida' => 'sometimes|required|string|max:10'
+        ];
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        $this->relationships = [];
     }
 }
