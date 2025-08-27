@@ -10,38 +10,21 @@ class Agencia extends Model
 {
     use SoftDeletes, HasAudit;
 
-    protected $table = 'agencias';
+    protected $table = 'agencia';
+    protected $primaryKey = 'agencia_id';
 
     protected $fillable = [
-        'codigo_agencia',
-        'razon_social',
-        'nombre_comercial',
-        'nit',
-        'registro_turistico',
-        'direccion',
-        'telefono_principal',
-        'telefono_secundario',
-        'email_principal',
-        'whatsapp',
-        'pais_id',
-        'contacto_nombre',
-        'contacto_cargo',
-        'contacto_telefono',
-        'contacto_email',
-        'tipo_agencia_id',
-        'comision_porcentaje',
-        'limite_credito',
-        'fecha_inicio_relacion',
-        'forma_pago_id',
-        'estado_comercial_id',
-        'situacion'
+        'agencia_codigo',
+        'agencia_razon_social',
+        'agencia_nit',
+        'agencia_email',
+        'agencia_telefono',
+        'agencia_situacion'
     ];
 
     protected $casts = [
-        'situacion' => 'boolean',
-        'comision_porcentaje' => 'decimal:2',
-        'limite_credito' => 'decimal:2',
-        'fecha_inicio_relacion' => 'date',
+        'agencia_telefono' => 'integer',
+        'agencia_situacion' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime'
     ];
@@ -52,140 +35,191 @@ class Agencia extends Model
         'deleted_at'
     ];
 
-    /**
-     * Boot del modelo
-     */
-    protected static function boot()
-    {
-        parent::boot();
-
-        static::creating(function ($agencia) {
-            if (empty($agencia->codigo_agencia)) {
-                $agencia->codigo_agencia = self::generarCodigoAgencia();
-            }
-        });
-    }
-
-    /**
-     * Generar código único de agencia
-     */
-    public static function generarCodigoAgencia()
-    {
-        $ultimo = self::orderBy('id', 'desc')->first();
-        $numero = $ultimo ? intval(substr($ultimo->codigo_agencia, 3)) + 1 : 1;
-        return sprintf('AGE%04d', $numero);
-    }
+    protected $appends = [
+        'es_activo',
+        'telefono_formateado',
+        'tipo_agencia'
+    ];
 
     /**
      * Relaciones
      */
-    public function pais()
+    public function contactos()
     {
-        return $this->belongsTo(Pais::class);
-    }
-
-    public function tipoAgencia()
-    {
-        return $this->belongsTo(TipoAgencia::class);
-    }
-
-    public function formaPago()
-    {
-        return $this->belongsTo(FormaPago::class);
-    }
-
-    public function estadoComercial()
-    {
-        return $this->belongsTo(EstadoComercial::class);
+        return $this->hasMany(ContactoAgencia::class, 'agencia_id', 'agencia_id');
     }
 
     public function reservas()
     {
-        return $this->hasMany(Reserva::class);
+        return $this->hasMany(Reserva::class, 'agencia_id', 'agencia_id');
     }
 
-    public function ventas()
+    public function contactoPrincipal()
     {
-        return $this->hasMany(Venta::class);
+        return $this->hasOne(ContactoAgencia::class, 'agencia_id', 'agencia_id')
+            ->where('contactos_agencia_situacion', true)
+            ->oldest();
     }
 
     /**
      * Atributos calculados
      */
-    public function getTotalVentasAttribute()
+    public function getEsActivoAttribute()
     {
-        return $this->ventas()->sum('total_venta');
+        return $this->agencia_situacion === true;
     }
 
-    public function getTotalComisionesAttribute()
+    public function getTelefonoFormateadoAttribute()
     {
-        return $this->ventas()->sum('comision_agencia');
+        if (!$this->agencia_telefono) {
+            return null;
+        }
+
+        $telefono = (string) $this->agencia_telefono;
+
+        // Formato guatemalteco: +502 1234-5678
+        if (strlen($telefono) === 11 && substr($telefono, 0, 3) === '502') {
+            return '+502 ' . substr($telefono, 3, 4) . '-' . substr($telefono, 7);
+        }
+
+        return $telefono;
     }
 
-    public function getCreditoDisponibleAttribute()
+    public function getTipoAgenciaAttribute()
     {
-        $pendiente = $this->ventas()
-            ->whereHas('estadoVenta', function ($q) {
-                $q->where('cuenta_ingreso', true);
-            })
-            ->whereDoesntHave('pagos', function ($q) {
-                $q->whereHas('estadoPago', function ($q2) {
-                    $q2->where('codigo', 'PAG');
-                });
-            })
-            ->sum('total_venta');
+        $razon = strtolower($this->agencia_razon_social ?? '');
 
-        return $this->limite_credito - $pendiente;
-    }
+        if (str_contains($razon, 'internacional')) {
+            return 'Internacional';
+        } elseif (str_contains($razon, 'tour')) {
+            return 'Operador Turístico';
+        } elseif (str_contains($razon, 'travel')) {
+            return 'Agencia de Viajes';
+        }
 
-    public function getAntiguedadAttribute()
-    {
-        if (!$this->fecha_inicio_relacion) return null;
-        return $this->fecha_inicio_relacion->diffInYears(now());
+        return 'Colaborador';
     }
 
     /**
      * Scopes
      */
-    public function scopeActivas($query)
+    public function scopeActivo($query)
     {
-        return $query->whereHas('estadoComercial', function ($q) {
-            $q->where('codigo', 'ACT');
-        });
+        return $query->where('agencia_situacion', true);
     }
 
-    public function scopePorTipo($query, $tipoId)
+    public function scopePorCodigo($query, $codigo)
     {
-        return $query->where('tipo_agencia_id', $tipoId);
+        return $query->where('agencia_codigo', $codigo);
     }
 
-    public function scopePorPais($query, $paisId)
+    public function scopeConReservas($query)
     {
-        return $query->where('pais_id', $paisId);
+        return $query->has('reservas');
     }
 
-    public function scopeBuscar($query, $termino)
+    public function scopeInternacionales($query)
     {
-        return $query->where(function ($q) use ($termino) {
-            $q->where('razon_social', 'like', "%{$termino}%")
-                ->orWhere('nombre_comercial', 'like', "%{$termino}%")
-                ->orWhere('nit', 'like', "%{$termino}%")
-                ->orWhere('codigo_agencia', 'like', "%{$termino}%");
-        });
+        return $query->where('agencia_razon_social', 'like', '%internacional%');
+    }
+
+    public function scopeOperadoresTuristicos($query)
+    {
+        return $query->where('agencia_razon_social', 'like', '%tour%');
+    }
+
+    public function scopeConContactos($query)
+    {
+        return $query->has('contactos');
+    }
+
+    /**
+     * Métodos estáticos para agencias específicas
+     */
+    public static function turismoGuatemala()
+    {
+        return self::where('agencia_codigo', 'GUAT001')->first();
+    }
+
+    public static function mayaWorldTours()
+    {
+        return self::where('agencia_codigo', 'MAYA001')->first();
+    }
+
+    public static function antiguaTours()
+    {
+        return self::where('agencia_codigo', 'ANTI001')->first();
     }
 
     /**
      * Métodos de negocio
      */
-    public function puedeOperar()
+    public function esInternacional()
     {
-        return $this->situacion &&
-            $this->estadoComercial &&
-            $this->estadoComercial->codigo === 'ACT';
+        return $this->tipo_agencia === 'Internacional';
     }
 
-    public function calcularComision($monto)
+    public function esOperadorTuristico()
     {
-        return $monto * ($this->comision_porcentaje / 100);
+        return $this->tipo_agencia === 'Operador Turístico';
+    }
+
+    public function tieneContactoActivo()
+    {
+        return $this->contactos()->where('contactos_agencia_situacion', true)->exists();
+    }
+
+    public function getTotalReservasMes()
+    {
+        return $this->reservas()
+            ->where('created_at', '>=', now()->startOfMonth())
+            ->count();
+    }
+
+    public function esClienteVip()
+    {
+        $totalUltimosTresMeses = $this->reservas()
+            ->where('created_at', '>=', now()->subMonths(3))
+            ->count();
+
+        return $this->getTotalReservasMes() > 10 || $totalUltimosTresMeses > 25;
+    }
+
+    public function ingresosTotales($fechaInicio = null, $fechaFin = null)
+    {
+        $query = $this->reservas();
+
+        if ($fechaInicio) {
+            $query->where('created_at', '>=', $fechaInicio);
+        }
+
+        if ($fechaFin) {
+            $query->where('created_at', '<=', $fechaFin);
+        }
+
+        return $query->sum('reserva_monto') ?? 0;
+    }
+
+    public function comisionesGeneradas($fechaInicio = null, $fechaFin = null)
+    {
+        return $this->ingresosTotales($fechaInicio, $fechaFin) * 0.10;
+    }
+
+    public function estaActiva()
+    {
+        $tieneReservasRecientes = $this->reservas()
+            ->where('created_at', '>=', now()->subMonths(6))
+            ->exists();
+
+        return $this->agencia_situacion &&
+            $this->tieneContactoActivo() &&
+            $tieneReservasRecientes;
+    }
+
+    public function necesitaSeguimiento()
+    {
+        return !$this->reservas()
+            ->where('created_at', '>=', now()->subMonths(2))
+            ->exists();
     }
 }

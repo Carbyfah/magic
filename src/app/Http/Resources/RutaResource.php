@@ -2,61 +2,69 @@
 
 namespace App\Http\Resources;
 
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class RutaResource extends JsonResource
 {
-    public function toArray($request)
+    public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
-            'codigo_ruta' => $this->codigo_ruta,
-            'nombre_ruta' => $this->nombre_ruta,
-            'tipo_servicio' => $this->tipo_servicio,
-            'origen_destino' => [
-                'ciudad_origen' => $this->ciudad_origen,
-                'ciudad_destino' => $this->ciudad_destino,
-                'punto_salida' => $this->punto_salida,
-                'punto_llegada' => $this->punto_llegada,
-                'distancia_km' => $this->distancia_km,
+            'id' => $this->ruta_id,
+            'codigo' => $this->ruta_codigo,
+            'nombre' => $this->ruta_ruta,
+            'origen' => $this->ruta_origen,
+            'destino' => $this->ruta_destino,
+            'activo' => $this->es_activo,
+
+            // Información combinada para la interfaz
+            'descripcion' => [
+                'completa' => $this->ruta_completa,
+                'direccion' => $this->direccion_ruta,
             ],
-            'horarios' => [
-                'hora_salida' => $this->hora_salida,
-                'hora_llegada_estimada' => $this->hora_llegada_estimada,
-                'duracion_minutos' => $this->duracion_minutos,
-                'tiempo_viaje_formateado' => $this->tiempo_viaje_formateado,
+
+            // Clasificaciones para filtros y lógica
+            'caracteristicas' => [
+                'es_aeroporto' => $this->esRutaAeropuerto(),
+                'es_turistica' => $this->esRutaTuristica(),
+                'distancia_estimada' => $this->getDistanciaEstimada(),
             ],
-            'capacidad' => [
-                'capacidad_maxima' => $this->capacidad_maxima,
-                'capacidad_recomendada' => $this->capacidad_recomendada,
-            ],
-            'tipo_vehiculo' => [
-                'id' => $this->tipoVehiculo->id ?? null,
-                'codigo' => $this->tipoVehiculo->codigo ?? null,
-                'nombre' => $this->tipoVehiculo->nombre_tipo ?? null,
-            ],
-            'dias_operacion' => $this->dias_operacion,
-            'dias_operacion_array' => $this->dias_operacion_array,
-            'opera_hoy' => $this->opera_hoy,
-            'precios' => [
-                'precio_adulto' => $this->precio_adulto,
-                'precio_nino' => $this->precio_nino,
-            ],
-            'incluye' => $this->incluye,
-            'estado_ruta' => [
-                'id' => $this->estadoRuta->id ?? null,
-                'codigo' => $this->estadoRuta->codigo ?? null,
-                'nombre' => $this->estadoRuta->nombre_estado ?? null,
-                'acepta_reservas' => $this->estadoRuta->acepta_reservas ?? false,
-                'color' => $this->estadoRuta->color_hex ?? null,
-            ],
-            'acepta_reservas' => $this->acepta_reservas,
-            'reservas_proximas' => $this->whenLoaded('reservas', function () {
-                return $this->reservas->count();
-            }),
-            'situacion' => $this->situacion,
-            'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
-            'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
+
+            // Estadísticas de uso
+            'estadisticas' => $this->when(
+                $request->has('include_estadisticas'),
+                [
+                    'total_activaciones' => $this->whenCounted('rutasActivadas'),
+                    'es_popular' => $this->esPopular(),
+                    'tiene_activaciones' => $this->tieneRutasActivas(),
+                ]
+            ),
+
+            // Ruta inversa para planificación
+            'ruta_inversa' => $this->when(
+                $request->has('include_inversa'),
+                function () {
+                    $inversa = $this->rutaInversa();
+                    return $inversa ? [
+                        'id' => $inversa->ruta_id,
+                        'codigo' => $inversa->ruta_codigo,
+                        'existe' => true
+                    ] : ['existe' => false];
+                }
+            ),
+
+            // Información para mapas y planificación
+            'planificacion' => $this->when(
+                $request->has('include_planificacion'),
+                [
+                    'puede_programar' => $this->es_activo,
+                    'requiere_atencion_especial' => $this->esRutaAeropuerto(),
+                ]
+            ),
+
+            // Timestamps
+            'created_at' => $this->created_at?->toISOString(),
+            'updated_at' => $this->updated_at?->toISOString(),
         ];
     }
 }

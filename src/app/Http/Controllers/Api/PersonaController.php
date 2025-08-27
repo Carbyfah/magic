@@ -3,215 +3,303 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Persona;
 use App\Http\Resources\PersonaResource;
+use App\Models\Persona;
+use App\Models\TipoPersona;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Exception;
+use Illuminate\Http\Response;
+use Illuminate\Validation\Rule;
 
 class PersonaController extends Controller
 {
-    /**
-     * Listar personas con filtros
-     */
     public function index(Request $request)
     {
-        try {
-            $query = Persona::with(['tipoPersona'])
-                ->activo(); // Solo activos por defecto
+        $query = Persona::query();
 
-            // Filtros opcionales
-            if ($request->has('buscar')) {
-                $query->buscar($request->buscar);
-            }
-
-            if ($request->has('tipo_persona_id')) {
-                $query->porTipo($request->tipo_persona_id);
-            }
-
-            if ($request->has('incluir_eliminados') && $request->incluir_eliminados) {
-                $query->withTrashed();
-            }
-
-            // Paginación
-            $perPage = $request->get('per_page', 15);
-            $personas = $query->orderBy('apellidos')
-                ->orderBy('nombres')
-                ->paginate($perPage);
-
-            return PersonaResource::collection($personas);
-        } catch (Exception $e) {
-            return response()->json([
-                'message' => 'Error al obtener personas',
-                'error' => $e->getMessage()
-            ], 500);
+        // Filtros
+        if ($request->filled('activo')) {
+            $query->where('persona_situacion', $request->boolean('activo'));
         }
+
+        if ($request->filled('tipo')) {
+            $query->porTipo($request->tipo);
+        }
+
+        if ($request->filled('empleados_solo')) {
+            if ($request->boolean('empleados_solo')) {
+                $query->empleados();
+            }
+        }
+
+        if ($request->filled('clientes_solo')) {
+            if ($request->boolean('clientes_solo')) {
+                $query->clientes();
+            }
+        }
+
+        if ($request->filled('con_usuario')) {
+            if ($request->boolean('con_usuario')) {
+                $query->conUsuario();
+            } else {
+                $query->doesntHave('usuario');
+            }
+        }
+
+        if ($request->filled('search')) {
+            $query->buscar($request->search);
+        }
+
+        // Incluir relaciones
+        if ($request->has('with_tipo')) {
+            $query->with('tipoPersona');
+        }
+
+        if ($request->has('with_usuario')) {
+            $query->with(['usuario' => function ($q) {
+                $q->with('rol');
+            }]);
+        }
+
+        $sortField = $request->get('sort', 'persona_nombres');
+        $sortDirection = $request->get('direction', 'asc');
+        $query->orderBy($sortField, $sortDirection);
+
+        if ($request->has('all')) {
+            return PersonaResource::collection($query->get());
+        }
+
+        $personas = $query->paginate($request->get('per_page', 15));
+        return PersonaResource::collection($personas);
     }
 
-    /**
-     * Crear nueva persona
-     */
     public function store(Request $request)
     {
-        $request->validate([
-            'nombres' => 'required|string|max:100',
-            'apellidos' => 'required|string|max:100',
-            'documento_identidad' => 'nullable|string|max:50|unique:personas,documento_identidad',
-            'email' => 'nullable|email|max:255',
-            'telefono_principal' => 'nullable|string|max:20',
-            'whatsapp' => 'nullable|string|max:20',
-            'direccion' => 'nullable|string',
-            'tipo_persona_id' => 'required|exists:tipos_persona,id'
+        $validated = $request->validate([
+            'persona_codigo' => 'nullable|string|max:45|unique:persona',
+            'persona_nombres' => 'required|string|max:100',
+            'persona_apellidos' => 'required|string|max:100',
+            'persona_telefono' => 'nullable|integer|min:10000000|max:999999999999',
+            'persona_email' => 'nullable|email|max:45',
+            'persona_situacion' => 'boolean',
+            'tipo_persona_id' => 'required|exists:tipo_persona,tipo_persona_id'
         ]);
 
-        try {
-            DB::beginTransaction();
+        $persona = Persona::create($validated);
 
-            $persona = Persona::create([
-                'nombres' => $request->nombres,
-                'apellidos' => $request->apellidos,
-                'documento_identidad' => $request->documento_identidad,
-                'email' => $request->email,
-                'telefono_principal' => $request->telefono_principal,
-                'whatsapp' => $request->whatsapp ?? $request->telefono_principal,
-                'direccion' => $request->direccion,
-                'tipo_persona_id' => $request->tipo_persona_id,
-                'situacion' => true
-            ]);
-
-            DB::commit();
-
-            return new PersonaResource($persona->load('tipoPersona'));
-        } catch (Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'Error al crear persona',
-                'error' => $e->getMessage()
-            ], 500);
+        // Generar código si no se proporcionó
+        if (!$validated['persona_codigo']) {
+            $persona->persona_codigo = $persona->generarCodigoUnico();
+            $persona->save();
         }
+
+        $persona->load('tipoPersona');
+        return new PersonaResource($persona);
     }
 
-    /**
-     * Mostrar persona específica
-     */
-    public function show($id)
+    public function show(Persona $persona)
     {
-        try {
-            $persona = Persona::with(['tipoPersona', 'empleado', 'cliente'])
-                ->findOrFail($id);
-
-            return new PersonaResource($persona);
-        } catch (Exception $e) {
-            return response()->json([
-                'message' => 'Persona no encontrada',
-                'error' => $e->getMessage()
-            ], 404);
-        }
+        $persona->load(['tipoPersona', 'usuario.rol']);
+        return new PersonaResource($persona);
     }
 
-    /**
-     * Actualizar persona
-     */
-    public function update(Request $request, $id)
+    public function update(Request $request, Persona $persona)
     {
-        $request->validate([
-            'nombres' => 'sometimes|required|string|max:100',
-            'apellidos' => 'sometimes|required|string|max:100',
-            'documento_identidad' => 'sometimes|nullable|string|max:50|unique:personas,documento_identidad,' . $id,
-            'email' => 'sometimes|nullable|email|max:255',
-            'telefono_principal' => 'sometimes|nullable|string|max:20',
-            'whatsapp' => 'sometimes|nullable|string|max:20',
-            'direccion' => 'sometimes|nullable|string',
-            'tipo_persona_id' => 'sometimes|required|exists:tipos_persona,id'
+        $validated = $request->validate([
+            'persona_codigo' => [
+                'nullable',
+                'string',
+                'max:45',
+                Rule::unique('persona')->ignore($persona->persona_id, 'persona_id')
+            ],
+            'persona_nombres' => 'required|string|max:100',
+            'persona_apellidos' => 'required|string|max:100',
+            'persona_telefono' => 'nullable|integer|min:10000000|max:999999999999',
+            'persona_email' => 'nullable|email|max:45',
+            'persona_situacion' => 'boolean',
+            'tipo_persona_id' => 'required|exists:tipo_persona,tipo_persona_id'
         ]);
 
-        try {
-            DB::beginTransaction();
+        $persona->update($validated);
 
-            $persona = Persona::findOrFail($id);
-            $persona->update($request->only([
-                'nombres',
-                'apellidos',
-                'documento_identidad',
-                'email',
-                'telefono_principal',
-                'whatsapp',
-                'direccion',
-                'tipo_persona_id'
-            ]));
-
-            DB::commit();
-
-            return new PersonaResource($persona->fresh()->load('tipoPersona'));
-        } catch (Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'Error al actualizar persona',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        $persona->load('tipoPersona');
+        return new PersonaResource($persona);
     }
 
-    /**
-     * Eliminar persona (soft delete)
-     */
-    public function destroy($id)
+    public function destroy(Persona $persona)
     {
-        try {
-            DB::beginTransaction();
-
-            $persona = Persona::findOrFail($id);
-
-            // Verificar si tiene relaciones
-            if ($persona->empleado || $persona->cliente) {
-                return response()->json([
-                    'message' => 'No se puede eliminar, tiene registros relacionados'
-                ], 400);
-            }
-
-            $persona->situacion = false;
-            $persona->save();
-            $persona->delete(); // Soft delete
-
-            DB::commit();
-
+        // Verificar si tiene usuario asociado
+        if ($persona->usuario) {
             return response()->json([
-                'message' => 'Persona eliminada correctamente'
-            ]);
-        } catch (Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'Error al eliminar persona',
-                'error' => $e->getMessage()
-            ], 500);
+                'message' => 'No se puede eliminar esta persona porque tiene un usuario asociado.'
+            ], Response::HTTP_CONFLICT);
         }
+
+        $persona->delete();
+
+        return response()->json([
+            'message' => 'Persona eliminada exitosamente'
+        ]);
     }
 
-    /**
-     * Restaurar persona eliminada
-     */
-    public function restore($id)
+    public function activate(Persona $persona)
     {
-        try {
-            DB::beginTransaction();
+        $persona->update(['persona_situacion' => true]);
+        return new PersonaResource($persona->load('tipoPersona'));
+    }
 
-            $persona = Persona::onlyTrashed()->findOrFail($id);
-            $persona->restore();
-            $persona->situacion = true;
-            $persona->save();
+    public function deactivate(Persona $persona)
+    {
+        $persona->update(['persona_situacion' => false]);
+        return new PersonaResource($persona->load('tipoPersona'));
+    }
 
-            DB::commit();
+    public function empleados(Request $request)
+    {
+        $query = Persona::empleados()->activo()->with(['tipoPersona', 'usuario.rol']);
 
-            return response()->json([
-                'message' => 'Persona restaurada correctamente',
-                'data' => new PersonaResource($persona)
-            ]);
-        } catch (Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'Error al restaurar persona',
-                'error' => $e->getMessage()
-            ], 500);
+        if ($request->filled('search')) {
+            $query->buscar($request->search);
         }
+
+        $empleados = $query->orderBy('persona_nombres')->get();
+        return PersonaResource::collection($empleados);
+    }
+
+    public function clientes(Request $request)
+    {
+        $query = Persona::clientes()->activo()->with('tipoPersona');
+
+        if ($request->filled('search')) {
+            $query->buscar($request->search);
+        }
+
+        $clientes = $query->orderBy('persona_nombres')->get();
+        return PersonaResource::collection($clientes);
+    }
+
+    public function vendedores()
+    {
+        $vendedores = Persona::porTipo('VEND')
+            ->activo()
+            ->with(['tipoPersona', 'usuario.rol'])
+            ->orderBy('persona_nombres')
+            ->get();
+
+        return PersonaResource::collection($vendedores);
+    }
+
+    public function choferes()
+    {
+        $choferes = Persona::porTipo('CHOF')
+            ->activo()
+            ->with(['tipoPersona', 'usuario.rol'])
+            ->orderBy('persona_nombres')
+            ->get();
+
+        return PersonaResource::collection($choferes);
+    }
+
+    public function sinUsuario()
+    {
+        $personas = Persona::empleados()
+            ->activo()
+            ->doesntHave('usuario')
+            ->with('tipoPersona')
+            ->orderBy('persona_nombres')
+            ->get();
+
+        return PersonaResource::collection($personas);
+    }
+
+    public function validarDatos(Request $request, Persona $persona)
+    {
+        $validaciones = [
+            'datos_completos' => $persona->datosCompletos(),
+            'email_valido' => $persona->tieneEmailValido(),
+            'telefono_valido' => $persona->tieneTelefonoValido(),
+            'tiene_usuario' => $persona->tieneUsuario(),
+            'esta_activo' => $persona->estaActivo()
+        ];
+
+        $errores = [];
+
+        if (!$validaciones['datos_completos']) {
+            $errores[] = 'Los datos de la persona están incompletos';
+        }
+
+        if ($persona->persona_email && !$validaciones['email_valido']) {
+            $errores[] = 'El email no tiene un formato válido';
+        }
+
+        if ($persona->persona_telefono && !$validaciones['telefono_valido']) {
+            $errores[] = 'El teléfono debe tener al menos 8 dígitos';
+        }
+
+        return response()->json([
+            'persona' => new PersonaResource($persona),
+            'validaciones' => $validaciones,
+            'errores' => $errores,
+            'es_valido' => empty($errores)
+        ]);
+    }
+
+    public function whatsappLink(Persona $persona, Request $request)
+    {
+        if (!$persona->tieneTelefonoValido()) {
+            return response()->json([
+                'message' => 'Esta persona no tiene un teléfono válido para WhatsApp'
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        $mensaje = $request->get('mensaje');
+        $link = $persona->linkWhatsApp($mensaje);
+
+        return response()->json([
+            'persona' => new PersonaResource($persona),
+            'whatsapp_link' => $link,
+            'telefono_formateado' => $persona->telefono_formateado,
+            'mensaje' => $mensaje
+        ]);
+    }
+
+    public function generarCodigo(Persona $persona)
+    {
+        $codigoAnterior = $persona->persona_codigo;
+        $persona->actualizarCodigo();
+
+        return response()->json([
+            'persona' => new PersonaResource($persona),
+            'codigo_anterior' => $codigoAnterior,
+            'codigo_nuevo' => $persona->persona_codigo
+        ]);
+    }
+
+    public function stats()
+    {
+        $stats = [
+            'total' => Persona::count(),
+            'activas' => Persona::activo()->count(),
+            'empleados' => Persona::empleados()->count(),
+            'clientes' => Persona::clientes()->count(),
+            'con_usuario' => Persona::conUsuario()->count(),
+            'por_tipo' => TipoPersona::activo()
+                ->withCount('personas')
+                ->get()
+                ->map(function ($tipo) {
+                    return [
+                        'tipo' => $tipo->tipo_persona_codigo,
+                        'nombre' => $tipo->tipo_persona_tipo,
+                        'cantidad' => $tipo->personas_count
+                    ];
+                }),
+            'datos_incompletos' => Persona::activo()
+                ->get()
+                ->filter(function ($persona) {
+                    return !$persona->datosCompletos();
+                })
+                ->count()
+        ];
+
+        return response()->json($stats);
     }
 }

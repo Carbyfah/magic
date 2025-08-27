@@ -10,40 +10,22 @@ class Vehiculo extends Model
 {
     use SoftDeletes, HasAudit;
 
-    protected $table = 'vehiculos';
+    protected $table = 'vehiculo';
+    protected $primaryKey = 'vehiculo_id';
 
     protected $fillable = [
-        'codigo_vehiculo',
-        'placa',
-        'marca',
-        'modelo',
-        'ano',
-        'color',
-        'tipo_vehiculo_id',
-        'tipo_combustible_id',
-        'capacidad_pasajeros',
-        'capacidad_equipaje',
-        'numero_motor',
-        'numero_chasis',
-        'numero_tarjeta_circulacion',
-        'vencimiento_tarjeta_circulacion',
-        'poliza_seguro',
-        'vencimiento_seguro',
-        'kilometraje_actual',
-        'fecha_ultimo_servicio',
-        'estado_vehiculo_id',
-        'situacion'
+        'vehiculo_codigo',
+        'vehiculo_placa',
+        'vehiculo_marca',
+        'vehiculo_modelo',
+        'vehiculo_capacidad',
+        'vehiculo_situacion',
+        'estado_id'
     ];
 
     protected $casts = [
-        'situacion' => 'boolean',
-        'ano' => 'integer',
-        'capacidad_pasajeros' => 'integer',
-        'capacidad_equipaje' => 'integer',
-        'kilometraje_actual' => 'integer',
-        'vencimiento_tarjeta_circulacion' => 'date',
-        'vencimiento_seguro' => 'date',
-        'fecha_ultimo_servicio' => 'date',
+        'vehiculo_capacidad' => 'integer',
+        'vehiculo_situacion' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime'
     ];
@@ -54,132 +36,216 @@ class Vehiculo extends Model
         'deleted_at'
     ];
 
-    /**
-     * Boot del modelo
-     */
-    protected static function boot()
-    {
-        parent::boot();
-
-        static::creating(function ($vehiculo) {
-            if (empty($vehiculo->codigo_vehiculo)) {
-                $vehiculo->codigo_vehiculo = self::generarCodigoVehiculo();
-            }
-        });
-    }
-
-    /**
-     * Generar código único de vehículo
-     */
-    public static function generarCodigoVehiculo()
-    {
-        $ultimo = self::orderBy('id', 'desc')->first();
-        $numero = $ultimo ? intval(substr($ultimo->codigo_vehiculo, 4)) + 1 : 1;
-        return sprintf('VEH-%04d', $numero);
-    }
+    protected $appends = [
+        'es_activo',
+        'descripcion_completa',
+        'tipo_vehiculo',
+        'esta_disponible'
+    ];
 
     /**
      * Relaciones
      */
-    public function tipoVehiculo()
+    public function estado()
     {
-        return $this->belongsTo(TipoVehiculo::class);
+        return $this->belongsTo(Estado::class, 'estado_id', 'estado_id');
     }
 
-    public function tipoCombustible()
+    public function rutasActivadas()
     {
-        return $this->belongsTo(TipoCombustible::class);
+        return $this->hasMany(RutaActivada::class, 'vehiculo_id', 'vehiculo_id');
     }
 
-    public function estadoVehiculo()
+    public function rutaActual()
     {
-        return $this->belongsTo(EstadoVehiculo::class);
-    }
-
-    public function rutasEjecutadas()
-    {
-        return $this->hasMany(RutaEjecutada::class);
+        return $this->hasOne(RutaActivada::class, 'vehiculo_id', 'vehiculo_id')
+            ->whereHas('estado', function ($q) {
+                $q->whereIn('estado_codigo', ['RUT_PROG', 'RUT_INIC']);
+            })
+            ->latest();
     }
 
     /**
      * Atributos calculados
      */
+    public function getEsActivoAttribute()
+    {
+        return $this->vehiculo_situacion === true;
+    }
+
+    public function getDescripcionCompletaAttribute()
+    {
+        return "{$this->vehiculo_marca} {$this->vehiculo_modelo} ({$this->vehiculo_placa})";
+    }
+
+    public function getTipoVehiculoAttribute()
+    {
+        if ($this->vehiculo_capacidad <= 12) {
+            return 'Minivan';
+        } elseif ($this->vehiculo_capacidad <= 20) {
+            return 'Microbus';
+        } elseif ($this->vehiculo_capacidad <= 30) {
+            return 'Bus Pequeño';
+        }
+
+        return 'Bus Grande';
+    }
+
     public function getEstaDisponibleAttribute()
     {
-        return $this->estadoVehiculo && $this->estadoVehiculo->disponible_operacion;
-    }
-
-    public function getDocumentosVigentesAttribute()
-    {
-        $vigentes = true;
-
-        if ($this->vencimiento_tarjeta_circulacion && $this->vencimiento_tarjeta_circulacion < now()) {
-            $vigentes = false;
-        }
-
-        if ($this->vencimiento_seguro && $this->vencimiento_seguro < now()) {
-            $vigentes = false;
-        }
-
-        return $vigentes;
-    }
-
-    public function getRequiereMantenimientoAttribute()
-    {
-        // Cada 5000 km o 3 meses
-        if (!$this->fecha_ultimo_servicio) return true;
-
-        $mesesDesdeServicio = $this->fecha_ultimo_servicio->diffInMonths(now());
-        if ($mesesDesdeServicio >= 3) return true;
-
-        // Aquí se podría agregar lógica para kilometraje
-
-        return false;
+        return $this->estado && $this->estado->estado_codigo === 'VEH_DISP';
     }
 
     /**
      * Scopes
      */
+    public function scopeActivo($query)
+    {
+        return $query->where('vehiculo_situacion', true);
+    }
+
+    public function scopePorCodigo($query, $codigo)
+    {
+        return $query->where('vehiculo_codigo', $codigo);
+    }
+
     public function scopeDisponibles($query)
     {
-        return $query->whereHas('estadoVehiculo', function ($q) {
-            $q->where('disponible_operacion', true);
+        return $query->whereHas('estado', function ($q) {
+            $q->where('estado_codigo', 'VEH_DISP');
         });
     }
 
-    public function scopePorTipo($query, $tipoId)
+    public function scopeOcupados($query)
     {
-        return $query->where('tipo_vehiculo_id', $tipoId);
-    }
-
-    public function scopeConCapacidadMinima($query, $pasajeros)
-    {
-        return $query->where('capacidad_pasajeros', '>=', $pasajeros);
-    }
-
-    public function scopeDocumentosProximosVencer($query, $dias = 30)
-    {
-        return $query->where(function ($q) use ($dias) {
-            $q->whereBetween('vencimiento_tarjeta_circulacion', [now(), now()->addDays($dias)])
-                ->orWhereBetween('vencimiento_seguro', [now(), now()->addDays($dias)]);
+        return $query->whereHas('estado', function ($q) {
+            $q->where('estado_codigo', 'VEH_OCUP');
         });
+    }
+
+    public function scopeEnMantenimiento($query)
+    {
+        return $query->whereHas('estado', function ($q) {
+            $q->where('estado_codigo', 'VEH_MANT');
+        });
+    }
+
+    public function scopePorCapacidad($query, $capacidadMinima)
+    {
+        return $query->where('vehiculo_capacidad', '>=', $capacidadMinima);
+    }
+
+    public function scopePorMarca($query, $marca)
+    {
+        return $query->where('vehiculo_marca', 'like', "%{$marca}%");
+    }
+
+    public function scopeConRutaActiva($query)
+    {
+        return $query->has('rutaActual');
     }
 
     /**
      * Métodos de negocio
      */
-    public function puedeAsignarse()
+    public function estaDisponible()
     {
-        return $this->esta_disponible &&
-            $this->documentos_vigentes &&
-            $this->situacion;
+        return $this->esta_disponible;
     }
 
-    public function actualizarKilometraje($nuevoKilometraje)
+    public function estaOcupado()
     {
-        if ($nuevoKilometraje > $this->kilometraje_actual) {
-            $this->kilometraje_actual = $nuevoKilometraje;
-            $this->save();
+        return $this->estado && $this->estado->estado_codigo === 'VEH_OCUP';
+    }
+
+    public function estaEnMantenimiento()
+    {
+        return $this->estado && $this->estado->estado_codigo === 'VEH_MANT';
+    }
+
+    public function estaInactivo()
+    {
+        return $this->estado && $this->estado->estado_codigo === 'VEH_INAR';
+    }
+
+    public function getOcupacionActual()
+    {
+        if (!$this->rutaActual) {
+            return 0;
         }
+
+        return $this->rutaActual->reservas()
+            ->where('reserva_situacion', true)
+            ->sum(\DB::raw('reserva_cantidad_adultos + IFNULL(reserva_cantidad_ninos, 0)'));
+    }
+
+    public function puedeAcomodar($numeroPasajeros)
+    {
+        if (!$this->estaDisponible()) {
+            return false;
+        }
+
+        $ocupacionActual = $this->getOcupacionActual();
+        return ($ocupacionActual + $numeroPasajeros) <= $this->vehiculo_capacidad;
+    }
+
+    public function espaciosLibres()
+    {
+        return max(0, $this->vehiculo_capacidad - $this->getOcupacionActual());
+    }
+
+    public function cambiarEstado($nuevoEstadoCodigo)
+    {
+        $nuevoEstado = Estado::where('estado_codigo', $nuevoEstadoCodigo)->first();
+
+        if (!$nuevoEstado) {
+            throw new \Exception("Estado {$nuevoEstadoCodigo} no encontrado");
+        }
+
+        if ($this->estado && !$this->estado->permiteTransicion($nuevoEstadoCodigo)) {
+            throw new \Exception("Transición no válida de {$this->estado->estado_codigo} a {$nuevoEstadoCodigo}");
+        }
+
+        $this->estado_id = $nuevoEstado->estado_id;
+        $this->save();
+
+        return $this;
+    }
+
+    public function marcarDisponible()
+    {
+        return $this->cambiarEstado('VEH_DISP');
+    }
+
+    public function marcarOcupado()
+    {
+        return $this->cambiarEstado('VEH_OCUP');
+    }
+
+    public function marcarEnMantenimiento()
+    {
+        return $this->cambiarEstado('VEH_MANT');
+    }
+
+    public function esAptoPara($tipoServicio)
+    {
+        $requerimientos = [
+            'Tour' => 15,
+            'Transporte' => 12,
+            'Shuttle' => 8
+        ];
+
+        return $this->vehiculo_capacidad >= ($requerimientos[$tipoServicio] ?? 10);
+    }
+
+    public function getPorcentajeUso()
+    {
+        $totalRutas = $this->rutasActivadas()
+            ->where('created_at', '>=', now()->subMonth())
+            ->count();
+
+        $diasEnMes = now()->daysInMonth;
+
+        return $totalRutas > 0 ? round(($totalRutas / $diasEnMes) * 100, 1) : 0;
     }
 }

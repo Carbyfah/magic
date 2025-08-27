@@ -3,281 +3,280 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Vehiculo;
 use App\Http\Resources\VehiculoResource;
+use App\Models\Vehiculo;
+use App\Models\Estado;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Exception;
+use Illuminate\Http\Response;
+use Illuminate\Validation\Rule;
 
 class VehiculoController extends Controller
 {
-    /**
-     * Listar vehículos con filtros
-     */
     public function index(Request $request)
     {
-        try {
-            $query = Vehiculo::with(['tipoVehiculo', 'tipoCombustible', 'estadoVehiculo'])
-                ->activo();
+        $query = Vehiculo::query();
 
-            // Filtros
-            if ($request->has('buscar')) {
-                $termino = $request->buscar;
-                $query->where(function ($q) use ($termino) {
-                    $q->where('placa', 'like', "%{$termino}%")
-                        ->orWhere('codigo_vehiculo', 'like', "%{$termino}%")
-                        ->orWhere('marca', 'like', "%{$termino}%")
-                        ->orWhere('modelo', 'like', "%{$termino}%");
-                });
-            }
+        if ($request->filled('activo')) {
+            $query->where('vehiculo_situacion', $request->boolean('activo'));
+        }
 
-            if ($request->has('tipo_vehiculo_id')) {
-                $query->porTipo($request->tipo_vehiculo_id);
-            }
+        if ($request->filled('estado')) {
+            $query->whereHas('estado', function ($q) use ($request) {
+                $q->where('estado_codigo', $request->estado);
+            });
+        }
 
-            if ($request->boolean('solo_disponibles')) {
+        if ($request->filled('disponibles')) {
+            if ($request->boolean('disponibles')) {
                 $query->disponibles();
             }
-
-            if ($request->has('capacidad_minima')) {
-                $query->conCapacidadMinima($request->capacidad_minima);
-            }
-
-            if ($request->boolean('documentos_vigentes')) {
-                $query->documentosVigentes();
-            }
-
-            // Ordenamiento y paginación
-            $perPage = $request->get('per_page', 15);
-            $vehiculos = $query->orderBy('codigo_vehiculo')
-                ->paginate($perPage);
-
-            return VehiculoResource::collection($vehiculos);
-        } catch (Exception $e) {
-            return response()->json([
-                'message' => 'Error al obtener vehículos',
-                'error' => $e->getMessage()
-            ], 500);
         }
+
+        if ($request->filled('capacidad_minima')) {
+            $query->porCapacidad($request->capacidad_minima);
+        }
+
+        if ($request->filled('marca')) {
+            $query->porMarca($request->marca);
+        }
+
+        if ($request->filled('search')) {
+            $query->where(function ($q) use ($request) {
+                $q->where('vehiculo_codigo', 'like', "%{$request->search}%")
+                    ->orWhere('vehiculo_placa', 'like', "%{$request->search}%")
+                    ->orWhere('vehiculo_marca', 'like', "%{$request->search}%")
+                    ->orWhere('vehiculo_modelo', 'like', "%{$request->search}%");
+            });
+        }
+
+        if ($request->has('with_estado')) {
+            $query->with('estado');
+        }
+
+        if ($request->has('with_ruta_actual')) {
+            $query->with('rutaActual.estado');
+        }
+
+        if ($request->has('include_estadisticas')) {
+            $query->withCount('rutasActivadas');
+        }
+
+        $sortField = $request->get('sort', 'vehiculo_placa');
+        $sortDirection = $request->get('direction', 'asc');
+        $query->orderBy($sortField, $sortDirection);
+
+        if ($request->has('all')) {
+            return VehiculoResource::collection($query->get());
+        }
+
+        $vehiculos = $query->paginate($request->get('per_page', 15));
+        return VehiculoResource::collection($vehiculos);
     }
 
-    /**
-     * Crear nuevo vehículo
-     */
     public function store(Request $request)
     {
-        $request->validate([
-            'codigo_vehiculo' => 'nullable|string|max:50|unique:vehiculos,codigo_vehiculo',
-            'placa' => 'required|string|max:20|unique:vehiculos,placa',
-            'marca' => 'required|string|max:100',
-            'modelo' => 'required|string|max:100',
-            'ano' => 'required|integer|min:1990|max:' . (date('Y') + 1),
-            'color' => 'nullable|string|max:50',
-            'tipo_vehiculo_id' => 'required|exists:tipos_vehiculo,id',
-            'tipo_combustible_id' => 'required|exists:tipos_combustible,id',
-            'capacidad_pasajeros' => 'required|integer|min:1',
-            'capacidad_equipaje' => 'nullable|integer|min:0',
-            'numero_motor' => 'nullable|string|max:100',
-            'numero_chasis' => 'nullable|string|max:100',
-            'numero_tarjeta_circulacion' => 'nullable|string|max:50',
-            'vencimiento_tarjeta_circulacion' => 'nullable|date',
-            'poliza_seguro' => 'nullable|string|max:100',
-            'vencimiento_seguro' => 'nullable|date',
-            'kilometraje_actual' => 'nullable|integer|min:0',
-            'fecha_ultimo_servicio' => 'nullable|date',
-            'estado_vehiculo_id' => 'required|exists:estados_vehiculo,id'
+        $validated = $request->validate([
+            'vehiculo_codigo' => 'required|string|max:45|unique:vehiculo',
+            'vehiculo_placa' => 'required|string|max:45|unique:vehiculo',
+            'vehiculo_marca' => 'required|string|max:45',
+            'vehiculo_modelo' => 'nullable|string|max:45',
+            'vehiculo_capacidad' => 'required|integer|min:1|max:100',
+            'vehiculo_situacion' => 'boolean',
+            'estado_id' => 'required|exists:estado,estado_id'
+        ]);
+
+        $vehiculo = Vehiculo::create($validated);
+        $vehiculo->load('estado');
+
+        return new VehiculoResource($vehiculo);
+    }
+
+    public function show(Vehiculo $vehiculo)
+    {
+        $vehiculo->load(['estado', 'rutaActual']);
+        return new VehiculoResource($vehiculo);
+    }
+
+    public function update(Request $request, Vehiculo $vehiculo)
+    {
+        $validated = $request->validate([
+            'vehiculo_codigo' => [
+                'required',
+                'string',
+                'max:45',
+                Rule::unique('vehiculo')->ignore($vehiculo->vehiculo_id, 'vehiculo_id')
+            ],
+            'vehiculo_placa' => [
+                'required',
+                'string',
+                'max:45',
+                Rule::unique('vehiculo')->ignore($vehiculo->vehiculo_id, 'vehiculo_id')
+            ],
+            'vehiculo_marca' => 'required|string|max:45',
+            'vehiculo_modelo' => 'nullable|string|max:45',
+            'vehiculo_capacidad' => 'required|integer|min:1|max:100',
+            'vehiculo_situacion' => 'boolean',
+            'estado_id' => 'required|exists:estado,estado_id'
+        ]);
+
+        $vehiculo->update($validated);
+        $vehiculo->load('estado');
+
+        return new VehiculoResource($vehiculo);
+    }
+
+    public function destroy(Vehiculo $vehiculo)
+    {
+        if ($vehiculo->rutasActivadas()->exists()) {
+            return response()->json([
+                'message' => 'No se puede eliminar este vehículo porque tiene rutas activadas asociadas.'
+            ], Response::HTTP_CONFLICT);
+        }
+
+        $vehiculo->delete();
+
+        return response()->json([
+            'message' => 'Vehículo eliminado exitosamente'
+        ]);
+    }
+
+    public function cambiarEstado(Request $request, Vehiculo $vehiculo)
+    {
+        $validated = $request->validate([
+            'estado_codigo' => 'required|exists:estado,estado_codigo'
         ]);
 
         try {
-            DB::beginTransaction();
-
-            // Generar código si no se proporciona
-            $codigoVehiculo = $request->codigo_vehiculo ?? $this->generarCodigoVehiculo();
-
-            $vehiculo = Vehiculo::create(array_merge(
-                $request->all(),
-                [
-                    'codigo_vehiculo' => $codigoVehiculo,
-                    'situacion' => true
-                ]
-            ));
-
-            DB::commit();
-
-            return new VehiculoResource($vehiculo->load(['tipoVehiculo', 'tipoCombustible', 'estadoVehiculo']));
-        } catch (Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'Error al crear vehículo',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Mostrar vehículo específico
-     */
-    public function show($id)
-    {
-        try {
-            $vehiculo = Vehiculo::with([
-                'tipoVehiculo',
-                'tipoCombustible',
-                'estadoVehiculo',
-                'rutasEjecutadas' => function ($q) {
-                    $q->latest()->limit(10);
-                }
-            ])->findOrFail($id);
+            $vehiculo->cambiarEstado($validated['estado_codigo']);
+            $vehiculo->load('estado');
 
             return new VehiculoResource($vehiculo);
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Vehículo no encontrado',
-                'error' => $e->getMessage()
-            ], 404);
+                'message' => $e->getMessage()
+            ], Response::HTTP_BAD_REQUEST);
         }
     }
 
-    /**
-     * Actualizar vehículo
-     */
-    public function update(Request $request, $id)
+    public function marcarDisponible(Vehiculo $vehiculo)
     {
-        $vehiculo = Vehiculo::findOrFail($id);
+        try {
+            $vehiculo->marcarDisponible();
+            return new VehiculoResource($vehiculo->load('estado'));
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        }
+    }
 
-        $request->validate([
-            'placa' => 'sometimes|required|string|max:20|unique:vehiculos,placa,' . $id,
-            'marca' => 'sometimes|required|string|max:100',
-            'modelo' => 'sometimes|required|string|max:100',
-            'ano' => 'sometimes|required|integer|min:1990|max:' . (date('Y') + 1),
-            'color' => 'sometimes|nullable|string|max:50',
-            'tipo_vehiculo_id' => 'sometimes|required|exists:tipos_vehiculo,id',
-            'tipo_combustible_id' => 'sometimes|required|exists:tipos_combustible,id',
-            'capacidad_pasajeros' => 'sometimes|required|integer|min:1',
-            'capacidad_equipaje' => 'sometimes|nullable|integer|min:0',
-            'numero_motor' => 'sometimes|nullable|string|max:100',
-            'numero_chasis' => 'sometimes|nullable|string|max:100',
-            'numero_tarjeta_circulacion' => 'sometimes|nullable|string|max:50',
-            'vencimiento_tarjeta_circulacion' => 'sometimes|nullable|date',
-            'poliza_seguro' => 'sometimes|nullable|string|max:100',
-            'vencimiento_seguro' => 'sometimes|nullable|date',
-            'kilometraje_actual' => 'sometimes|nullable|integer|min:0',
-            'fecha_ultimo_servicio' => 'sometimes|nullable|date',
-            'estado_vehiculo_id' => 'sometimes|required|exists:estados_vehiculo,id'
+    public function marcarOcupado(Vehiculo $vehiculo)
+    {
+        try {
+            $vehiculo->marcarOcupado();
+            return new VehiculoResource($vehiculo->load('estado'));
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        }
+    }
+
+    public function marcarMantenimiento(Vehiculo $vehiculo)
+    {
+        try {
+            $vehiculo->marcarEnMantenimiento();
+            return new VehiculoResource($vehiculo->load('estado'));
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        }
+    }
+
+    public function disponibles()
+    {
+        $vehiculos = Vehiculo::disponibles()
+            ->activo()
+            ->with('estado')
+            ->orderBy('vehiculo_capacidad')
+            ->get();
+
+        return VehiculoResource::collection($vehiculos);
+    }
+
+    public function porCapacidad($capacidad)
+    {
+        $vehiculos = Vehiculo::disponibles()
+            ->porCapacidad($capacidad)
+            ->with('estado')
+            ->orderBy('vehiculo_capacidad')
+            ->get();
+
+        return VehiculoResource::collection($vehiculos);
+    }
+
+    public function verificarDisponibilidad(Request $request, Vehiculo $vehiculo)
+    {
+        $validated = $request->validate([
+            'pasajeros' => 'required|integer|min:1|max:100'
         ]);
 
-        try {
-            DB::beginTransaction();
+        $puedeAcomodar = $vehiculo->puedeAcomodar($validated['pasajeros']);
 
-            $vehiculo->update($request->all());
-
-            DB::commit();
-
-            return new VehiculoResource($vehiculo->fresh()->load(['tipoVehiculo', 'tipoCombustible', 'estadoVehiculo']));
-        } catch (Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'Error al actualizar vehículo',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Eliminar vehículo (soft delete)
-     */
-    public function destroy($id)
-    {
-        try {
-            DB::beginTransaction();
-
-            $vehiculo = Vehiculo::findOrFail($id);
-
-            // Verificar si tiene rutas ejecutadas
-            if ($vehiculo->rutasEjecutadas()->count() > 0) {
-                // Solo desactivar
-                $vehiculo->situacion = false;
-                $vehiculo->save();
-
-                DB::commit();
-
-                return response()->json([
-                    'message' => 'Vehículo desactivado (tiene registros de operación)'
-                ]);
-            }
-
-            $vehiculo->situacion = false;
-            $vehiculo->save();
-            $vehiculo->delete();
-
-            DB::commit();
-
-            return response()->json([
-                'message' => 'Vehículo eliminado correctamente'
-            ]);
-        } catch (Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'Error al eliminar vehículo',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Verificar disponibilidad del vehículo
-     */
-    public function verificarDisponibilidad($id, Request $request)
-    {
-        $request->validate([
-            'fecha' => 'required|date'
+        return response()->json([
+            'vehiculo' => new VehiculoResource($vehiculo),
+            'solicitud_pasajeros' => $validated['pasajeros'],
+            'puede_acomodar' => $puedeAcomodar,
+            'ocupacion_actual' => $vehiculo->getOcupacionActual(),
+            'espacios_libres' => $vehiculo->espaciosLibres(),
+            'capacidad_total' => $vehiculo->vehiculo_capacidad
         ]);
-
-        try {
-            $vehiculo = Vehiculo::findOrFail($id);
-
-            // Verificar estado del vehículo
-            if (!$vehiculo->esta_disponible) {
-                return response()->json([
-                    'disponible' => false,
-                    'mensaje' => 'Vehículo no está en estado disponible'
-                ]);
-            }
-
-            // Verificar documentos
-            if (!$vehiculo->seguro_vigente || !$vehiculo->tarjeta_vigente) {
-                return response()->json([
-                    'disponible' => false,
-                    'mensaje' => 'Documentos del vehículo no están vigentes'
-                ]);
-            }
-
-            // Verificar si ya está asignado para esa fecha
-            $asignado = $vehiculo->rutasEjecutadas()
-                ->whereDate('fecha_operacion', $request->fecha)
-                ->whereIn('estado', ['programada', 'en_ruta'])
-                ->exists();
-
-            return response()->json([
-                'disponible' => !$asignado,
-                'mensaje' => $asignado ? 'Vehículo ya asignado para esta fecha' : 'Vehículo disponible',
-                'requiere_mantenimiento' => $vehiculo->requiere_mantenimiento
-            ]);
-        } catch (Exception $e) {
-            return response()->json([
-                'message' => 'Error al verificar disponibilidad',
-                'error' => $e->getMessage()
-            ], 500);
-        }
     }
 
-    /**
-     * Generar código de vehículo automático
-     */
-    private function generarCodigoVehiculo()
+    public function aptitudServicios(Vehiculo $vehiculo)
     {
-        $ultimo = Vehiculo::orderBy('id', 'desc')->first();
-        $numero = $ultimo ? intval(substr($ultimo->codigo_vehiculo, 4)) + 1 : 1;
-        return sprintf('VEH-%04d', $numero);
+        $aptitudes = [
+            'Tour' => $vehiculo->esAptoPara('Tour'),
+            'Transporte' => $vehiculo->esAptoPara('Transporte'),
+            'Shuttle' => $vehiculo->esAptoPara('Shuttle')
+        ];
+
+        return response()->json([
+            'vehiculo' => new VehiculoResource($vehiculo),
+            'aptitudes' => $aptitudes,
+            'recomendaciones' => array_keys(array_filter($aptitudes))
+        ]);
+    }
+
+    public function rendimiento(Vehiculo $vehiculo)
+    {
+        $rendimiento = $vehiculo->rendimientoMensual();
+
+        return response()->json([
+            'vehiculo' => new VehiculoResource($vehiculo),
+            'periodo' => 'Último mes',
+            'rendimiento' => $rendimiento,
+            'porcentaje_uso' => $vehiculo->getPorcentajeUso(),
+            'mantenimiento' => $vehiculo->proximoMantenimiento()
+        ]);
+    }
+
+    public function stats()
+    {
+        $stats = [
+            'total' => Vehiculo::count(),
+            'activos' => Vehiculo::activo()->count(),
+            'por_estado' => [
+                'disponibles' => Vehiculo::disponibles()->count(),
+                'ocupados' => Vehiculo::ocupados()->count(),
+                'mantenimiento' => Vehiculo::enMantenimiento()->count()
+            ],
+            'por_capacidad' => [
+                'pequeños' => Vehiculo::where('vehiculo_capacidad', '<=', 12)->count(),
+                'medianos' => Vehiculo::whereBetween('vehiculo_capacidad', [13, 25])->count(),
+                'grandes' => Vehiculo::where('vehiculo_capacidad', '>', 25)->count()
+            ],
+            'capacidad_total' => Vehiculo::activo()->sum('vehiculo_capacidad'),
+            'uso_promedio' => Vehiculo::activo()->get()->avg(function ($vehiculo) {
+                return $vehiculo->getPorcentajeUso();
+            })
+        ];
+
+        return response()->json($stats);
     }
 }

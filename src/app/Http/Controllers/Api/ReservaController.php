@@ -3,435 +3,486 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Reserva;
-use App\Models\Ruta;
-use App\Models\EstadoReserva;
 use App\Http\Resources\ReservaResource;
+use App\Models\Reserva;
+use App\Models\RutaActivada;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
-use Exception;
+use Illuminate\Http\Response;
+use Illuminate\Validation\Rule;
 
 class ReservaController extends Controller
 {
-    /**
-     * Listar reservas con filtros
-     */
     public function index(Request $request)
     {
-        try {
-            $query = Reserva::with(['empleado.persona', 'ruta', 'cliente.persona', 'agencia', 'estadoReserva'])
-                ->activo();
+        $query = Reserva::query();
 
-            // Filtros
-            if ($request->has('buscar')) {
-                $termino = $request->buscar;
-                $query->where(function ($q) use ($termino) {
-                    $q->where('numero_reserva', 'like', "%{$termino}%")
-                        ->orWhere('nombre_pasajero_principal', 'like', "%{$termino}%")
-                        ->orWhere('voucher', 'like', "%{$termino}%")
-                        ->orWhere('hotel_pickup', 'like', "%{$termino}%");
-                });
-            }
-
-            // Filtro por fecha de viaje
-            if ($request->has('fecha_viaje')) {
-                $query->porFechaViaje($request->fecha_viaje);
-            }
-
-            // Filtro por rango de fechas
-            if ($request->has('fecha_inicio') && $request->has('fecha_fin')) {
-                $query->porRangoFechas($request->fecha_inicio, $request->fecha_fin);
-            }
-
-            // Filtro por ruta
-            if ($request->has('ruta_id')) {
-                $query->where('ruta_id', $request->ruta_id);
-            }
-
-            // Filtro por estado
-            if ($request->has('estado_reserva_id')) {
-                $query->porEstado($request->estado_reserva_id);
-            }
-
-            // Filtro por agencia
-            if ($request->has('agencia_id')) {
-                $query->where('agencia_id', $request->agencia_id);
-            }
-
-            // Filtro por cliente
-            if ($request->has('cliente_id')) {
-                $query->where('cliente_id', $request->cliente_id);
-            }
-
-            // Reservas pendientes
-            if ($request->boolean('pendientes')) {
-                $query->pendientes();
-            }
-
-            // Reservas confirmadas
-            if ($request->boolean('confirmadas')) {
-                $query->confirmadas();
-            }
-
-            // Próximas reservas (próximos 7 días)
-            if ($request->boolean('proximas')) {
-                $query->proximas($request->get('dias', 7));
-            }
-
-            // Sin venta asociada
-            if ($request->boolean('sin_venta')) {
-                $query->sinVenta();
-            }
-
-            // Ordenamiento
-            $orderBy = $request->get('order_by', 'fecha_viaje');
-            $orderDir = $request->get('order_dir', 'asc');
-
-            // Paginación
-            $perPage = $request->get('per_page', 15);
-            $reservas = $query->orderBy($orderBy, $orderDir)
-                ->paginate($perPage);
-
-            return ReservaResource::collection($reservas);
-        } catch (Exception $e) {
-            return response()->json([
-                'message' => 'Error al obtener reservas',
-                'error' => $e->getMessage()
-            ], 500);
+        if ($request->filled('activo')) {
+            $query->where('reserva_situacion', $request->boolean('activo'));
         }
+
+        if ($request->filled('fecha')) {
+            $query->whereDate('created_at', $request->fecha);
+        }
+
+        if ($request->filled('hoy')) {
+            if ($request->boolean('hoy')) {
+                $query->hoy();
+            }
+        }
+
+        if ($request->filled('estado')) {
+            $query->whereHas('estado', function ($q) use ($request) {
+                $q->where('estado_codigo', $request->estado);
+            });
+        }
+
+        if ($request->filled('tipo_cliente')) {
+            if ($request->tipo_cliente === 'agencia') {
+                $query->deAgencias();
+            } elseif ($request->tipo_cliente === 'directo') {
+                $query->directas();
+            }
+        }
+
+        if ($request->filled('vendedor_id')) {
+            $query->where('usuario_id', $request->vendedor_id);
+        }
+
+        if ($request->filled('agencia_id')) {
+            $query->where('agencia_id', $request->agencia_id);
+        }
+
+        if ($request->filled('search')) {
+            $query->where(function ($q) use ($request) {
+                $q->where('reserva_codigo', 'like', "%{$request->search}%")
+                    ->orWhere('reserva_nombres_cliente', 'like', "%{$request->search}%")
+                    ->orWhere('reserva_apellidos_cliente', 'like', "%{$request->search}%")
+                    ->orWhere('reserva_telefono_cliente', 'like', "%{$request->search}%");
+            });
+        }
+
+        if ($request->has('with_relations')) {
+            $query->with(['usuario.persona', 'estado', 'agencia', 'rutaActivada.servicio', 'rutaActivada.ruta']);
+        }
+
+        if ($request->has('include_mensajes')) {
+            $request->request->add(['include_mensajes' => true]);
+        }
+
+        if ($request->has('resumen_completo')) {
+            $request->request->add(['resumen_completo' => true]);
+        }
+
+        $sortField = $request->get('sort', 'created_at');
+        $sortDirection = $request->get('direction', 'desc');
+        $query->orderBy($sortField, $sortDirection);
+
+        if ($request->has('all')) {
+            return ReservaResource::collection($query->get());
+        }
+
+        $reservas = $query->paginate($request->get('per_page', 15));
+        return ReservaResource::collection($reservas);
     }
 
-    /**
-     * Crear nueva reserva
-     */
     public function store(Request $request)
     {
-        $request->validate([
-            'ruta_id' => 'required|exists:rutas,id',
-            'pax_adultos' => 'required|integer|min:1',
-            'pax_ninos' => 'nullable|integer|min:0',
-            'nombre_pasajero_principal' => 'required|string|max:255',
-            'cliente_id' => 'nullable|exists:clientes,id',
-            'agencia_id' => 'nullable|exists:agencias,id',
-            'hotel_pickup' => 'nullable|string|max:255',
-            'telefono_contacto' => 'nullable|string|max:20',
-            'notas_pickup' => 'nullable|string',
-            'fecha_viaje' => 'required|date|after_or_equal:today',
-            'hora_pickup' => 'nullable|date_format:H:i',
-            'voucher' => 'nullable|string|max:100',
-            'precio_total' => 'nullable|numeric|min:0',
-            'responsable_pago' => 'nullable|string|max:255'
+        $validated = $request->validate([
+            'reserva_codigo' => 'nullable|string|max:45|unique:reserva',
+            'reserva_nombres_cliente' => 'required|string|max:100',
+            'reserva_apellidos_cliente' => 'required|string|max:100',
+            'reserva_cliente_nit' => 'nullable|integer',
+            'reserva_telefono_cliente' => 'required|integer|min:10000000|max:999999999999',
+            'reserva_email_cliente' => 'nullable|email|max:80',
+            'reserva_cantidad_adultos' => 'required|integer|min:1|max:50',
+            'reserva_cantidad_ninos' => 'nullable|integer|min:0|max:50',
+            'reserva_direccion_abordaje' => 'nullable|string|max:255',
+            'reserva_notas' => 'nullable|string|max:255',
+            'reserva_monto' => 'nullable|numeric|min:0',
+            'reserva_situacion' => 'boolean',
+            'usuario_id' => 'required|exists:usuario,usuario_id',
+            'estado_id' => 'required|exists:estado,estado_id',
+            'agencia_id' => 'nullable|exists:agencia,agencia_id',
+            'ruta_activada_id' => 'required|exists:ruta_activada,ruta_activada_id'
+        ]);
+
+        // Verificar capacidad de la ruta
+        $rutaActivada = RutaActivada::find($validated['ruta_activada_id']);
+        $totalPasajeros = $validated['reserva_cantidad_adultos'] + ($validated['reserva_cantidad_ninos'] ?? 0);
+
+        if (!$rutaActivada->puedeAcomodar($totalPasajeros)) {
+            return response()->json([
+                'message' => "No hay suficiente espacio en esta ruta. Espacios disponibles: {$rutaActivada->espacios_disponibles}"
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        // Calcular monto automáticamente si no se proporcionó
+        if (!isset($validated['reserva_monto']) && $rutaActivada->servicio) {
+            $validated['reserva_monto'] = $rutaActivada->servicio->calcularPrecio(
+                $validated['reserva_cantidad_adultos'],
+                $validated['reserva_cantidad_ninos'] ?? 0,
+                !is_null($validated['agencia_id'])
+            );
+        }
+
+        $reserva = Reserva::create($validated);
+
+        // Generar código si no se proporcionó
+        if (!$validated['reserva_codigo']) {
+            $reserva->reserva_codigo = $reserva->generarCodigoUnico();
+            $reserva->save();
+        }
+
+        $reserva->load(['usuario.persona', 'estado', 'agencia', 'rutaActivada.servicio', 'rutaActivada.ruta']);
+        return new ReservaResource($reserva);
+    }
+
+    public function show(Reserva $reserva)
+    {
+        $reserva->load([
+            'usuario.persona',
+            'estado',
+            'agencia',
+            'rutaActivada.servicio',
+            'rutaActivada.ruta',
+            'rutaActivada.vehiculo',
+            'facturas'
+        ]);
+        return new ReservaResource($reserva);
+    }
+
+    public function update(Request $request, Reserva $reserva)
+    {
+        $validated = $request->validate([
+            'reserva_codigo' => [
+                'nullable',
+                'string',
+                'max:45',
+                Rule::unique('reserva')->ignore($reserva->reserva_id, 'reserva_id')
+            ],
+            'reserva_nombres_cliente' => 'required|string|max:100',
+            'reserva_apellidos_cliente' => 'required|string|max:100',
+            'reserva_cliente_nit' => 'nullable|integer',
+            'reserva_telefono_cliente' => 'required|integer|min:10000000|max:999999999999',
+            'reserva_email_cliente' => 'nullable|email|max:80',
+            'reserva_cantidad_adultos' => 'required|integer|min:1|max:50',
+            'reserva_cantidad_ninos' => 'nullable|integer|min:0|max:50',
+            'reserva_direccion_abordaje' => 'nullable|string|max:255',
+            'reserva_notas' => 'nullable|string|max:255',
+            'reserva_monto' => 'nullable|numeric|min:0',
+            'reserva_situacion' => 'boolean',
+            'usuario_id' => 'required|exists:usuario,usuario_id',
+            'estado_id' => 'required|exists:estado,estado_id',
+            'agencia_id' => 'nullable|exists:agencia,agencia_id',
+            'ruta_activada_id' => 'required|exists:ruta_activada,ruta_activada_id'
+        ]);
+
+        // Si cambió la cantidad de pasajeros o ruta, verificar capacidad
+        $totalPasajeros = $validated['reserva_cantidad_adultos'] + ($validated['reserva_cantidad_ninos'] ?? 0);
+        $pasajerosOriginales = $reserva->total_pasajeros;
+
+        if ($validated['ruta_activada_id'] != $reserva->ruta_activada_id || $totalPasajeros != $pasajerosOriginales) {
+            $rutaActivada = RutaActivada::find($validated['ruta_activada_id']);
+            $espaciosNecesarios = $totalPasajeros - ($validated['ruta_activada_id'] == $reserva->ruta_activada_id ? $pasajerosOriginales : 0);
+
+            if ($rutaActivada->espacios_disponibles < $espaciosNecesarios) {
+                return response()->json([
+                    'message' => "No hay suficiente espacio. Espacios disponibles: {$rutaActivada->espacios_disponibles}"
+                ], Response::HTTP_BAD_REQUEST);
+            }
+        }
+
+        $reserva->update($validated);
+        $reserva->load(['usuario.persona', 'estado', 'agencia', 'rutaActivada.servicio']);
+
+        return new ReservaResource($reserva);
+    }
+
+    public function destroy(Reserva $reserva)
+    {
+        // Verificar si tiene facturas
+        if ($reserva->facturas()->exists()) {
+            return response()->json([
+                'message' => 'No se puede eliminar esta reserva porque tiene facturas asociadas.'
+            ], Response::HTTP_CONFLICT);
+        }
+
+        $reserva->delete();
+
+        return response()->json([
+            'message' => 'Reserva eliminada exitosamente'
+        ]);
+    }
+
+    public function cambiarEstado(Request $request, Reserva $reserva)
+    {
+        $validated = $request->validate([
+            'estado_codigo' => 'required|exists:estado,estado_codigo'
         ]);
 
         try {
-            DB::beginTransaction();
-
-            // Obtener la ruta
-            $ruta = Ruta::findOrFail($request->ruta_id);
-
-            // Verificar disponibilidad
-            $totalPasajeros = $request->pax_adultos + ($request->pax_ninos ?? 0);
-            $disponibilidad = $ruta->verificarDisponibilidad($request->fecha_viaje, $totalPasajeros);
-
-            if (!$disponibilidad['disponible']) {
-                return response()->json([
-                    'message' => 'No hay suficiente disponibilidad',
-                    'disponibilidad' => $disponibilidad
-                ], 400);
-            }
-
-            // Calcular precio si no se proporciona
-            $precioTotal = $request->precio_total;
-            if (!$precioTotal) {
-                $precioTotal = ($request->pax_adultos * $ruta->precio_adulto) +
-                    (($request->pax_ninos ?? 0) * $ruta->precio_nino);
-            }
-
-            // Obtener estado inicial
-            $estadoPendiente = EstadoReserva::where('codigo', 'PEND')->first();
-            if (!$estadoPendiente) {
-                throw new Exception('Estado pendiente no encontrado');
-            }
-
-            // Crear reserva
-            $reserva = Reserva::create([
-                'empleado_id' => 1, // Usuario default pendiente de autenticación
-                'ruta_id' => $request->ruta_id,
-                'pax_adultos' => $request->pax_adultos,
-                'pax_ninos' => $request->pax_ninos ?? 0,
-                'nombre_pasajero_principal' => $request->nombre_pasajero_principal,
-                'cliente_id' => $request->cliente_id,
-                'agencia_id' => $request->agencia_id,
-                'hotel_pickup' => $request->hotel_pickup,
-                'telefono_contacto' => $request->telefono_contacto,
-                'notas_pickup' => $request->notas_pickup,
-                'fecha_viaje' => $request->fecha_viaje,
-                'hora_pickup' => $request->hora_pickup ?? $ruta->hora_salida,
-                'voucher' => $request->voucher,
-                'precio_total' => $precioTotal,
-                'responsable_pago' => $request->responsable_pago,
-                'estado_reserva_id' => $estadoPendiente->id,
-                'situacion' => true
-            ]);
-
-            DB::commit();
-
-            return new ReservaResource($reserva->load(['empleado.persona', 'ruta', 'cliente.persona', 'agencia', 'estadoReserva']));
-        } catch (Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'Error al crear reserva',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Mostrar reserva específica
-     */
-    public function show($id)
-    {
-        try {
-            $reserva = Reserva::with([
-                'empleado.persona',
-                'ruta',
-                'cliente.persona',
-                'agencia',
-                'estadoReserva',
-                'venta',
-                'rutasEjecutadas'
-            ])->findOrFail($id);
+            $reserva->cambiarEstado($validated['estado_codigo']);
+            $reserva->load('estado');
 
             return new ReservaResource($reserva);
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Reserva no encontrada',
-                'error' => $e->getMessage()
-            ], 404);
+                'message' => $e->getMessage()
+            ], Response::HTTP_BAD_REQUEST);
         }
     }
 
-    /**
-     * Actualizar reserva
-     */
-    public function update(Request $request, $id)
-    {
-        $reserva = Reserva::findOrFail($id);
-
-        // Verificar si puede modificarse
-        if (!$reserva->puedeModificarse()) {
-            return response()->json([
-                'message' => 'La reserva no puede ser modificada en su estado actual'
-            ], 400);
-        }
-
-        $request->validate([
-            'pax_adultos' => 'sometimes|required|integer|min:1',
-            'pax_ninos' => 'sometimes|nullable|integer|min:0',
-            'nombre_pasajero_principal' => 'sometimes|required|string|max:255',
-            'cliente_id' => 'sometimes|nullable|exists:clientes,id',
-            'agencia_id' => 'sometimes|nullable|exists:agencias,id',
-            'hotel_pickup' => 'sometimes|nullable|string|max:255',
-            'telefono_contacto' => 'sometimes|nullable|string|max:20',
-            'notas_pickup' => 'sometimes|nullable|string',
-            'hora_pickup' => 'sometimes|nullable|date_format:H:i',
-            'voucher' => 'sometimes|nullable|string|max:100',
-            'precio_total' => 'sometimes|nullable|numeric|min:0',
-            'responsable_pago' => 'sometimes|nullable|string|max:255'
-        ]);
-
-        try {
-            DB::beginTransaction();
-
-            // Si cambian los pasajeros, verificar disponibilidad
-            if ($request->has('pax_adultos') || $request->has('pax_ninos')) {
-                $nuevosAdultos = $request->pax_adultos ?? $reserva->pax_adultos;
-                $nuevosNinos = $request->pax_ninos ?? $reserva->pax_ninos;
-                $totalNuevo = $nuevosAdultos + $nuevosNinos;
-                $totalActual = $reserva->pax_adultos + $reserva->pax_ninos;
-
-                if ($totalNuevo > $totalActual) {
-                    $diferencia = $totalNuevo - $totalActual;
-                    $disponibilidad = $reserva->ruta->verificarDisponibilidad($reserva->fecha_viaje, $diferencia);
-
-                    if (!$disponibilidad['disponible']) {
-                        return response()->json([
-                            'message' => 'No hay suficiente disponibilidad para aumentar pasajeros',
-                            'disponibilidad' => $disponibilidad
-                        ], 400);
-                    }
-                }
-            }
-
-            $reserva->update($request->all());
-
-            DB::commit();
-
-            return new ReservaResource($reserva->fresh()->load(['empleado.persona', 'ruta', 'cliente.persona', 'agencia', 'estadoReserva']));
-        } catch (Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'Error al actualizar reserva',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Eliminar/Cancelar reserva
-     */
-    public function destroy($id)
+    public function confirmar(Reserva $reserva)
     {
         try {
-            DB::beginTransaction();
-
-            $reserva = Reserva::findOrFail($id);
-
-            if (!$reserva->puedeCancelarse()) {
-                return response()->json([
-                    'message' => 'La reserva no puede ser cancelada en su estado actual'
-                ], 400);
-            }
-
-            $reserva->cancelar('Cancelada por usuario');
-
-            DB::commit();
-
-            return response()->json([
-                'message' => 'Reserva cancelada correctamente'
-            ]);
-        } catch (Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'Error al cancelar reserva',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Confirmar reserva
-     */
-    public function confirmar($id)
-    {
-        try {
-            DB::beginTransaction();
-
-            $reserva = Reserva::findOrFail($id);
             $reserva->confirmar();
-
-            DB::commit();
-
-            return response()->json([
-                'message' => 'Reserva confirmada correctamente',
-                'data' => new ReservaResource($reserva->fresh()->load(['estadoReserva']))
-            ]);
-        } catch (Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'Error al confirmar reserva',
-                'error' => $e->getMessage()
-            ], 500);
+            return new ReservaResource($reserva->load('estado'));
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
         }
     }
 
-    /**
-     * Cancelar reserva con motivo
-     */
-    public function cancelar($id, Request $request)
+    public function ejecutar(Reserva $reserva)
     {
-        $request->validate([
-            'motivo' => 'required|string|max:255'
+        try {
+            $reserva->ejecutar();
+            return new ReservaResource($reserva->load('estado'));
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        }
+    }
+
+    public function finalizar(Reserva $reserva)
+    {
+        try {
+            $reserva->finalizar();
+            return new ReservaResource($reserva->load('estado'));
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        }
+    }
+
+    public function cancelar(Reserva $reserva)
+    {
+        try {
+            $reserva->cancelar();
+            return new ReservaResource($reserva->load('estado'));
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        }
+    }
+
+    public function calcularMonto(Reserva $reserva)
+    {
+        $montoCalculado = $reserva->calcularMonto();
+
+        return response()->json([
+            'reserva' => new ReservaResource($reserva),
+            'monto_actual' => $reserva->reserva_monto,
+            'monto_calculado' => $montoCalculado,
+            'diferencia' => $montoCalculado - $reserva->reserva_monto,
+            'necesita_actualizacion' => abs($montoCalculado - $reserva->reserva_monto) > 0.01
+        ]);
+    }
+
+    public function whatsappConfirmacion(Reserva $reserva)
+    {
+        if (!$reserva->tieneTelefonoValido()) {
+            return response()->json([
+                'message' => 'Esta reserva no tiene un teléfono válido para WhatsApp'
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        $mensaje = $reserva->mensajeWhatsAppConfirmacion();
+        $link = $reserva->linkWhatsApp($mensaje);
+
+        return response()->json([
+            'reserva' => new ReservaResource($reserva),
+            'mensaje' => $mensaje,
+            'whatsapp_link' => $link,
+            'telefono_formateado' => $reserva->telefono_formateado
+        ]);
+    }
+
+    public function validarDatos(Reserva $reserva)
+    {
+        $validaciones = [
+            'datos_completos' => $reserva->datosCompletos(),
+            'telefono_valido' => $reserva->tieneTelefonoValido(),
+            'email_valido' => $reserva->tieneEmailValido()
+        ];
+
+        $errores = [];
+
+        if (!$validaciones['datos_completos']) {
+            $errores[] = 'Los datos de la reserva están incompletos';
+        }
+
+        if (!$validaciones['telefono_valido']) {
+            $errores[] = 'El teléfono no es válido';
+        }
+
+        if ($reserva->reserva_email_cliente && !$validaciones['email_valido']) {
+            $errores[] = 'El email no tiene un formato válido';
+        }
+
+        return response()->json([
+            'reserva' => new ReservaResource($reserva),
+            'validaciones' => $validaciones,
+            'errores' => $errores,
+            'es_valido' => empty($errores)
+        ]);
+    }
+
+    public function hoy()
+    {
+        $reservasHoy = Reserva::hoy()
+            ->with(['usuario.persona', 'estado', 'agencia', 'rutaActivada.servicio'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return ReservaResource::collection($reservasHoy);
+    }
+
+    public function pendientes()
+    {
+        $reservasPendientes = Reserva::pendientes()
+            ->with(['usuario.persona', 'estado', 'agencia', 'rutaActivada'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return ReservaResource::collection($reservasPendientes);
+    }
+
+    public function confirmadas()
+    {
+        $reservasConfirmadas = Reserva::confirmadas()
+            ->with(['usuario.persona', 'estado', 'agencia', 'rutaActivada'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return ReservaResource::collection($reservasConfirmadas);
+    }
+
+    public function porVendedor($vendedorId)
+    {
+        $reservasVendedor = Reserva::where('usuario_id', $vendedorId)
+            ->with(['estado', 'agencia', 'rutaActivada.servicio'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return ReservaResource::collection($reservasVendedor);
+    }
+
+    public function porAgencia($agenciaId)
+    {
+        $reservasAgencia = Reserva::where('agencia_id', $agenciaId)
+            ->with(['usuario.persona', 'estado', 'rutaActivada.servicio'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return ReservaResource::collection($reservasAgencia);
+    }
+
+    public function buscarCliente(Request $request)
+    {
+        $validated = $request->validate([
+            'termino' => 'required|string|min:3'
         ]);
 
-        try {
-            DB::beginTransaction();
+        $reservas = Reserva::buscarCliente($validated['termino'])
+            ->with(['estado', 'agencia', 'rutaActivada.servicio'])
+            ->orderBy('created_at', 'desc')
+            ->limit(20)
+            ->get();
 
-            $reserva = Reserva::findOrFail($id);
-
-            if (!$reserva->puedeCancelarse()) {
-                return response()->json([
-                    'message' => 'La reserva no puede ser cancelada en su estado actual'
-                ], 400);
-            }
-
-            $reserva->cancelar($request->motivo);
-
-            DB::commit();
-
-            return response()->json([
-                'message' => 'Reserva cancelada correctamente',
-                'data' => new ReservaResource($reserva->fresh()->load(['estadoReserva']))
-            ]);
-        } catch (Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'Error al cancelar reserva',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return ReservaResource::collection($reservas);
     }
 
-    /**
-     * Obtener formato WhatsApp de la reserva
-     */
-    public function formatoWhatsApp($id)
+    public function resumenCompleto(Reserva $reserva)
     {
-        try {
-            $reserva = Reserva::with(['ruta'])->findOrFail($id);
+        $resumen = $reserva->resumenCompleto();
 
-            $mensaje = $reserva->generarMensajeWhatsApp();
-
-            return response()->json([
-                'mensaje' => $mensaje,
-                'formato_plano' => strip_tags(str_replace(['*', '━'], '', $mensaje))
-            ]);
-        } catch (Exception $e) {
-            return response()->json([
-                'message' => 'Error al generar mensaje WhatsApp',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json($resumen);
     }
 
-    /**
-     * Dashboard de reservas del día
-     */
-    public function reservasDelDia(Request $request)
+    public function duplicar(Reserva $reserva)
     {
-        $fecha = $request->get('fecha', Carbon::today());
+        $nuevaReserva = $reserva->replicate([
+            'reserva_codigo',
+            'created_at',
+            'updated_at'
+        ]);
 
-        try {
-            $reservas = Reserva::with(['ruta', 'estadoReserva'])
-                ->porFechaViaje($fecha)
-                ->get();
+        $nuevaReserva->reserva_codigo = null;
 
-            $estadisticas = [
-                'total_reservas' => $reservas->count(),
-                'total_pasajeros' => $reservas->sum('pax_total'),
-                'adultos' => $reservas->sum('pax_adultos'),
-                'ninos' => $reservas->sum('pax_ninos'),
-                'confirmadas' => $reservas->where('estadoReserva.codigo', 'CONF')->count(),
-                'pendientes' => $reservas->where('estadoReserva.codigo', 'PEND')->count(),
-                'por_ruta' => $reservas->groupBy('ruta.nombre_ruta')->map(function ($grupo) {
+        // Cambiar estado a pendiente
+        $estadoPendiente = \App\Models\Estado::where('estado_codigo', 'RES_PEND')->first();
+        if ($estadoPendiente) {
+            $nuevaReserva->estado_id = $estadoPendiente->estado_id;
+        }
+
+        $nuevaReserva->save();
+
+        // Generar nuevo código
+        $nuevaReserva->reserva_codigo = $nuevaReserva->generarCodigoUnico();
+        $nuevaReserva->save();
+
+        $nuevaReserva->load(['usuario.persona', 'estado', 'agencia', 'rutaActivada.servicio']);
+        return new ReservaResource($nuevaReserva);
+    }
+
+    public function stats()
+    {
+        $stats = [
+            'total' => Reserva::count(),
+            'activas' => Reserva::activo()->count(),
+            'hoy' => Reserva::hoy()->count(),
+            'por_estado' => [
+                'pendientes' => Reserva::pendientes()->count(),
+                'confirmadas' => Reserva::confirmadas()->count(),
+                'ejecutandose' => Reserva::ejecutandose()->count(),
+                'finalizadas' => Reserva::finalizadas()->count(),
+                'canceladas' => Reserva::canceladas()->count()
+            ],
+            'por_tipo' => [
+                'agencias' => Reserva::deAgencias()->count(),
+                'directas' => Reserva::directas()->count()
+            ],
+            'ingresos' => [
+                'total' => Reserva::activo()->sum('reserva_monto'),
+                'hoy' => Reserva::hoy()->sum('reserva_monto'),
+                'mes_actual' => Reserva::whereMonth('created_at', now()->month)
+                    ->whereYear('created_at', now()->year)
+                    ->sum('reserva_monto')
+            ],
+            'pasajeros' => [
+                'total_mes' => Reserva::whereMonth('created_at', now()->month)
+                    ->whereYear('created_at', now()->year)
+                    ->sum(\DB::raw('reserva_cantidad_adultos + IFNULL(reserva_cantidad_ninos, 0)')),
+                'promedio_por_reserva' => Reserva::activo()
+                    ->get()
+                    ->avg(function ($reserva) {
+                        return $reserva->total_pasajeros;
+                    })
+            ],
+            'top_vendedores' => Reserva::selectRaw('usuario_id, COUNT(*) as total_reservas, SUM(reserva_monto) as total_ingresos')
+                ->whereMonth('created_at', now()->month)
+                ->whereYear('created_at', now()->year)
+                ->with('usuario.persona')
+                ->groupBy('usuario_id')
+                ->orderByDesc('total_reservas')
+                ->limit(5)
+                ->get()
+                ->map(function ($reserva) {
                     return [
-                        'total' => $grupo->count(),
-                        'pasajeros' => $grupo->sum('pax_total')
+                        'vendedor' => $reserva->usuario->nombre_completo,
+                        'reservas' => $reserva->total_reservas,
+                        'ingresos' => $reserva->total_ingresos
                     ];
                 })
-            ];
+        ];
 
-            return response()->json([
-                'fecha' => $fecha,
-                'estadisticas' => $estadisticas,
-                'reservas' => ReservaResource::collection($reservas)
-            ]);
-        } catch (Exception $e) {
-            return response()->json([
-                'message' => 'Error al obtener reservas del día',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json($stats);
     }
 }

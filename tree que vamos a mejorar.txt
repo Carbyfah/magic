@@ -1,0 +1,188 @@
+PS MSI GF63 9RC@CMDG:C:\magic\src > tree .\resources\ /f /a
+Listado de rutas de carpetas para el volumen Disco Local
+El número de serie del volumen es 2AF4-5870
+C:\MAGIC\SRC\RESOURCES
++---css
+|       app.css
+|
++---js
+|   |   bootstrap.js
+|   |   simple.js
+|   |
+|   +---components
+|   |   +---catalogos
+|   |   |   +---common
+|   |   |   |       CatalogoBase.js
+|   |   |   |       CatalogoForm.js
+|   |   |   |       CatalogoModal.js
+|   |   |   |       CatalogoTable.js
+|   |   |   |       CountryAutocomplete.js
+|   |   |   |       DuplicateModal.js
+|   |   |   |
+|   |   |   \---modulos
+|   |   |           CatalogosList.js
+|   |   |           EstadosComercial.js
+|   |   |           EstadosEmpleado.js
+|   |   |           EstadosPago.js
+|   |   |           EstadosReserva.js
+|   |   |           EstadosRuta.js
+|   |   |           EstadosVehiculo.js
+|   |   |           EstadosVenta.js
+|   |   |           FormasPago.js
+|   |   |           Paises.js
+|   |   |           Roles.js
+|   |   |           TiposAgencia.js
+|   |   |           TiposCliente.js
+|   |   |           TiposCombustible.js
+|   |   |           TiposLicencia.js
+|   |   |           TiposPersona.js
+|   |   |           TiposVehiculo.js
+|   |   |           TiposVenta.js
+|   |   |
+|   |   +---comercial
+|   |   |   +---agencias
+|   |   |   |       AgenciasCard.js
+|   |   |   |       AgenciasComisiones.js
+|   |   |   |       AgenciasCreditos.js
+|   |   |   |       AgenciasEstadisticas.js
+|   |   |   |       AgenciasForm.js
+|   |   |   |       AgenciasList.js
+|   |   |   |       AgenciasModal.js
+|   |   |   |       GestionAgencias copy.js
+|   |   |   |       GestionAgencias.js
+|   |   |   |
+|   |   |   +---clientes
+|   |   |   |       ClientesCard.js
+|   |   |   |       ClientesCreditos.js
+|   |   |   |       ClientesEstadisticas.js
+|   |   |   |       ClientesForm.js
+|   |   |   |       ClientesHistorial.js
+|   |   |   |       ClientesList.js
+|   |   |   |       ClientesModal.js
+|   |   |   |       GestionClientes.js
+|   |   |   |
+|   |   |   +---pagos
+|   |   |   |       CuentasPorCobrar.js
+|   |   |   |       GestionPagos.js
+|   |   |   |       PagosCard.js
+|   |   |   |       PagosEstadisticas.js
+|   |   |   |       PagosForm.js
+|   |   |   |       PagosList.js
+|   |   |   |       PagosModal.js
+|   |   |   |       PagosParciales.js
+|   |   |   |
+|   |   |   \---ventas
+|   |   |           ComisionesPanel.js
+|   |   |           FacturacionModal.js
+|   |   |           GestionVentas.js
+|   |   |           PagosModal.js
+|   |   |           VentasCard.js
+|   |   |           VentasEstadisticas.js
+|   |   |           VentasList.js
+|   |   |           VentasModal.js
+|   |   |
+|   |   +---common
+|   |   |       CityAutocomplete.js
+|   |   |       DateSelectionModal.js
+|   |   |       MapPlaceSelector.js
+|   |   |       PlaceAutocomplete.js
+|   |   |       ToggleConfirmationModal.js
+|   |   |
+|   |   +---configuracion
+|   |   |       RutasServicios copy.js
+|   |   |       RutasServicios.js
+|   |   |       RutasServiciosForm.js
+|   |   |       RutasServiciosList.js
+|   |   |       RutasServiciosModal.js
+|   |   |
+|   |   +---flota
+|   |   |   +---choferes
+|   |   |   |       ChoferesCard.js
+|   |   |   |       ChoferesEstadisticas.js
+|   |   |   |       ChoferesForm.js
+|   |   |   |       ChoferesHistorial.js
+|   |   |   |       ChoferesLicencias.js
+|   |   |   |       ChoferesList.js
+|   |   |   |       ChoferesModal.js
+|   |   |   |       GestionChoferes.js
+|   |   |   |
+|   |   |   \---vehiculos
+|   |   |           GestionVehiculos.js
+|   |   |           VehiculosAsignacion.js
+|   |   |           VehiculosCard.js
+|   |   |           VehiculosEstadisticas.js
+|   |   |           VehiculosForm.js
+|   |   |           VehiculosList.js
+|   |   |           VehiculosMantenimiento.js
+|   |   |           VehiculosModal.js
+|   |   |
+|   |   +---layouts
+|   |   |       Dashboard.js
+|   |   |       Sidebar copy.js
+|   |   |       Sidebar.js
+|   |   |       TopBar.js
+|   |   |
+|   |   +---operacion
+|   |   |   +---flota
+|   |   |   |       AsignacionModal.js
+|   |   |   |       ControlFlota.js
+|   |   |   |       FlotaCard.js
+|   |   |   |       FlotaEstadisticas.js
+|   |   |   |       FlotaForm.js
+|   |   |   |       FlotaList.js
+|   |   |   |       FlotaModal.js
+|   |   |   |       MantenimientoModal.js
+|   |   |   |
+|   |   |   \---rutasdia
+|   |   |           RutasDia.js
+|   |   |           RutasDiaCard.js
+|   |   |           RutasDiaForm.js
+|   |   |           RutasDiaList.js
+|   |   |           RutasDiaModal.js
+|   |   |
+|   |   +---reservaciones
+|   |   |       ReservaCard.js
+|   |   |       Reservaciones.js
+|   |   |       ReservaForm.js
+|   |   |       ReservaModal.js
+|   |   |       ReservasList.js
+|   |   |       WhatsAppFormat.js
+|   |   |
+|   |   \---usuarios
+|   |       |   UsuariosPermisos.js
+|   |       |
+|   |       +---common
+|   |       |       PermisosChecker.js
+|   |       |       RolesBadge.js
+|   |       |       UserAvatar.js
+|   |       |
+|   |       +---empleados
+|   |       |       Empleados.js
+|   |       |       EmpleadosForm.js
+|   |       |       EmpleadosList.js
+|   |       |       EmpleadosModal.js
+|   |       |
+|   |       +---roles
+|   |       |       GestionRoles.js
+|   |       |       PermisosMatrix.js
+|   |       |       PermisosTree.js
+|   |       |
+|   |       \---seguridad
+|   |               AccesosLog.js
+|   |               SeguridadPanel.js
+|   |               SesionesActivas.js
+|   |
+|   +---services
+|   |       api.js
+|   |       auth.js
+|   |
+|   \---utils
+|           helpers.js
+|           Icons.js
+|           notifications.js
+|           RouteCalculator.js
+|
+\---views
+        app.blade.php
+
+PS MSI GF63 9RC@CMDG:C:\magic\src >

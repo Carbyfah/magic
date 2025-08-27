@@ -10,39 +10,19 @@ class Ruta extends Model
 {
     use SoftDeletes, HasAudit;
 
-    protected $table = 'rutas';
+    protected $table = 'ruta';
+    protected $primaryKey = 'ruta_id';
 
     protected $fillable = [
-        'codigo_ruta',
-        'nombre_ruta',
-        'tipo_servicio',
-        'ciudad_origen',
-        'ciudad_destino',
-        'punto_salida',
-        'punto_llegada',
-        'distancia_km',
-        'hora_salida',
-        'hora_llegada_estimada',
-        'duracion_minutos',
-        'capacidad_maxima',
-        'capacidad_recomendada',
-        'tipo_vehiculo_id',
-        'dias_operacion',
-        'precio_adulto',
-        'precio_nino',
-        'incluye',
-        'estado_ruta_id',
-        'situacion'
+        'ruta_codigo',
+        'ruta_ruta',
+        'ruta_origen',
+        'ruta_destino',
+        'ruta_situacion'
     ];
 
     protected $casts = [
-        'situacion' => 'boolean',
-        'distancia_km' => 'decimal:2',
-        'duracion_minutos' => 'integer',
-        'capacidad_maxima' => 'integer',
-        'capacidad_recomendada' => 'integer',
-        'precio_adulto' => 'decimal:2',
-        'precio_nino' => 'decimal:2',
+        'ruta_situacion' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime'
     ];
@@ -53,155 +33,176 @@ class Ruta extends Model
         'deleted_at'
     ];
 
-    /**
-     * Boot del modelo
-     */
-    protected static function boot()
-    {
-        parent::boot();
-
-        static::creating(function ($ruta) {
-            if (empty($ruta->codigo_ruta)) {
-                $ruta->codigo_ruta = self::generarCodigoRuta();
-            }
-        });
-    }
-
-    /**
-     * Generar código único de ruta
-     */
-    public static function generarCodigoRuta()
-    {
-        $ultimo = self::orderBy('id', 'desc')->first();
-        $numero = $ultimo ? intval(substr($ultimo->codigo_ruta, 3)) + 1 : 1;
-        return sprintf('RUT%04d', $numero);
-    }
+    protected $appends = [
+        'es_activo',
+        'ruta_completa',
+        'direccion_ruta'
+    ];
 
     /**
      * Relaciones
      */
-    public function tipoVehiculo()
+    public function rutasActivadas()
     {
-        return $this->belongsTo(TipoVehiculo::class);
-    }
-
-    public function estadoRuta()
-    {
-        return $this->belongsTo(EstadoRuta::class);
-    }
-
-    public function reservas()
-    {
-        return $this->hasMany(Reserva::class);
-    }
-
-    public function rutasEjecutadas()
-    {
-        return $this->hasMany(RutaEjecutada::class);
+        return $this->hasMany(RutaActivada::class, 'ruta_id', 'ruta_id');
     }
 
     /**
      * Atributos calculados
      */
-    public function getAceptaReservasAttribute()
+    public function getEsActivoAttribute()
     {
-        return $this->estadoRuta && $this->estadoRuta->acepta_reservas;
+        return $this->ruta_situacion === true;
     }
 
-    public function getOperaHoyAttribute()
+    public function getRutaCompletaAttribute()
     {
-        $diaSemana = now()->dayOfWeek; // 0 = domingo, 6 = sábado
-        return substr($this->dias_operacion, $diaSemana, 1) === '1';
+        return $this->ruta_origen . ' → ' . $this->ruta_destino;
     }
 
-    public function getDiasOperacionArrayAttribute()
+    public function getDireccionRutaAttribute()
     {
-        $dias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-        $operacion = [];
+        $origen = strtolower($this->ruta_origen ?? '');
+        $destino = strtolower($this->ruta_destino ?? '');
 
-        for ($i = 0; $i < 7; $i++) {
-            if (substr($this->dias_operacion, $i, 1) === '1') {
-                $operacion[] = $dias[$i];
-            }
+        if (str_contains($origen, 'guatemala') && !str_contains($destino, 'guatemala')) {
+            return 'Salida de Capital';
+        } elseif (!str_contains($origen, 'guatemala') && str_contains($destino, 'guatemala')) {
+            return 'Llegada a Capital';
+        } elseif (str_contains($origen, 'aeroporto') || str_contains($destino, 'aeroporto')) {
+            return 'Conexión Aeroporto';
         }
 
-        return $operacion;
+        return 'Intermedio';
     }
 
     /**
      * Scopes
      */
-    public function scopeActivas($query)
+    public function scopeActivo($query)
     {
-        return $query->whereHas('estadoRuta', function ($q) {
-            $q->where('acepta_reservas', true);
+        return $query->where('ruta_situacion', true);
+    }
+
+    public function scopePorCodigo($query, $codigo)
+    {
+        return $query->where('ruta_codigo', $codigo);
+    }
+
+    public function scopeDesdeGuatemala($query)
+    {
+        return $query->where('ruta_origen', 'like', '%Guatemala%');
+    }
+
+    public function scopeHaciaGuatemala($query)
+    {
+        return $query->where('ruta_destino', 'like', '%Guatemala%');
+    }
+
+    public function scopeConAeropuerto($query)
+    {
+        return $query->where(function ($q) {
+            $q->where('ruta_origen', 'like', '%Aeroporto%')
+                ->orWhere('ruta_destino', 'like', '%Aeroporto%');
         });
     }
 
-    public function scopePorTipoServicio($query, $tipo)
+    /**
+     * Métodos estáticos para rutas específicas
+     */
+    public static function guatemalaAntigua()
     {
-        return $query->where('tipo_servicio', $tipo);
+        return self::where('ruta_codigo', 'GUATE_ANTI')->first();
     }
 
-    public function scopeOperanDia($query, $diaSemana)
+    public static function guatemalaAtitlan()
     {
-        return $query->where('dias_operacion', 'like', str_repeat('_', $diaSemana) . '1%');
+        return self::where('ruta_codigo', 'GUATE_ATIT')->first();
     }
 
-    public function scopePorOrigenDestino($query, $origen, $destino)
+    public static function antiguaAtitlan()
     {
-        return $query->where('ciudad_origen', $origen)
-            ->where('ciudad_destino', $destino);
+        return self::where('ruta_codigo', 'ANTI_ATIT')->first();
+    }
+
+    public static function guatemalaTikal()
+    {
+        return self::where('ruta_codigo', 'GUATE_TIKAL')->first();
+    }
+
+    public static function aeropuertoGuatemala()
+    {
+        return self::where('ruta_codigo', 'AERO_GUATE')->first();
+    }
+
+    public static function aeropuertoAntigua()
+    {
+        return self::where('ruta_codigo', 'AERO_ANTI')->first();
     }
 
     /**
      * Métodos de negocio
      */
-    public function verificarDisponibilidad($fecha, $pasajeros = 1)
+    public function esRutaAeropuerto()
     {
-        // Verificar si opera ese día
-        $diaSemana = \Carbon\Carbon::parse($fecha)->dayOfWeek;
-        if (substr($this->dias_operacion, $diaSemana, 1) !== '1') {
-            return ['disponible' => false, 'mensaje' => 'La ruta no opera este día'];
-        }
-
-        // Verificar capacidad
-        $reservasConfirmadas = $this->reservas()
-            ->whereDate('fecha_viaje', $fecha)
-            ->whereHas('estadoReserva', function ($q) {
-                $q->where('cuenta_ocupacion', true);
-            })
-            ->sum('pax_total');
-
-        $espaciosDisponibles = $this->capacidad_maxima - $reservasConfirmadas;
-
-        if ($espaciosDisponibles < $pasajeros) {
-            return [
-                'disponible' => false,
-                'mensaje' => "Solo quedan {$espaciosDisponibles} espacios disponibles",
-                'espacios_disponibles' => $espaciosDisponibles
-            ];
-        }
-
-        return [
-            'disponible' => true,
-            'espacios_disponibles' => $espaciosDisponibles,
-            'mensaje' => 'Ruta disponible'
-        ];
+        return str_contains(strtolower($this->ruta_origen ?? ''), 'aeroporto') ||
+            str_contains(strtolower($this->ruta_destino ?? ''), 'aeroporto');
     }
 
-    public function crearEjecucion($fecha, $vehiculoId, $choferId, $choferApoyoId = null)
+    public function esRutaTuristica()
     {
-        return RutaEjecutada::create([
-            'numero_ejecucion' => RutaEjecutada::generarNumeroEjecucion(),
-            'ruta_id' => $this->id,
-            'vehiculo_id' => $vehiculoId,
-            'chofer_id' => $choferId,
-            'chofer_apoyo_id' => $choferApoyoId,
-            'fecha_operacion' => $fecha,
-            'hora_salida_programada' => $this->hora_salida,
-            'capacidad_vehiculo' => Vehiculo::find($vehiculoId)->capacidad_pasajeros,
-            'estado' => 'programada'
-        ]);
+        $destinos_turisticos = ['antigua', 'atitlan', 'tikal', 'quetzaltenango'];
+
+        foreach ($destinos_turisticos as $destino) {
+            if (str_contains(strtolower($this->ruta_destino ?? ''), $destino)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function rutaInversa()
+    {
+        return self::where('ruta_origen', $this->ruta_destino)
+            ->where('ruta_destino', $this->ruta_origen)
+            ->first();
+    }
+
+    public function tieneRutasActivas()
+    {
+        return $this->rutasActivadas()->exists();
+    }
+
+    public function esPopular()
+    {
+        $count = $this->rutasActivadas()
+            ->where('created_at', '>=', now()->subMonth())
+            ->count();
+
+        return $count > 5;
+    }
+
+    public function getDistanciaEstimada()
+    {
+        $distancias = [
+            'guatemala-antigua' => 45,
+            'guatemala-atitlan' => 150,
+            'guatemala-tikal' => 550,
+            'guatemala-quetzaltenango' => 200,
+            'antigua-atitlan' => 120,
+            'antigua-quetzaltenango' => 180,
+            'aeroporto-guatemala' => 35,
+            'aeroporto-antigua' => 50
+        ];
+
+        $key = strtolower($this->ruta_codigo ?? '');
+        foreach ($distancias as $ruta => $km) {
+            if (str_contains($key, str_replace('-', '_', $ruta))) {
+                return $km;
+            }
+        }
+
+        return null;
     }
 }

@@ -2,50 +2,69 @@
 
 namespace App\Http\Resources;
 
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class PersonaResource extends JsonResource
 {
-    /**
-     * Transform the resource into an array.
-     */
-    public function toArray($request)
+    public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
-            'nombres' => $this->nombres,
-            'apellidos' => $this->apellidos,
+            'id' => $this->persona_id,
+            'codigo' => $this->persona_codigo,
+            'nombres' => $this->persona_nombres,
+            'apellidos' => $this->persona_apellidos,
             'nombre_completo' => $this->nombre_completo,
-            'documento_identidad' => $this->documento_identidad,
-            'email' => $this->email,
-            'telefono_principal' => $this->telefono_principal,
-            'whatsapp' => $this->whatsapp,
-            'direccion' => $this->direccion,
-            'tipo_persona' => [
-                'id' => $this->tipoPersona->id ?? null,
-                'codigo' => $this->tipoPersona->codigo ?? null,
-                'nombre' => $this->tipoPersona->nombre ?? null,
+            'telefono' => $this->persona_telefono,
+            'telefono_formateado' => $this->telefono_formateado,
+            'email' => $this->persona_email,
+            'activo' => $this->es_activo,
+            'iniciales' => $this->iniciales,
+
+            // Información del tipo de persona
+            'tipo_persona' => TipoPersonaResource::make(
+                $this->whenLoaded('tipoPersona')
+            ),
+
+            // Clasificaciones para permisos y lógica
+            'roles' => [
+                'es_administrador' => $this->esAdministrador(),
+                'es_vendedor' => $this->esVendedor(),
+                'es_chofer' => $this->esChofer(),
+                'es_cliente' => $this->esCliente(),
+                'es_contacto_agencia' => $this->esContactoAgencia(),
+                'es_empleado' => $this->esEmpleado(),
+                'puede_vender' => $this->puedeVender(),
             ],
-            'tipo_persona_id' => $this->tipo_persona_id,
-            'situacion' => $this->situacion,
-            'es_empleado' => $this->empleado ? true : false,
-            'es_cliente' => $this->cliente ? true : false,
-            'empleado' => $this->whenLoaded('empleado', function () {
-                return [
-                    'id' => $this->empleado->id,
-                    'codigo_empleado' => $this->empleado->codigo_empleado,
-                    'rol' => $this->empleado->rol->nombre_rol ?? null
-                ];
-            }),
-            'cliente' => $this->whenLoaded('cliente', function () {
-                return [
-                    'id' => $this->cliente->id,
-                    'codigo_cliente' => $this->cliente->codigo_cliente,
-                    'tipo_cliente' => $this->cliente->tipoCliente->nombre_tipo ?? null
-                ];
-            }),
-            'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
-            'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
+
+            // Estado y validaciones
+            'estado' => [
+                'esta_activo' => $this->estaActivo(),
+                'tiene_usuario' => $this->tieneUsuario(),
+                'datos_completos' => $this->datosCompletos(),
+                'email_valido' => $this->tieneEmailValido(),
+                'telefono_valido' => $this->tieneTelefonoValido(),
+            ],
+
+            // Usuario asociado (sin información sensible)
+            'usuario' => $this->when(
+                $this->whenLoaded('usuario') && $this->tieneUsuario(),
+                [
+                    'codigo' => $this->usuario->usuario_codigo,
+                    'activo' => $this->usuario->es_activo,
+                    'ultima_actividad' => $this->usuario->ultimaActividad()?->toISOString(),
+                ]
+            ),
+
+            // Comunicación para WhatsApp
+            'comunicacion' => [
+                'whatsapp_disponible' => $this->tieneTelefonoValido(),
+                'whatsapp_link' => $this->linkWhatsApp(),
+            ],
+
+            // Timestamps
+            'created_at' => $this->created_at?->toISOString(),
+            'updated_at' => $this->updated_at?->toISOString(),
         ];
     }
 }

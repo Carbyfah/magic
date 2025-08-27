@@ -2,59 +2,86 @@
 
 namespace App\Http\Resources;
 
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class VehiculoResource extends JsonResource
 {
-    public function toArray($request)
+    public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
-            'codigo_vehiculo' => $this->codigo_vehiculo,
-            'placa' => $this->placa,
-            'marca' => $this->marca,
-            'modelo' => $this->modelo,
-            'ano' => $this->ano,
-            'color' => $this->color,
-            'tipo_vehiculo' => [
-                'id' => $this->tipoVehiculo->id ?? null,
-                'codigo' => $this->tipoVehiculo->codigo ?? null,
-                'nombre' => $this->tipoVehiculo->nombre_tipo ?? null,
-                'capacidad_estandar' => $this->tipoVehiculo->capacidad_estandar ?? null,
+            'id' => $this->vehiculo_id,
+            'codigo' => $this->vehiculo_codigo,
+            'placa' => $this->vehiculo_placa,
+            'marca' => $this->vehiculo_marca,
+            'modelo' => $this->vehiculo_modelo,
+            'capacidad' => $this->vehiculo_capacidad,
+            'activo' => $this->es_activo,
+            'descripcion_completa' => $this->descripcion_completa,
+            'tipo' => $this->tipo_vehiculo,
+
+            // Estado actual del vehículo
+            'estado_actual' => EstadoResource::make(
+                $this->whenLoaded('estado')
+            ),
+
+            // Estados disponibles para cambios
+            'estados_disponibles' => [
+                'esta_disponible' => $this->estaDisponible(),
+                'esta_ocupado' => $this->estaOcupado(),
+                'esta_en_mantenimiento' => $this->estaEnMantenimiento(),
+                'esta_inactivo' => $this->estaInactivo(),
             ],
-            'tipo_combustible' => [
-                'id' => $this->tipoCombustible->id ?? null,
-                'codigo' => $this->tipoCombustible->codigo ?? null,
-                'nombre' => $this->tipoCombustible->nombre_combustible ?? null,
-                'unidad_medida' => $this->tipoCombustible->unidad_medida ?? null,
+
+            // Ocupación y capacidad en tiempo real
+            'ocupacion' => [
+                'actual' => $this->getOcupacionActual(),
+                'capacidad_total' => $this->vehiculo_capacidad,
+                'espacios_libres' => $this->espaciosLibres(),
+                'porcentaje_uso' => $this->getPorcentajeUso(),
             ],
-            'capacidad_pasajeros' => $this->capacidad_pasajeros,
-            'capacidad_equipaje' => $this->capacidad_equipaje,
-            'numero_motor' => $this->numero_motor,
-            'numero_chasis' => $this->numero_chasis,
-            'numero_tarjeta_circulacion' => $this->numero_tarjeta_circulacion,
-            'vencimiento_tarjeta_circulacion' => $this->vencimiento_tarjeta_circulacion?->format('Y-m-d'),
-            'tarjeta_vigente' => $this->tarjeta_vigente,
-            'poliza_seguro' => $this->poliza_seguro,
-            'vencimiento_seguro' => $this->vencimiento_seguro?->format('Y-m-d'),
-            'seguro_vigente' => $this->seguro_vigente,
-            'kilometraje_actual' => $this->kilometraje_actual,
-            'fecha_ultimo_servicio' => $this->fecha_ultimo_servicio?->format('Y-m-d'),
-            'requiere_mantenimiento' => $this->requiere_mantenimiento,
-            'estado_vehiculo' => [
-                'id' => $this->estadoVehiculo->id ?? null,
-                'codigo' => $this->estadoVehiculo->codigo ?? null,
-                'nombre' => $this->estadoVehiculo->nombre_estado ?? null,
-                'disponible' => $this->estadoVehiculo->disponible_operacion ?? false,
-                'color' => $this->estadoVehiculo->color_hex ?? null,
+
+            // Ruta actual si está asignado
+            'ruta_actual' => RutaActivadaResource::make(
+                $this->whenLoaded('rutaActual')
+            ),
+
+            // Aptitud para servicios
+            'aptitud_servicios' => [
+                'tour' => $this->esAptoPara('Tour'),
+                'transporte' => $this->esAptoPara('Transporte'),
+                'shuttle' => $this->esAptoPara('Shuttle'),
             ],
-            'esta_disponible' => $this->esta_disponible,
-            'total_rutas_ejecutadas' => $this->whenLoaded('rutasEjecutadas', function () {
-                return $this->rutasEjecutadas->count();
-            }),
-            'situacion' => $this->situacion,
-            'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
-            'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
+
+            // Estadísticas operativas
+            'estadisticas' => $this->when(
+                $request->has('include_estadisticas'),
+                [
+                    'total_rutas_asignadas' => $this->whenCounted('rutasActivadas'),
+                    'tiene_ruta_activa' => $this->relationLoaded('rutaActual') && $this->rutaActual !== null,
+                    'necesita_mantenimiento' => $this->proximoMantenimiento() === 'Urgente',
+                ]
+            ),
+
+            // Información de rendimiento (solo para gerencia)
+            'rendimiento' => $this->when(
+                $request->user()?->esGerente(),
+                [
+                    'porcentaje_uso_mensual' => $this->getPorcentajeUso(),
+                    'proximo_mantenimiento' => $this->proximoMantenimiento(),
+                ]
+            ),
+
+            // Operaciones disponibles según estado
+            'operaciones_disponibles' => [
+                'puede_asignar_ruta' => $this->estaDisponible(),
+                'puede_mantenimiento' => !$this->estaEnMantenimiento(),
+                'puede_cambiar_estado' => $this->es_activo,
+            ],
+
+            // Timestamps
+            'created_at' => $this->created_at?->toISOString(),
+            'updated_at' => $this->updated_at?->toISOString(),
         ];
     }
 }

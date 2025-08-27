@@ -34,10 +34,9 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
             icon: Icons.operacion(),
             type: 'section',
             children: [
-                { id: 'reservas', label: 'Reservas', icon: Icons.calendar() },
+                { id: 'reservaciones', label: 'Reservaciones', icon: Icons.calendar() },
                 { id: 'rutas-dia', label: 'Rutas del Día', icon: Icons.map() },
-                { id: 'control-flota', label: 'Control de Flota', icon: Icons.truck() },
-                { id: 'pasajeros', label: 'Pasajeros', icon: Icons.users() }
+                { id: 'control-flota', label: 'Control de Flota', icon: Icons.truck() }
             ]
         },
         {
@@ -232,43 +231,45 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
             }
         })),
 
-        // Toggle Button
+        // Toggle Button - INTEGRADO EN EL SIDEBAR (PARTE IZQUIERDA)
         e('div', {
             key: 'toggleBtn',
             style: {
-                position: 'absolute',
-                bottom: '20px',
-                left: '50%',
-                transform: 'translateX(-50%)'
+                position: 'absolute',  // Parte del sidebar
+                top: '50%',  // Centrado vertical
+                left: '12px',  // SIEMPRE a la izquierda dentro del sidebar
+                transform: 'translateY(-50%)',  // Centrado vertical
+                zIndex: 100,  // Normal, no necesita estar tan alto
+                transition: 'all 0.3s ease'
             }
         },
             e('button', {
                 onClick: onToggle,
+                title: collapsed ? 'Expandir menú' : 'Colapsar menú',
                 style: {
-                    width: collapsed ? '40px' : '240px',
-                    height: '40px',
-                    backgroundColor: '#f3f4f6',
-                    border: 'none',
-                    borderRadius: '8px',
+                    width: '28px',
+                    height: '28px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    border: '1.5px solid #d1d5db',
+                    borderRadius: '6px',  // Bordes ligeramente redondeados
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '8px',
-                    transition: 'all 0.3s',
-                    fontSize: '14px',
-                    color: '#6b7280'
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                    outline: 'none',
+                    padding: '0'
                 },
                 onMouseEnter: (e) => {
-                    e.currentTarget.style.backgroundColor = '#e5e7eb';
+                    e.currentTarget.style.backgroundColor = '#f3f4f6';
+                    e.currentTarget.style.borderColor = '#9ca3af';
                 },
                 onMouseLeave: (e) => {
-                    e.currentTarget.style.backgroundColor = '#f3f4f6';
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+                    e.currentTarget.style.borderColor = '#d1d5db';
                 }
-            }, [
-                e('span', { key: 'icon' }, collapsed ? '→' : '←'),
-                !collapsed && e('span', { key: 'text' }, 'Colapsar menú')
-            ])
+            }, Icons.toggleSidebar(collapsed ? 'right' : 'left'))  // USANDO EL ÍCONO MEJORADO
         )
     ]);
 }

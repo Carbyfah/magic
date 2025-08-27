@@ -2,86 +2,144 @@
 
 namespace App\Http\Resources;
 
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class ReservaResource extends JsonResource
 {
-    public function toArray($request)
+    public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
-            'numero_reserva' => $this->numero_reserva,
-            'empleado' => [
-                'id' => $this->empleado->id ?? null,
-                'codigo' => $this->empleado->codigo_empleado ?? null,
-                'nombre' => $this->empleado->nombre_completo ?? null,
+            'id' => $this->reserva_id,
+            'codigo' => $this->reserva_codigo,
+            'activo' => $this->es_activo,
+
+            // Información del cliente
+            'cliente' => [
+                'nombres' => $this->reserva_nombres_cliente,
+                'apellidos' => $this->reserva_apellidos_cliente,
+                'nombre_completo' => $this->nombre_completo_cliente,
+                'nit' => $this->reserva_cliente_nit,
+                'telefono' => $this->reserva_telefono_cliente,
+                'telefono_formateado' => $this->telefono_formateado,
+                'email' => $this->reserva_email_cliente,
             ],
-            'ruta' => [
-                'id' => $this->ruta->id ?? null,
-                'codigo' => $this->ruta->codigo_ruta ?? null,
-                'nombre' => $this->ruta->nombre_ruta ?? null,
-                'origen' => $this->ruta->ciudad_origen ?? null,
-                'destino' => $this->ruta->ciudad_destino ?? null,
-            ],
+
+            // Información de pasajeros
             'pasajeros' => [
-                'pax_adultos' => $this->pax_adultos,
-                'pax_ninos' => $this->pax_ninos,
-                'pax_total' => $this->pax_total,
-                'nombre_principal' => $this->nombre_pasajero_principal,
+                'adultos' => $this->reserva_cantidad_adultos,
+                'ninos' => $this->reserva_cantidad_ninos,
+                'total' => $this->total_pasajeros,
             ],
-            'cliente' => $this->whenLoaded('cliente', function () {
-                return [
-                    'id' => $this->cliente->id,
-                    'codigo' => $this->cliente->codigo_cliente,
-                    'nombre' => $this->cliente->nombre_completo,
-                ];
-            }),
-            'agencia' => $this->whenLoaded('agencia', function () {
-                return [
-                    'id' => $this->agencia->id,
-                    'codigo' => $this->agencia->codigo_agencia,
-                    'nombre' => $this->agencia->nombre_comercial,
-                ];
-            }),
-            'pickup' => [
-                'hotel' => $this->hotel_pickup,
-                'telefono' => $this->telefono_contacto,
-                'hora' => $this->hora_pickup,
-                'notas' => $this->notas_pickup,
-            ],
-            'fechas' => [
-                'fecha_reservacion' => $this->fecha_reservacion?->format('Y-m-d'),
-                'fecha_viaje' => $this->fecha_viaje?->format('Y-m-d'),
-                'dias_para_viaje' => $this->dias_para_viaje,
-                'es_hoy' => $this->es_hoy,
-                'es_pasada' => $this->es_pasada,
-            ],
-            'voucher' => $this->voucher,
+
+            // Información financiera
             'financiero' => [
-                'precio_total' => $this->precio_total,
-                'responsable_pago' => $this->responsable_pago,
-                'requiere_cobro' => $this->requiere_cobro,
+                'monto' => (float) $this->reserva_monto,
+                'tipo_cliente' => $this->tipo_cliente,
+                'es_agencia' => $this->es_agencia,
+                'tiene_factura' => $this->tieneFactura(),
             ],
-            'estado_reserva' => [
-                'id' => $this->estadoReserva->id ?? null,
-                'codigo' => $this->estadoReserva->codigo ?? null,
-                'nombre' => $this->estadoReserva->nombre_estado ?? null,
-                'editable' => $this->estadoReserva->editable ?? false,
-                'color' => $this->estadoReserva->color_hex ?? null,
+
+            // Información logística
+            'logistica' => [
+                'direccion_abordaje' => $this->reserva_direccion_abordaje,
+                'notas' => $this->reserva_notas,
             ],
-            'es_modificable' => $this->es_modificable,
-            'puede_cancelarse' => $this->puedeCancelarse(),
-            'venta' => $this->whenLoaded('venta', function () {
-                return [
-                    'id' => $this->venta->id,
-                    'numero_venta' => $this->venta->numero_venta,
-                    'total' => $this->venta->total_venta,
-                    'estado' => $this->venta->estadoVenta->nombre_estado ?? null,
-                ];
-            }),
-            'situacion' => $this->situacion,
-            'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
-            'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
+
+            // Estados para workflow
+            'estados' => [
+                'pendiente' => $this->estaPendiente(),
+                'confirmada' => $this->estaConfirmada(),
+                'ejecutandose' => $this->seEstaEjecutando(),
+                'finalizada' => $this->estaFinalizada(),
+                'cancelada' => $this->estaCancelada(),
+            ],
+
+            // Estado actual detallado
+            'estado_actual' => EstadoResource::make(
+                $this->whenLoaded('estado')
+            ),
+
+            // Vendedor que creó la reserva
+            'vendedor' => $this->when(
+                $this->whenLoaded('usuario'),
+                [
+                    'id' => $this->usuario->usuario_id,
+                    'codigo' => $this->usuario->usuario_codigo,
+                    'nombre_completo' => $this->usuario->nombre_completo,
+                ]
+            ),
+
+            // Agencia si es reserva de agencia
+            'agencia' => AgenciaResource::make(
+                $this->whenLoaded('agencia')
+            ),
+
+            // Ruta activada con información del servicio
+            'ruta_activada' => RutaActivadaResource::make(
+                $this->whenLoaded('rutaActivada')
+            ),
+
+            // Información del servicio (extraída de ruta activada)
+            'servicio_info' => $this->when(
+                $this->whenLoaded('rutaActivada.servicio'),
+                function () {
+                    return [
+                        'nombre' => $this->rutaActivada->servicio->servicio_servicio,
+                        'fecha' => $this->rutaActivada->ruta_activada_fecha?->format('d/m/Y'),
+                        'hora' => $this->rutaActivada->ruta_activada_hora?->format('H:i'),
+                        'ruta_completa' => $this->rutaActivada->ruta?->ruta_completa,
+                        'vehiculo' => $this->rutaActivada->vehiculo?->descripcion_completa,
+                    ];
+                }
+            ),
+
+            // Facturas asociadas
+            'facturas' => FacturaResource::collection(
+                $this->whenLoaded('facturas')
+            ),
+
+            // Factura activa para referencia rápida
+            'factura_activa' => FacturaResource::make(
+                $this->whenLoaded('facturaActiva')
+            ),
+
+            // Validaciones para la interfaz
+            'validaciones' => [
+                'datos_completos' => $this->datosCompletos(),
+                'telefono_valido' => $this->tieneTelefonoValido(),
+                'email_valido' => $this->tieneEmailValido(),
+            ],
+
+            // Comunicación WhatsApp
+            'comunicacion' => [
+                'whatsapp_disponible' => $this->tieneTelefonoValido(),
+                'whatsapp_link' => $this->linkWhatsApp(),
+                'mensaje_confirmacion' => $this->when(
+                    $request->has('include_mensajes'),
+                    $this->mensajeWhatsAppConfirmacion()
+                ),
+            ],
+
+            // Operaciones disponibles según estado
+            'operaciones_disponibles' => [
+                'puede_confirmar' => $this->estaPendiente(),
+                'puede_ejecutar' => $this->estaConfirmada(),
+                'puede_finalizar' => $this->seEstaEjecutando(),
+                'puede_cancelar' => $this->estaPendiente() || $this->estaConfirmada(),
+                'puede_facturar' => $this->estaConfirmada() && !$this->tieneFactura(),
+                'puede_editar' => $this->estaPendiente(),
+            ],
+
+            // Resumen completo para reportes
+            'resumen_completo' => $this->when(
+                $request->has('resumen_completo'),
+                $this->resumenCompleto()
+            ),
+
+            // Timestamps
+            'created_at' => $this->created_at?->toISOString(),
+            'updated_at' => $this->updated_at?->toISOString(),
         ];
     }
 }
