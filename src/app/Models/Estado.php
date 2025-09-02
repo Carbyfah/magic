@@ -4,11 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Traits\HasAudit;
 
 class Estado extends Model
 {
-    use SoftDeletes, HasAudit;
+    use SoftDeletes;
 
     protected $table = 'estado';
     protected $primaryKey = 'estado_id';
@@ -32,13 +31,8 @@ class Estado extends Model
         'deleted_at'
     ];
 
-    protected $appends = [
-        'es_activo',
-        'categoria_estado'
-    ];
-
     /**
-     * Relaciones
+     * RELACIONES BÁSICAS
      */
     public function reservas()
     {
@@ -56,178 +50,45 @@ class Estado extends Model
     }
 
     /**
-     * Atributos calculados
-     */
-    public function getEsActivoAttribute()
-    {
-        return $this->estado_situacion === true;
-    }
-
-    public function getCategoriaEstadoAttribute()
-    {
-        $prefix = substr($this->estado_codigo, 0, 3);
-
-        $categorias = [
-            'RES' => 'Reserva',
-            'RUT' => 'Ruta',
-            'VEH' => 'Vehículo',
-            'FAC' => 'Factura'
-        ];
-
-        return $categorias[$prefix] ?? 'General';
-    }
-
-    /**
-     * Scopes
+     * SCOPES SIMPLES
      */
     public function scopeActivo($query)
     {
-        return $query->where('estado_situacion', true);
+        return $query->where('estado_situacion', 1);
     }
 
-    public function scopePorCodigo($query, $codigo)
+    public function scopeBuscar($query, $termino)
     {
-        return $query->where('estado_codigo', $codigo);
-    }
-
-    public function scopeDeReservas($query)
-    {
-        return $query->where('estado_codigo', 'like', 'RES_%');
-    }
-
-    public function scopeDeRutas($query)
-    {
-        return $query->where('estado_codigo', 'like', 'RUT_%');
-    }
-
-    public function scopeDeVehiculos($query)
-    {
-        return $query->where('estado_codigo', 'like', 'VEH_%');
-    }
-
-    public function scopeDeFacturas($query)
-    {
-        return $query->where('estado_codigo', 'like', 'FAC_%');
+        return $query->where('estado_estado', 'like', "%{$termino}%")
+            ->orWhere('estado_codigo', 'like', "%{$termino}%")
+            ->orWhere('estado_descripcion', 'like', "%{$termino}%");
     }
 
     /**
-     * Métodos estáticos para estados específicos
+     * GENERADOR DE CÓDIGO AUTOMÁTICO
      */
-
-    // Estados de Reservas
-    public static function reservaPendiente()
+    public static function generarCodigo()
     {
-        return self::where('estado_codigo', 'RES_PEND')->first();
-    }
+        $ultimo = self::where('estado_codigo', 'LIKE', 'EST-%')
+            ->orderByDesc('estado_codigo')
+            ->first();
 
-    public static function reservaConfirmada()
-    {
-        return self::where('estado_codigo', 'RES_CONF')->first();
-    }
-
-    public static function reservaEjecucion()
-    {
-        return self::where('estado_codigo', 'RES_EJEC')->first();
-    }
-
-    public static function reservaFinalizada()
-    {
-        return self::where('estado_codigo', 'RES_FIN')->first();
-    }
-
-    public static function reservaCancelada()
-    {
-        return self::where('estado_codigo', 'RES_CANC')->first();
-    }
-
-    // Estados de Rutas
-    public static function rutaProgramada()
-    {
-        return self::where('estado_codigo', 'RUT_PROG')->first();
-    }
-
-    public static function rutaIniciada()
-    {
-        return self::where('estado_codigo', 'RUT_INIC')->first();
-    }
-
-    public static function rutaFinalizada()
-    {
-        return self::where('estado_codigo', 'RUT_FIN')->first();
-    }
-
-    public static function rutaCancelada()
-    {
-        return self::where('estado_codigo', 'RUT_CANC')->first();
-    }
-
-    // Estados de Vehículos
-    public static function vehiculoDisponible()
-    {
-        return self::where('estado_codigo', 'VEH_DISP')->first();
-    }
-
-    public static function vehiculoOcupado()
-    {
-        return self::where('estado_codigo', 'VEH_OCUP')->first();
-    }
-
-    public static function vehiculoMantenimiento()
-    {
-        return self::where('estado_codigo', 'VEH_MANT')->first();
-    }
-
-    public static function vehiculoInactivo()
-    {
-        return self::where('estado_codigo', 'VEH_INAR')->first();
+        $numero = $ultimo ? ((int) substr($ultimo->estado_codigo, 4)) + 1 : 1;
+        return 'EST-' . str_pad($numero, 3, '0', STR_PAD_LEFT);
     }
 
     /**
-     * Métodos de negocio
+     * MÉTODOS DE INSTANCIA BÁSICOS
      */
-    public function esEstadoReserva()
+    public function getNombreCompletoAttribute()
     {
-        return substr($this->estado_codigo, 0, 3) === 'RES';
+        return "{$this->estado_codigo}: {$this->estado_estado}";
     }
 
-    public function esEstadoRuta()
+    public function tieneRegistrosAsociados()
     {
-        return substr($this->estado_codigo, 0, 3) === 'RUT';
-    }
-
-    public function esEstadoVehiculo()
-    {
-        return substr($this->estado_codigo, 0, 3) === 'VEH';
-    }
-
-    public function esEstadoFactura()
-    {
-        return substr($this->estado_codigo, 0, 3) === 'FAC';
-    }
-
-    public function permiteTransicion($estadoDestino)
-    {
-        $transiciones = [
-            'RES_PEND' => ['RES_CONF', 'RES_CANC'],
-            'RES_CONF' => ['RES_EJEC', 'RES_CANC'],
-            'RES_EJEC' => ['RES_FIN'],
-            'RUT_PROG' => ['RUT_INIC', 'RUT_CANC'],
-            'RUT_INIC' => ['RUT_FIN'],
-            'VEH_DISP' => ['VEH_OCUP', 'VEH_MANT', 'VEH_INAR'],
-            'VEH_OCUP' => ['VEH_DISP', 'VEH_MANT'],
-            'VEH_MANT' => ['VEH_DISP', 'VEH_INAR']
-        ];
-
-        return in_array($estadoDestino, $transiciones[$this->estado_codigo] ?? []);
-    }
-
-    public function esEstadoFinal()
-    {
-        return in_array($this->estado_codigo, ['RES_FIN', 'RES_CANC', 'RUT_FIN', 'RUT_CANC']);
-    }
-
-    public function esEstadoInicial()
-    {
-        return in_array($this->estado_codigo, ['RES_PEND', 'RUT_PROG', 'VEH_DISP']);
+        return $this->reservas()->exists() ||
+            $this->rutasActivadas()->exists() ||
+            $this->vehiculos()->exists();
     }
 }

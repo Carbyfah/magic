@@ -3,262 +3,227 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Resources\EstadoResource;
 use App\Models\Estado;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 
 class EstadoController extends Controller
 {
+    /**
+     * LISTAR ESTADOS
+     */
     public function index(Request $request)
     {
         $query = Estado::query();
 
-        // Filtros por categoría
-        if ($request->filled('categoria')) {
-            switch ($request->categoria) {
-                case 'reservas':
-                    $query->deReservas();
-                    break;
-                case 'rutas':
-                    $query->deRutas();
-                    break;
-                case 'vehiculos':
-                    $query->deVehiculos();
-                    break;
-                case 'facturas':
-                    $query->deFacturas();
-                    break;
-            }
-        }
-
+        // Filtro básico por situación
         if ($request->filled('activo')) {
             $query->where('estado_situacion', $request->boolean('activo'));
         }
 
+        // Búsqueda simple
         if ($request->filled('search')) {
-            $query->where(function ($q) use ($request) {
-                $q->where('estado_codigo', 'like', "%{$request->search}%")
-                    ->orWhere('estado_estado', 'like', "%{$request->search}%")
-                    ->orWhere('estado_descripcion', 'like', "%{$request->search}%");
-            });
+            $query->buscar($request->search);
         }
 
-        // Incluir contadores de uso
-        if ($request->has('with_counts')) {
-            $query->withCount(['reservas', 'rutasActivadas', 'vehiculos']);
-        }
+        // Ordenamiento
+        $query->orderBy('estado_estado');
 
-        // Incluir transiciones si se requiere
-        if ($request->has('include_transiciones')) {
-            $request->request->add(['include_transiciones' => true]);
-        }
-
-        $sortField = $request->get('sort', 'estado_codigo');
-        $sortDirection = $request->get('direction', 'asc');
-        $query->orderBy($sortField, $sortDirection);
-
-        if ($request->has('all')) {
-            return EstadoResource::collection($query->get());
-        }
-
-        $estados = $query->paginate($request->get('per_page', 15));
-        return EstadoResource::collection($estados);
+        return response()->json($query->get());
     }
+
+    /**
+     * CREAR ESTADO
+     */
+    /**
+     * CREAR ESTADO
+     */
 
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'estado_codigo' => 'required|string|max:45|unique:estado',
+            'estado_codigo' => 'sometimes|string|max:45|unique:estado',
             'estado_estado' => 'required|string|max:45',
             'estado_descripcion' => 'nullable|string|max:45',
-            'estado_situacion' => 'boolean'
+            'estado_situacion' => 'sometimes|boolean',
+            'contexto' => 'nullable|in:vehiculo,reserva,ruta-activada,factura'
         ]);
 
-        $estado = Estado::create($validated);
+        // Generar código contextual SI viene contexto, sino usar método original
+        if (!isset($validated['estado_codigo'])) {
+            if (isset($validated['contexto'])) {
+                // Modo contextual
+                $validated['estado_codigo'] = $this->generarCodigoContextual(
+                    $validated['contexto'],
+                    $validated['estado_estado']
+                );
+            } else {
+                // Modo original
+                $validated['estado_codigo'] = Estado::generarCodigo();
+            }
+        }
 
-        return new EstadoResource($estado);
+        unset($validated['contexto']); // Remover contexto antes de guardar
+        $validated['estado_situacion'] = $validated['estado_situacion'] ?? true;
+
+        $estado = Estado::create($validated);
+        return response()->json($estado, 201);
     }
 
+    /**
+     * VER ESTADO ESPECÍFICO
+     */
     public function show(Estado $estado)
     {
-        return new EstadoResource($estado);
+        return response()->json($estado);
     }
 
+    /**
+     * ACTUALIZAR ESTADO
+     */
     public function update(Request $request, Estado $estado)
     {
         $validated = $request->validate([
             'estado_codigo' => [
-                'required',
+                'sometimes',
                 'string',
                 'max:45',
                 Rule::unique('estado')->ignore($estado->estado_id, 'estado_id')
             ],
             'estado_estado' => 'required|string|max:45',
             'estado_descripcion' => 'nullable|string|max:45',
-            'estado_situacion' => 'boolean'
+            'estado_situacion' => 'sometimes|boolean'
         ]);
 
         $estado->update($validated);
 
-        return new EstadoResource($estado);
+        return response()->json($estado);
     }
 
+    /**
+     * ELIMINAR ESTADO (Solo si no tiene registros asociados)
+     */
     public function destroy(Estado $estado)
     {
-        // Verificar si está en uso
-        $enUso = $estado->reservas()->exists() ||
-            $estado->rutasActivadas()->exists() ||
-            $estado->vehiculos()->exists();
-
-        if ($enUso) {
+        if ($estado->tieneRegistrosAsociados()) {
             return response()->json([
-                'message' => 'No se puede eliminar este estado porque está siendo utilizado.'
-            ], Response::HTTP_CONFLICT);
+                'message' => 'No se puede eliminar este estado porque tiene registros asociados.'
+            ], 409);
         }
 
         $estado->delete();
 
-        return response()->json([
-            'message' => 'Estado eliminado exitosamente'
-        ]);
+        return response()->json(['message' => 'Estado eliminado exitosamente']);
     }
 
-    public function byCode($codigo)
+    /**
+     * ACTIVAR ESTADO
+     */
+    public function activate(Estado $estado)
     {
-        $estado = Estado::where('estado_codigo', $codigo)->first();
-
-        if (!$estado) {
-            return response()->json([
-                'message' => 'Estado no encontrado'
-            ], Response::HTTP_NOT_FOUND);
-        }
-
-        return new EstadoResource($estado);
+        $estado->update(['estado_situacion' => 1]);
+        return response()->json($estado);
     }
 
-    public function byCategoria($categoria)
+    /**
+     * DESACTIVAR ESTADO
+     */
+    public function deactivate(Estado $estado)
     {
-        $query = Estado::activo();
-
-        switch ($categoria) {
-            case 'reservas':
-                $query->deReservas();
-                break;
-            case 'rutas':
-                $query->deRutas();
-                break;
-            case 'vehiculos':
-                $query->deVehiculos();
-                break;
-            case 'facturas':
-                $query->deFacturas();
-                break;
-            default:
-                return response()->json([
-                    'message' => 'Categoría no válida'
-                ], Response::HTTP_BAD_REQUEST);
-        }
-
-        $estados = $query->orderBy('estado_codigo')->get();
-        return EstadoResource::collection($estados);
+        $estado->update(['estado_situacion' => 0]);
+        return response()->json($estado);
     }
 
-    public function transiciones(Estado $estado)
+    /**
+     * ESTADOS PARA VEHÍCULOS
+     */
+    public function paraVehiculo()
     {
-        $transiciones = [
-            'RES_PEND' => ['RES_CONF', 'RES_CANC'],
-            'RES_CONF' => ['RES_EJEC', 'RES_CANC'],
-            'RES_EJEC' => ['RES_FIN'],
-            'RUT_PROG' => ['RUT_INIC', 'RUT_CANC'],
-            'RUT_INIC' => ['RUT_FIN'],
-            'VEH_DISP' => ['VEH_OCUP', 'VEH_MANT', 'VEH_INAR'],
-            'VEH_OCUP' => ['VEH_DISP', 'VEH_MANT'],
-            'VEH_MANT' => ['VEH_DISP', 'VEH_INAR']
-        ];
-
-        $transicionesPosibles = $transiciones[$estado->estado_codigo] ?? [];
-
-        $estadosDestino = Estado::whereIn('estado_codigo', $transicionesPosibles)
-            ->activo()
-            ->get();
-
-        return response()->json([
-            'estado_actual' => new EstadoResource($estado),
-            'puede_transicionar_a' => EstadoResource::collection($estadosDestino)
-        ]);
-    }
-
-    public function validarTransicion(Request $request)
-    {
-        $validated = $request->validate([
-            'estado_origen' => 'required|exists:estado,estado_codigo',
-            'estado_destino' => 'required|exists:estado,estado_codigo'
-        ]);
-
-        $estadoOrigen = Estado::where('estado_codigo', $validated['estado_origen'])->first();
-        $estadoDestino = Estado::where('estado_codigo', $validated['estado_destino'])->first();
-
-        $esValida = $estadoOrigen->permiteTransicion($validated['estado_destino']);
-
-        return response()->json([
-            'transicion_valida' => $esValida,
-            'estado_origen' => new EstadoResource($estadoOrigen),
-            'estado_destino' => new EstadoResource($estadoDestino)
-        ]);
-    }
-
-    public function stats()
-    {
-        $stats = [
-            'total' => Estado::count(),
-            'activos' => Estado::activo()->count(),
-            'por_categoria' => [
-                'reservas' => Estado::deReservas()->count(),
-                'rutas' => Estado::deRutas()->count(),
-                'vehiculos' => Estado::deVehiculos()->count(),
-                'facturas' => Estado::deFacturas()->count()
-            ],
-            'uso_actual' => Estado::activo()
-                ->withCount(['reservas', 'rutasActivadas', 'vehiculos'])
+        return response()->json(
+            Estado::where('estado_codigo', 'LIKE', 'VEH-%')
+                ->where('estado_situacion', 1)
+                ->orderBy('estado_estado')
                 ->get()
-                ->map(function ($estado) {
-                    return [
-                        'codigo' => $estado->estado_codigo,
-                        'nombre' => $estado->estado_estado,
-                        'categoria' => $estado->categoria_estado,
-                        'uso_total' => $estado->reservas_count +
-                            $estado->rutas_activadas_count +
-                            $estado->vehiculos_count
-                    ];
-                })
-                ->sortByDesc('uso_total')
-                ->values()
+        );
+    }
+
+    /**
+     * ESTADOS PARA RESERVAS
+     */
+    public function paraReserva()
+    {
+        return response()->json(
+            Estado::where('estado_codigo', 'LIKE', 'RES-%')
+                ->where('estado_situacion', 1)
+                ->orderBy('estado_estado')
+                ->get()
+        );
+    }
+
+    /**
+     * ESTADOS PARA RUTAS ACTIVADAS
+     */
+    public function paraRutaActivada()
+    {
+        return response()->json(
+            Estado::where('estado_codigo', 'LIKE', 'RUT-%')
+                ->where('estado_situacion', 1)
+                ->orderBy('estado_estado')
+                ->get()
+        );
+    }
+
+    /**
+     * ESTADOS PARA FACTURAS
+     */
+    public function paraFactura()
+    {
+        return response()->json(
+            Estado::where('estado_codigo', 'LIKE', 'FAC-%')
+                ->where('estado_situacion', 1)
+                ->orderBy('estado_estado')
+                ->get()
+        );
+    }
+
+    /**
+     * GENERAR CÓDIGO CONTEXTUAL
+     */
+    private function generarCodigoContextual($contexto, $nombre)
+    {
+        $prefijos = [
+            'vehiculo' => 'VEH-',
+            'reserva' => 'RES-',
+            'ruta-activada' => 'RUT-',
+            'factura' => 'FAC-'
         ];
 
-        return response()->json($stats);
-    }
+        // Algoritmo mejorado: tomar primera letra de cada palabra
+        $palabras = explode(' ', $nombre);
+        if (count($palabras) > 1) {
+            $abreviacion = '';
+            foreach ($palabras as $palabra) {
+                $palabra = trim($palabra); // Limpiar espacios
+                if (!empty($palabra)) {    // Solo procesar palabras no vacías
+                    $abreviacion .= strtoupper(substr($palabra, 0, 1));
+                }
+            }
+            $abreviacion = substr($abreviacion, 0, 4);
+        } else {
+            $abreviacion = strtoupper(substr($nombre, 0, 4));
+        }
 
-    public function iniciales()
-    {
-        $estados = Estado::activo()
-            ->get()
-            ->filter(function ($estado) {
-                return $estado->esEstadoInicial();
-            });
+        $codigoBase = $prefijos[$contexto] . $abreviacion;
 
-        return EstadoResource::collection($estados->values());
-    }
+        $contador = 1;
+        $codigoFinal = $codigoBase;
 
-    public function finales()
-    {
-        $estados = Estado::activo()
-            ->get()
-            ->filter(function ($estado) {
-                return $estado->esEstadoFinal();
-            });
+        while (Estado::where('estado_codigo', $codigoFinal)->exists()) {
+            $codigoFinal = $codigoBase . $contador;
+            $contador++;
+            if ($contador > 99) break;
+        }
 
-        return EstadoResource::collection($estados->values());
+        return $codigoFinal;
     }
 }

@@ -4,11 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Traits\HasAudit;
 
 class Persona extends Model
 {
-    use SoftDeletes, HasAudit;
+    use SoftDeletes;
 
     protected $table = 'persona';
     protected $primaryKey = 'persona_id';
@@ -24,8 +23,8 @@ class Persona extends Model
     ];
 
     protected $casts = [
-        'persona_telefono' => 'integer',
         'persona_situacion' => 'boolean',
+        'persona_telefono' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime'
     ];
@@ -36,15 +35,8 @@ class Persona extends Model
         'deleted_at'
     ];
 
-    protected $appends = [
-        'es_activo',
-        'nombre_completo',
-        'telefono_formateado',
-        'iniciales'
-    ];
-
     /**
-     * Relaciones
+     * RELACIONES BÁSICAS
      */
     public function tipoPersona()
     {
@@ -57,193 +49,118 @@ class Persona extends Model
     }
 
     /**
-     * Atributos calculados
+     * SCOPES SIMPLES
      */
-    public function getEsActivoAttribute()
+    public function scopeActivo($query)
     {
-        return $this->persona_situacion === true;
+        return $query->where('persona_situacion', 1);
     }
 
+    public function scopeBuscar($query, $termino)
+    {
+        return $query->where('persona_nombres', 'like', "%{$termino}%")
+            ->orWhere('persona_apellidos', 'like', "%{$termino}%")
+            ->orWhere('persona_codigo', 'like', "%{$termino}%")
+            ->orWhere('persona_email', 'like', "%{$termino}%");
+    }
+
+    public function scopePorTipo($query, $tipoPersonaId)
+    {
+        return $query->where('tipo_persona_id', $tipoPersonaId);
+    }
+
+    /**
+     * GENERADOR DE CÓDIGO AUTOMÁTICO
+     */
+    public static function generarCodigo()
+    {
+        $ultimo = self::orderByDesc('persona_id')->first();
+        $numero = $ultimo ? ((int) substr($ultimo->persona_codigo, -3)) + 1 : 1;
+        return 'PER-' . str_pad($numero, 3, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * MÉTODOS DE INSTANCIA BÁSICOS
+     */
     public function getNombreCompletoAttribute()
     {
-        return trim(($this->persona_nombres ?? '') . ' ' . ($this->persona_apellidos ?? ''));
+        return "{$this->persona_nombres} {$this->persona_apellidos}";
     }
 
-    public function getTelefonoFormateadoAttribute()
+    public function getTipoPersonaNombreAttribute()
     {
-        if (!$this->persona_telefono) {
-            return null;
-        }
+        return $this->tipoPersona ? $this->tipoPersona->tipo_persona_tipo : 'Sin tipo';
+    }
+
+    public function getIniciales()
+    {
+        $nombres = explode(' ', trim($this->persona_nombres));
+        $apellidos = explode(' ', trim($this->persona_apellidos));
+
+        $inicial_nombre = !empty($nombres[0]) ? strtoupper(substr($nombres[0], 0, 1)) : '';
+        $inicial_apellido = !empty($apellidos[0]) ? strtoupper(substr($apellidos[0], 0, 1)) : '';
+
+        return $inicial_nombre . $inicial_apellido;
+    }
+
+    /**
+     * VALIDACIONES DE NEGOCIO
+     */
+    public function tieneUsuarioActivo()
+    {
+        return $this->usuario && $this->usuario->usuario_situacion;
+    }
+
+    public function puedeSerEliminado()
+    {
+        // No se puede eliminar si tiene usuario activo
+        return !$this->tieneUsuarioActivo();
+    }
+
+    /**
+     * MÉTODOS DE FORMATO
+     */
+    public function formatearTelefono()
+    {
+        if (!$this->persona_telefono) return 'Sin teléfono';
 
         $telefono = (string) $this->persona_telefono;
-
-        // Formato guatemalteco: +502 1234-5678
-        if (strlen($telefono) === 11 && substr($telefono, 0, 3) === '502') {
-            return '+502 ' . substr($telefono, 3, 4) . '-' . substr($telefono, 7);
+        if (strlen($telefono) === 8) {
+            return substr($telefono, 0, 4) . '-' . substr($telefono, 4);
         }
 
         return $telefono;
     }
 
-    public function getInicialesAttribute()
+    public function getEmailPublico()
     {
-        $nombres = explode(' ', trim($this->persona_nombres ?? ''));
-        $apellidos = explode(' ', trim($this->persona_apellidos ?? ''));
+        if (!$this->persona_email) return 'Sin email';
 
-        $iniciales = '';
+        // Para mostrar en listas públicas, ofuscar el email
+        $partes = explode('@', $this->persona_email);
+        if (count($partes) !== 2) return $this->persona_email;
 
-        if (count($nombres) > 0 && !empty($nombres[0])) {
-            $iniciales .= strtoupper(substr($nombres[0], 0, 1));
+        $usuario = $partes[0];
+        $dominio = $partes[1];
+
+        if (strlen($usuario) > 3) {
+            $usuario = substr($usuario, 0, 2) . '***' . substr($usuario, -1);
         }
 
-        if (count($apellidos) > 0 && !empty($apellidos[0])) {
-            $iniciales .= strtoupper(substr($apellidos[0], 0, 1));
-        }
-
-        return $iniciales ?: 'NA';
+        return $usuario . '@' . $dominio;
     }
 
     /**
-     * Scopes
+     * VALIDACIÓN DE EMAIL ÚNICO
      */
-    public function scopeActivo($query)
+    public function esEmailUnico($email, $excepto_id = null)
     {
-        return $query->where('persona_situacion', true);
-    }
+        $query = self::where('persona_email', $email);
 
-    public function scopePorCodigo($query, $codigo)
-    {
-        return $query->where('persona_codigo', $codigo);
-    }
-
-    public function scopePorTipo($query, $tipoCodigo)
-    {
-        return $query->whereHas('tipoPersona', function ($q) use ($tipoCodigo) {
-            $q->where('tipo_persona_codigo', $tipoCodigo);
-        });
-    }
-
-    public function scopeEmpleados($query)
-    {
-        return $query->whereHas('tipoPersona', function ($q) {
-            $q->whereIn('tipo_persona_codigo', ['ADMIN', 'VEND', 'CHOF']);
-        });
-    }
-
-    public function scopeClientes($query)
-    {
-        return $query->whereHas('tipoPersona', function ($q) {
-            $q->where('tipo_persona_codigo', 'CLIE');
-        });
-    }
-
-    public function scopeConUsuario($query)
-    {
-        return $query->has('usuario');
-    }
-
-    public function scopeBuscar($query, $termino)
-    {
-        return $query->where(function ($q) use ($termino) {
-            $q->where('persona_nombres', 'like', "%{$termino}%")
-                ->orWhere('persona_apellidos', 'like', "%{$termino}%")
-                ->orWhere('persona_email', 'like', "%{$termino}%")
-                ->orWhere('persona_codigo', 'like', "%{$termino}%");
-        });
-    }
-
-    /**
-     * Métodos de negocio
-     */
-    public function esAdministrador()
-    {
-        return $this->tipoPersona && $this->tipoPersona->tipo_persona_codigo === 'ADMIN';
-    }
-
-    public function esVendedor()
-    {
-        return $this->tipoPersona && $this->tipoPersona->tipo_persona_codigo === 'VEND';
-    }
-
-    public function esChofer()
-    {
-        return $this->tipoPersona && $this->tipoPersona->tipo_persona_codigo === 'CHOF';
-    }
-
-    public function esCliente()
-    {
-        return $this->tipoPersona && $this->tipoPersona->tipo_persona_codigo === 'CLIE';
-    }
-
-    public function esContactoAgencia()
-    {
-        return $this->tipoPersona && $this->tipoPersona->tipo_persona_codigo === 'CONT';
-    }
-
-    public function esEmpleado()
-    {
-        return $this->tipoPersona &&
-            in_array($this->tipoPersona->tipo_persona_codigo, ['ADMIN', 'VEND', 'CHOF']);
-    }
-
-    public function puedeVender()
-    {
-        return $this->tipoPersona &&
-            in_array($this->tipoPersona->tipo_persona_codigo, ['ADMIN', 'VEND']);
-    }
-
-    public function tieneUsuario()
-    {
-        return $this->usuario !== null;
-    }
-
-    public function estaActivo()
-    {
-        return $this->persona_situacion &&
-            (!$this->tieneUsuario() || $this->usuario->usuario_situacion);
-    }
-
-    public function tieneEmailValido()
-    {
-        return $this->persona_email &&
-            filter_var($this->persona_email, FILTER_VALIDATE_EMAIL);
-    }
-
-    public function tieneTelefonoValido()
-    {
-        return $this->persona_telefono &&
-            strlen((string) $this->persona_telefono) >= 8;
-    }
-
-    public function datosCompletos()
-    {
-        return !empty($this->persona_nombres) &&
-            !empty($this->persona_apellidos) &&
-            $this->tieneTelefonoValido() &&
-            ($this->esCliente() || $this->tieneEmailValido());
-    }
-
-    public function generarCodigoUnico()
-    {
-        if ($this->tipoPersona) {
-            $prefijo = substr($this->tipoPersona->tipo_persona_codigo, 0, 2);
-            $numero = str_pad($this->persona_id, 3, '0', STR_PAD_LEFT);
-
-            return strtoupper($prefijo . $numero);
+        if ($excepto_id) {
+            $query->where('persona_id', '!=', $excepto_id);
         }
 
-        return 'PER' . str_pad($this->persona_id, 3, '0', STR_PAD_LEFT);
-    }
-
-    public function linkWhatsApp($mensaje = null)
-    {
-        if (!$this->tieneTelefonoValido()) {
-            return null;
-        }
-
-        $telefono = (string) $this->persona_telefono;
-        $mensaje_encoded = $mensaje ? urlencode($mensaje) : '';
-
-        return "https://wa.me/{$telefono}" . ($mensaje ? "?text={$mensaje_encoded}" : '');
+        return !$query->exists();
     }
 }

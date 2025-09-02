@@ -14,53 +14,86 @@ class PersonaResource extends JsonResource
             'codigo' => $this->persona_codigo,
             'nombres' => $this->persona_nombres,
             'apellidos' => $this->persona_apellidos,
-            'nombre_completo' => $this->nombre_completo,
             'telefono' => $this->persona_telefono,
-            'telefono_formateado' => $this->telefono_formateado,
             'email' => $this->persona_email,
-            'activo' => $this->es_activo,
-            'iniciales' => $this->iniciales,
+            'activo' => $this->persona_situacion,
 
-            // Información del tipo de persona
-            'tipo_persona' => TipoPersonaResource::make(
-                $this->whenLoaded('tipoPersona')
-            ),
+            // Información combinada para la interfaz
+            'nombre_completo' => $this->nombre_completo,
+            'iniciales' => $this->getIniciales(),
+            'tipo_persona_id' => $this->tipo_persona_id,
 
-            // Clasificaciones para permisos y lógica
-            'roles' => [
-                'es_administrador' => $this->esAdministrador(),
-                'es_vendedor' => $this->esVendedor(),
-                'es_chofer' => $this->esChofer(),
-                'es_cliente' => $this->esCliente(),
-                'es_contacto_agencia' => $this->esContactoAgencia(),
-                'es_empleado' => $this->esEmpleado(),
-                'puede_vender' => $this->puedeVender(),
+            // Información relacionada (FK)
+            'tipo_persona' => [
+                'id' => $this->tipoPersona?->tipo_persona_id,
+                'nombre' => $this->tipoPersona?->tipo_persona_tipo,
+                'codigo' => $this->tipoPersona?->tipo_persona_codigo,
             ],
 
-            // Estado y validaciones
-            'estado' => [
-                'esta_activo' => $this->estaActivo(),
-                'tiene_usuario' => $this->tieneUsuario(),
-                'datos_completos' => $this->datosCompletos(),
-                'email_valido' => $this->tieneEmailValido(),
-                'telefono_valido' => $this->tieneTelefonoValido(),
+            // Información formateada para la interfaz
+            'contacto' => [
+                'telefono_formateado' => $this->formatearTelefono(),
+                'email_publico' => $this->getEmailPublico(),
+                'tiene_contacto_completo' => !empty($this->persona_telefono) && !empty($this->persona_email),
             ],
 
-            // Usuario asociado (sin información sensible)
-            'usuario' => $this->when(
-                $this->whenLoaded('usuario') && $this->tieneUsuario(),
+            // Clasificaciones para filtros y lógica
+            'caracteristicas' => [
+                'es_empleado' => $this->tipoPersona?->tipo_persona_codigo === 'EMP',
+                'es_conductor' => $this->tipoPersona?->tipo_persona_codigo === 'CON',
+                'es_administrativo' => $this->tipoPersona?->tipo_persona_codigo === 'ADM',
+                'tiene_usuario_sistema' => $this->tieneUsuarioActivo(),
+            ],
+
+            // Estadísticas de uso
+            'estadisticas' => $this->when(
+                $request->has('include_estadisticas'),
                 [
-                    'codigo' => $this->usuario->usuario_codigo,
-                    'activo' => $this->usuario->es_activo,
-                    'ultima_actividad' => $this->usuario->ultimaActividad()?->toISOString(),
+                    'puede_eliminar' => $this->puedeSerEliminado(),
+                    'tiene_usuario' => $this->whenLoaded('usuario', function () {
+                        return [
+                            'activo' => $this->usuario?->usuario_situacion ?? false,
+                            'codigo' => $this->usuario?->usuario_codigo,
+                        ];
+                    }),
                 ]
             ),
 
-            // Comunicación para WhatsApp
-            'comunicacion' => [
-                'whatsapp_disponible' => $this->tieneTelefonoValido(),
-                'whatsapp_link' => $this->linkWhatsApp(),
-            ],
+            // Información del usuario del sistema si existe
+            'usuario_sistema' => $this->when(
+                $request->has('include_usuario'),
+                function () {
+                    return $this->whenLoaded('usuario', [
+                        'id' => $this->usuario?->usuario_id,
+                        'codigo' => $this->usuario?->usuario_codigo,
+                        'activo' => $this->usuario?->usuario_situacion,
+                        'rol' => [
+                            'id' => $this->usuario?->rol?->rol_id,
+                            'nombre' => $this->usuario?->rol?->rol_rol,
+                        ]
+                    ]);
+                }
+            ),
+
+            // Información para planificación y asignaciones
+            'planificacion' => $this->when(
+                $request->has('include_planificacion'),
+                [
+                    'disponible_para_usuario' => !$this->tieneUsuarioActivo(),
+                    'puede_ser_conductor' => $this->tipoPersona?->tipo_persona_codigo === 'CON',
+                    'puede_administrar' => in_array($this->tipoPersona?->tipo_persona_codigo, ['ADM', 'GER']),
+                ]
+            ),
+
+            // Información de auditoría básica
+            'auditoria' => $this->when(
+                $request->has('include_auditoria'),
+                [
+                    'fecha_registro' => $this->created_at?->format('d/m/Y H:i'),
+                    'ultima_modificacion' => $this->updated_at?->format('d/m/Y H:i'),
+                    'dias_desde_registro' => $this->created_at?->diffInDays(now()),
+                ]
+            ),
 
             // Timestamps
             'created_at' => $this->created_at?->toISOString(),

@@ -1,0 +1,83 @@
+El número de serie del volumen es 2AF4-5870
+C:\MAGIC\SRC\RESOURCES
++---css
+|       app.css
+|
++---js
+|   |   bootstrap.js
+|   |   simple.js
+|   |
+|   +---components
+|   |   +---catalogos
+|   |   |   +---estados-sistema
+|   |   |   |       GestionEstados.js
+|   |   |   |
+|   |   |   +---rutas-servicios
+|   |   |   |       GestionRutasServicios.js
+|   |   |   |
+|   |   |   \---tipos-persona
+|   |   |           GestionTipoPersona.js
+|   |   |
+|   |   +---comercial
+|   |   |   +---agencias
+|   |   |   |       GestionAgencias.js
+|   |   |   |
+|   |   |   +---dashboard-ventas
+|   |   |   |       GestionVentas.js
+|   |   |   |
+|   |   |   \---facturacion
+|   |   |           GestionFacturacion.js
+|   |   |
+|   |   +---common
+|   |   |       CityAutocomplete.js
+|   |   |       DateSelectionModal.js
+|   |   |       MapPlaceSelector.js
+|   |   |       PlaceAutocomplete.js
+|   |   |       ToggleConfirmationModal.js
+|   |   |
+|   |   +---layouts
+|   |   |       Dashboard.js
+|   |   |       Sidebar.js
+|   |   |       TopBar.js
+|   |   |
+|   |   +---operacion
+|   |   |   +---control-flota
+|   |   |   |       GestionVehiculos.js
+|   |   |   |
+|   |   |   +---reservaciones
+|   |   |   |       GestionReservas.js
+|   |   |   |
+|   |   |   \---rutas-activas
+|   |   |           GestionRutasActivas.js
+|   |   |
+|   |   +---personal
+|   |   |   +---empleados
+|   |   |   |       GestionEmpleados.js
+|   |   |   |
+|   |   |   +---roles-permisos
+|   |   |   |       GestionRoles.js
+|   |   |   |
+|   |   |   \---usuarios-sistema
+|   |   |           GestionUsuarios.js
+|   |   |
+|   |   \---reportes
+|   |       +---auditoria
+|   |       |       GestionAuditorias.js
+|   |       |
+|   |       \---estadisticas
+|   |               GestionEstadisticas.js
+|   |
+|   +---services
+|   |       api.js
+|   |       auth.js
+|   |
+|   \---utils
+|           helpers.js
+|           Icons.js
+|           notifications.js
+|           RouteCalculator.js
+|
+\---views
+        app.blade.php
+
+PS MSI GF63 9RC@CMDG:C:\magic\src >

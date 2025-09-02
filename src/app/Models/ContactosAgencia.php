@@ -4,11 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Traits\HasAudit;
 
-class ContactoAgencia extends Model
+class ContactosAgencia extends Model
 {
-    use SoftDeletes, HasAudit;
+    use SoftDeletes;
 
     protected $table = 'contactos_agencia';
     protected $primaryKey = 'contactos_agencia_id';
@@ -24,8 +23,8 @@ class ContactoAgencia extends Model
     ];
 
     protected $casts = [
-        'contactos_agencia_telefono' => 'integer',
         'contactos_agencia_situacion' => 'boolean',
+        'contactos_agencia_telefono' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime'
     ];
@@ -36,15 +35,8 @@ class ContactoAgencia extends Model
         'deleted_at'
     ];
 
-    protected $appends = [
-        'es_activo',
-        'nombre_completo',
-        'telefono_formateado',
-        'iniciales'
-    ];
-
     /**
-     * Relaciones
+     * RELACIONES BÁSICAS
      */
     public function agencia()
     {
@@ -52,63 +44,19 @@ class ContactoAgencia extends Model
     }
 
     /**
-     * Atributos calculados
-     */
-    public function getEsActivoAttribute()
-    {
-        return $this->contactos_agencia_situacion === true;
-    }
-
-    public function getNombreCompletoAttribute()
-    {
-        return trim(($this->contactos_agencia_nombres ?? '') . ' ' . ($this->contactos_agencia_apellidos ?? ''));
-    }
-
-    public function getTelefonoFormateadoAttribute()
-    {
-        if (!$this->contactos_agencia_telefono) {
-            return null;
-        }
-
-        $telefono = (string) $this->contactos_agencia_telefono;
-
-        // Formato guatemalteco: +502 1234-5678
-        if (strlen($telefono) === 11 && substr($telefono, 0, 3) === '502') {
-            return '+502 ' . substr($telefono, 3, 4) . '-' . substr($telefono, 7);
-        }
-
-        return $telefono;
-    }
-
-    public function getInicialesAttribute()
-    {
-        $nombres = explode(' ', trim($this->contactos_agencia_nombres ?? ''));
-        $apellidos = explode(' ', trim($this->contactos_agencia_apellidos ?? ''));
-
-        $iniciales = '';
-
-        if (count($nombres) > 0 && !empty($nombres[0])) {
-            $iniciales .= strtoupper(substr($nombres[0], 0, 1));
-        }
-
-        if (count($apellidos) > 0 && !empty($apellidos[0])) {
-            $iniciales .= strtoupper(substr($apellidos[0], 0, 1));
-        }
-
-        return $iniciales ?: 'NA';
-    }
-
-    /**
-     * Scopes
+     * SCOPES SIMPLES
      */
     public function scopeActivo($query)
     {
-        return $query->where('contactos_agencia_situacion', true);
+        return $query->where('contactos_agencia_situacion', 1);
     }
 
-    public function scopePorCodigo($query, $codigo)
+    public function scopeBuscar($query, $termino)
     {
-        return $query->where('contactos_agencia_codigo', $codigo);
+        return $query->where('contactos_agencia_nombres', 'like', "%{$termino}%")
+            ->orWhere('contactos_agencia_apellidos', 'like', "%{$termino}%")
+            ->orWhere('contactos_agencia_codigo', 'like', "%{$termino}%")
+            ->orWhere('contactos_agencia_cargo', 'like', "%{$termino}%");
     }
 
     public function scopePorAgencia($query, $agenciaId)
@@ -116,113 +64,132 @@ class ContactoAgencia extends Model
         return $query->where('agencia_id', $agenciaId);
     }
 
-    public function scopeGerentes($query)
+    /**
+     * GENERADOR DE CÓDIGO AUTOMÁTICO
+     */
+    public static function generarCodigo()
     {
-        return $query->where('contactos_agencia_cargo', 'like', '%gerente%');
-    }
-
-    public function scopeVentas($query)
-    {
-        return $query->where('contactos_agencia_cargo', 'like', '%venta%');
-    }
-
-    public function scopeBuscar($query, $termino)
-    {
-        return $query->where(function ($q) use ($termino) {
-            $q->where('contactos_agencia_nombres', 'like', "%{$termino}%")
-                ->orWhere('contactos_agencia_apellidos', 'like', "%{$termino}%")
-                ->orWhere('contactos_agencia_cargo', 'like', "%{$termino}%")
-                ->orWhere('contactos_agencia_codigo', 'like', "%{$termino}%");
-        });
+        $ultimo = self::orderByDesc('contactos_agencia_id')->first();
+        $numero = $ultimo ? ((int) substr($ultimo->contactos_agencia_codigo, -3)) + 1 : 1;
+        return 'CAG-' . str_pad($numero, 3, '0', STR_PAD_LEFT);
     }
 
     /**
-     * Métodos de negocio
+     * MÉTODOS DE INSTANCIA BÁSICOS
      */
-    public function esGerente()
+    public function getNombreCompletoAttribute()
     {
-        return str_contains(strtolower($this->contactos_agencia_cargo ?? ''), 'gerente');
+        return "{$this->contactos_agencia_nombres} {$this->contactos_agencia_apellidos}";
     }
 
-    public function esDeVentas()
+    public function getAgenciaNombreAttribute()
     {
-        $cargo = strtolower($this->contactos_agencia_cargo ?? '');
-        return str_contains($cargo, 'venta') || str_contains($cargo, 'comercial');
+        return $this->agencia ? $this->agencia->agencia_razon_social : 'Sin agencia';
     }
 
-    public function esOperativo()
+    public function getIniciales()
     {
-        $cargo = strtolower($this->contactos_agencia_cargo ?? '');
-        return str_contains($cargo, 'operacion') || str_contains($cargo, 'coordinador');
+        $nombres = explode(' ', trim($this->contactos_agencia_nombres));
+        $apellidos = explode(' ', trim($this->contactos_agencia_apellidos));
+
+        $inicial_nombre = !empty($nombres[0]) ? strtoupper(substr($nombres[0], 0, 1)) : '';
+        $inicial_apellido = !empty($apellidos[0]) ? strtoupper(substr($apellidos[0], 0, 1)) : '';
+
+        return $inicial_nombre . $inicial_apellido;
     }
 
-    public function tieneTelefonoValido()
+    /**
+     * VALIDACIONES DE NEGOCIO
+     */
+    public function tieneAgenciaActiva()
     {
-        return $this->contactos_agencia_telefono &&
-            strlen((string) $this->contactos_agencia_telefono) >= 8;
+        return $this->agencia && $this->agencia->agencia_situacion;
     }
 
-    public function datosCompletos()
+    /**
+     * CORREGIDO: Lógica similar a Persona.php
+     * Verifica si es el único contacto activo de la agencia
+     */
+    public function esUnicoContactoActivo()
     {
-        return !empty($this->contactos_agencia_nombres) &&
-            !empty($this->contactos_agencia_apellidos) &&
-            !empty($this->contactos_agencia_cargo) &&
-            $this->tieneTelefonoValido();
+        $contactosActivosAgencia = self::where('agencia_id', $this->agencia_id)
+            ->where('contactos_agencia_situacion', 1)
+            ->count();
+
+        return $contactosActivosAgencia <= 1;
     }
 
-    public function generarCodigoUnico()
+    public function puedeSerEliminado()
     {
-        if ($this->agencia) {
-            $prefijo = $this->agencia->agencia_codigo;
-            $numero = str_pad(
-                $this->agencia->contactos()->count() + 1,
-                2,
-                '0',
-                STR_PAD_LEFT
-            );
-
-            return $prefijo . '-CONT' . $numero;
-        }
-
-        return 'CONT-' . str_pad($this->contactos_agencia_id ?? 0, 4, '0', STR_PAD_LEFT);
+        // No se puede eliminar si es el único contacto activo de la agencia
+        return !$this->esUnicoContactoActivo();
     }
 
-    public function linkWhatsApp($mensaje = null)
+    /**
+     * MÉTODOS DE FORMATO
+     */
+    public function formatearTelefono()
     {
-        if (!$this->tieneTelefonoValido()) {
-            return null;
-        }
+        if (!$this->contactos_agencia_telefono) return 'Sin teléfono';
 
         $telefono = (string) $this->contactos_agencia_telefono;
-        $mensaje_encoded = $mensaje ? urlencode($mensaje) : '';
-
-        return "https://wa.me/{$telefono}" . ($mensaje ? "?text={$mensaje_encoded}" : '');
-    }
-
-    public function esPrincipal()
-    {
-        if (!$this->agencia) {
-            return false;
+        if (strlen($telefono) === 8) {
+            return substr($telefono, 0, 4) . '-' . substr($telefono, 4);
         }
 
-        $primerContacto = $this->agencia->contactos()
-            ->where('contactos_agencia_situacion', true)
-            ->orderBy('created_at')
+        return $telefono;
+    }
+
+    public function getCargoFormateado()
+    {
+        return ucwords(strtolower($this->contactos_agencia_cargo));
+    }
+
+    /**
+     * VALIDACIÓN DE TELÉFONO ÚNICO POR AGENCIA
+     */
+    public function esTelefonoUnicoEnAgencia($telefono, $excepto_id = null)
+    {
+        $query = self::where('contactos_agencia_telefono', $telefono)
+            ->where('agencia_id', $this->agencia_id);
+
+        if ($excepto_id) {
+            $query->where('contactos_agencia_id', '!=', $excepto_id);
+        }
+
+        return !$query->exists();
+    }
+
+    /**
+     * OBTENER CONTACTO PRINCIPAL DE AGENCIA
+     */
+    public static function getContactoPrincipal($agenciaId)
+    {
+        return self::where('agencia_id', $agenciaId)
+            ->where('contactos_agencia_situacion', 1)
+            ->whereIn('contactos_agencia_cargo', ['Gerente', 'Director', 'Propietario', 'Administrador'])
+            ->orderByRaw("
+                CASE contactos_agencia_cargo
+                WHEN 'Propietario' THEN 1
+                WHEN 'Director' THEN 2
+                WHEN 'Gerente' THEN 3
+                WHEN 'Administrador' THEN 4
+                ELSE 5 END
+            ")
             ->first();
-
-        return $primerContacto && $primerContacto->contactos_agencia_id === $this->contactos_agencia_id;
     }
 
-    public function nivelPrioridad()
+    /**
+     * OBTENER INFORMACIÓN COMPLETA PARA REPORTES
+     */
+    public function getInfoCompletaAttribute()
     {
-        if ($this->esGerente()) {
-            return 1;
-        } elseif ($this->esPrincipal()) {
-            return 2;
-        } elseif ($this->esDeVentas()) {
-            return 3;
-        }
-
-        return 4;
+        return [
+            'nombre_completo' => $this->nombre_completo,
+            'cargo' => $this->getCargoFormateado(),
+            'telefono' => $this->formatearTelefono(),
+            'agencia' => $this->agencia_nombre,
+            'iniciales' => $this->getIniciales()
+        ];
     }
 }

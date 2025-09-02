@@ -4,11 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Traits\HasAudit;
 
 class TipoPersona extends Model
 {
-    use SoftDeletes, HasAudit;
+    use SoftDeletes;
 
     protected $table = 'tipo_persona';
     protected $primaryKey = 'tipo_persona_id';
@@ -31,12 +30,8 @@ class TipoPersona extends Model
         'deleted_at'
     ];
 
-    protected $appends = [
-        'es_activo'
-    ];
-
     /**
-     * Relaciones
+     * RELACIONES BÁSICAS
      */
     public function personas()
     {
@@ -44,87 +39,80 @@ class TipoPersona extends Model
     }
 
     /**
-     * Atributos calculados
-     */
-    public function getEsActivoAttribute()
-    {
-        return $this->tipo_persona_situacion === true;
-    }
-
-    /**
-     * Scopes
+     * SCOPES SIMPLES
      */
     public function scopeActivo($query)
     {
-        return $query->where('tipo_persona_situacion', true);
+        return $query->where('tipo_persona_situacion', 1);
     }
 
-    public function scopePorCodigo($query, $codigo)
+    public function scopeBuscar($query, $termino)
     {
-        return $query->where('tipo_persona_codigo', $codigo);
+        return $query->where('tipo_persona_tipo', 'like', "%{$termino}%")
+            ->orWhere('tipo_persona_codigo', 'like', "%{$termino}%");
     }
 
     /**
-     * Métodos estáticos para obtener tipos comunes (con validación)
+     * GENERADOR DE CÓDIGO AUTOMÁTICO
      */
-    public static function admin()
+    public static function generarCodigo()
     {
-        return self::where('tipo_persona_codigo', 'ADMIN')->first();
-    }
-
-    public static function vendedor()
-    {
-        return self::where('tipo_persona_codigo', 'VEND')->first();
-    }
-
-    public static function chofer()
-    {
-        return self::where('tipo_persona_codigo', 'CHOF')->first();
-    }
-
-    public static function cliente()
-    {
-        return self::where('tipo_persona_codigo', 'CLIE')->first();
-    }
-
-    public static function contactoAgencia()
-    {
-        return self::where('tipo_persona_codigo', 'CONT')->first();
+        $ultimo = self::orderByDesc('tipo_persona_id')->first();
+        $numero = $ultimo ? ((int) substr($ultimo->tipo_persona_codigo, -3)) + 1 : 1;
+        return 'TP-' . str_pad($numero, 3, '0', STR_PAD_LEFT);
     }
 
     /**
-     * Métodos de negocio
+     * MÉTODOS DE INSTANCIA BÁSICOS
      */
-    public function puedeVender()
+    public function getNombreCompletoAttribute()
     {
-        return in_array($this->tipo_persona_codigo, ['ADMIN', 'VEND']);
+        return "{$this->tipo_persona_codigo}: {$this->tipo_persona_tipo}";
     }
 
-    public function esCliente()
+    public function tienePersonasAsociadas()
     {
-        return $this->tipo_persona_codigo === 'CLIE';
+        return $this->personas()->where('persona_situacion', 1)->exists();
     }
 
+    /**
+     * MÉTODOS ESPECÍFICOS DE NEGOCIO
+     */
     public function esEmpleado()
     {
-        return in_array($this->tipo_persona_codigo, ['ADMIN', 'VEND', 'CHOF']);
+        return in_array(strtolower($this->tipo_persona_tipo), ['empleado', 'emp']);
     }
 
-    public function esContactoAgencia()
+    public function esConductor()
     {
-        return $this->tipo_persona_codigo === 'CONT';
+        return in_array(strtolower($this->tipo_persona_tipo), ['conductor', 'chofer', 'con']);
     }
 
-    public function getNivel()
+    public function esAdministrativo()
     {
-        $niveles = [
-            'ADMIN' => 5,
-            'VEND' => 3,
-            'CHOF' => 2,
-            'CONT' => 2,
-            'CLIE' => 1
-        ];
+        return in_array(strtolower($this->tipo_persona_tipo), ['administrador', 'administrativo', 'admin', 'adm']);
+    }
 
-        return $niveles[$this->tipo_persona_codigo] ?? 0;
+    public function esGerente()
+    {
+        return in_array(strtolower($this->tipo_persona_tipo), ['gerente', 'manager', 'ger']);
+    }
+
+    /**
+     * ESTADÍSTICAS Y CONTEOS
+     */
+    public function getTotalPersonasAttribute()
+    {
+        return $this->personas()->count();
+    }
+
+    public function getPersonasActivasAttribute()
+    {
+        return $this->personas()->where('persona_situacion', 1)->count();
+    }
+
+    public function puedeSerEliminado()
+    {
+        return !$this->tienePersonasAsociadas();
     }
 }

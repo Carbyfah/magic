@@ -16,68 +16,100 @@ class VehiculoResource extends JsonResource
             'marca' => $this->vehiculo_marca,
             'modelo' => $this->vehiculo_modelo,
             'capacidad' => $this->vehiculo_capacidad,
-            'activo' => $this->es_activo,
-            'descripcion_completa' => $this->descripcion_completa,
-            'tipo' => $this->tipo_vehiculo,
+            'activo' => $this->vehiculo_situacion,
 
-            // Estado actual del vehículo
-            'estado_actual' => EstadoResource::make(
-                $this->whenLoaded('estado')
-            ),
+            // Información combinada para la interfaz
+            'nombre_completo' => $this->nombre_completo,
+            'iniciales' => $this->getIniciales(),
+            'estado_id' => $this->estado_id,
 
-            // Estados disponibles para cambios
-            'estados_disponibles' => [
-                'esta_disponible' => $this->estaDisponible(),
-                'esta_ocupado' => $this->estaOcupado(),
-                'esta_en_mantenimiento' => $this->estaEnMantenimiento(),
-                'esta_inactivo' => $this->estaInactivo(),
+            // Información relacionada (FK)
+            'estado' => [
+                'id' => $this->estado?->estado_id,
+                'nombre' => $this->estado?->estado_estado,
+                'codigo' => $this->estado?->estado_codigo,
             ],
 
-            // Ocupación y capacidad en tiempo real
-            'ocupacion' => [
-                'actual' => $this->getOcupacionActual(),
-                'capacidad_total' => $this->vehiculo_capacidad,
-                'espacios_libres' => $this->espaciosLibres(),
-                'porcentaje_uso' => $this->getPorcentajeUso(),
+            // Información formateada para la interfaz
+            'contacto' => [
+                'capacidad_formateada' => $this->formatearCapacidad(),
+                'tiene_datos_completos' => !empty($this->vehiculo_placa) && !empty($this->vehiculo_marca),
             ],
 
-            // Ruta actual si está asignado
-            'ruta_actual' => RutaActivadaResource::make(
-                $this->whenLoaded('rutaActual')
-            ),
-
-            // Aptitud para servicios
-            'aptitud_servicios' => [
-                'tour' => $this->esAptoPara('Tour'),
-                'transporte' => $this->esAptoPara('Transporte'),
-                'shuttle' => $this->esAptoPara('Shuttle'),
+            // Clasificaciones para filtros y lógica
+            'caracteristicas' => [
+                'es_disponible' => $this->estado?->estado_codigo === 'VEH_DISP',
+                'es_asignado' => $this->estado?->estado_codigo === 'VEH_ASIG',
+                'es_mantenimiento' => $this->estado?->estado_codigo === 'VEH_MANT',
+                'tiene_rutas_activas' => $this->tieneRutasActivadas(),
             ],
 
-            // Estadísticas operativas
+            // Estadísticas de uso
             'estadisticas' => $this->when(
                 $request->has('include_estadisticas'),
                 [
-                    'total_rutas_asignadas' => $this->whenCounted('rutasActivadas'),
-                    'tiene_ruta_activa' => $this->relationLoaded('rutaActual') && $this->rutaActual !== null,
-                    'necesita_mantenimiento' => $this->proximoMantenimiento() === 'Urgente',
+                    'puede_eliminar' => $this->puedeSerEliminado(),
+                    'tiene_rutas' => $this->whenLoaded('rutasActivadas', function () {
+                        return [
+                            'activas' => $this->rutasActivadas?->where('ruta_activada_situacion', 1)->count() ?? 0,
+                            'total' => $this->rutasActivadas?->count() ?? 0,
+                        ];
+                    }),
                 ]
             ),
 
-            // Información de rendimiento (solo para gerencia)
-            'rendimiento' => $this->when(
-                $request->user()?->esGerente(),
+            // Información de rutas activadas si existe
+            'rutas_sistema' => $this->when(
+                $request->has('include_rutas'),
+                function () {
+                    return $this->whenLoaded('rutasActivadas', [
+                        'total_rutas' => $this->rutasActivadas?->count() ?? 0,
+                        'rutas_activas' => $this->rutasActivadas?->where('ruta_activada_situacion', 1)->count() ?? 0,
+                        'ultima_ruta' => [
+                            'id' => $this->rutasActivadas?->first()?->ruta_activada_id,
+                            'fecha' => $this->rutasActivadas?->first()?->ruta_activada_fecha,
+                        ]
+                    ]);
+                }
+            ),
+
+            // Información para planificación y asignaciones
+            'planificacion' => $this->when(
+                $request->has('include_planificacion'),
                 [
-                    'porcentaje_uso_mensual' => $this->getPorcentajeUso(),
-                    'proximo_mantenimiento' => $this->proximoMantenimiento(),
+                    'disponible_para_ruta' => !$this->tieneRutasActivadas(),
+                    'puede_ser_asignado' => $this->estado?->estado_codigo === 'VEH_DISP',
+                    'puede_transportar' => in_array($this->estado?->estado_codigo, ['VEH_DISP', 'VEH_ASIG']),
                 ]
             ),
 
-            // Operaciones disponibles según estado
-            'operaciones_disponibles' => [
-                'puede_asignar_ruta' => $this->estaDisponible(),
-                'puede_mantenimiento' => !$this->estaEnMantenimiento(),
-                'puede_cambiar_estado' => $this->es_activo,
-            ],
+            // Información de auditoría básica
+            'auditoria' => $this->when(
+                $request->has('include_auditoria'),
+                [
+                    'fecha_registro' => $this->created_at?->format('d/m/Y H:i'),
+                    'ultima_modificacion' => $this->updated_at?->format('d/m/Y H:i'),
+                    'dias_desde_registro' => $this->created_at?->diffInDays(now()),
+                ]
+            ),
+
+            // Sistema de notificaciones del vehículo - SOLO SI SE SOLICITA
+            'notificaciones_sistema' => $this->when(
+                $request->has('include_notificaciones'),
+                [
+                    'notificaciones' => $this->obtenerNotificacionesEstado(),
+                    'validaciones' => [
+                        'puede_asignarse' => $this->puedeAsignarse(),
+                        'puede_volver_disponible' => $this->puedeVolverDisponible(),
+                    ],
+                    'estado_actual' => [
+                        'esta_disponible' => $this->estaDisponible(),
+                        'esta_asignado' => $this->estaAsignado(),
+                        'esta_mantenimiento' => $this->estaEnMantenimiento(),
+                        'tiene_rutas_activas' => $this->tieneRutasActivas(),
+                    ]
+                ]
+            ),
 
             // Timestamps
             'created_at' => $this->created_at?->toISOString(),

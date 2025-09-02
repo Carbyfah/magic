@@ -1,0 +1,48 @@
+--CONECTAR AL CONTENEDOR MYSQL
+docker exec -it magictravel_mysql mysql -u root -p
+
+Password: root_secure_2025
+
+--ELIMINAR Y RECREAR LA BASE DE DATOS
+-- Eliminar la base de datos actual
+DROP DATABASE IF EXISTS magictravel_v_2;
+
+-- Crear la base de datos limpia
+CREATE DATABASE magictravel_v_2 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- Verificar que se creó
+SHOW DATABASES;
+
+-- Salir de MySQL
+exit
+
+--EJECUTAR MIGRACIONES DESDE LARAVEL
+# Conectar al contenedor PHP
+docker exec -it magictravel_php bash
+
+# Ir al directorio del proyecto
+cd /var/www/html
+
+--Hacer migraciones basicas
+php artisan migrate --path=database/migrations/0001_01_01_000000_create_users_table.php
+php artisan migrate --path=database/migrations/0001_01_01_000001_create_cache_table.php
+php artisan migrate --path=database/migrations/0001_01_01_000002_create_jobs_table.php
+
+
+# Limpiar caché de configuración
+php artisan config:clear
+php artisan cache:clear
+
+# Ejecutar migraciones en orden
+php artisan migrate --path=database/migrations/10_magic_v_2.php
+php artisan migrate --path=database/migrations/11_magic_auditoria_v_2.php
+php artisan migrate --path=database/migrations/12_magic_automatizacion_v_2.php
+php artisan migrate --path=database/migrations/13_magic_indexes_v_2.php
+php artisan migrate --path=database/migrations/15_magic_audit_fks_v_2.php
+
+--VERIFICACIÓN
+# Ver el estado de las migraciones
+php artisan migrate:status
+
+# Salir del contenedor
+exit

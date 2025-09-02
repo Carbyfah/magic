@@ -6,8 +6,8 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     /**
-     * MIGRACIÓN FK AUDITORÍA MAGIC TRAVEL v2.0 - CORREGIDA
-     * Agregar FKs de auditoría DESPUÉS de que existan usuarios
+     * MIGRACIÓN FK AUDITORÍA MAGIC TRAVEL v3.0 - LIMPIA
+     * Agregar FKs de auditoría sin tabla facturas
      * EXCLUYE tabla usuario para evitar referencia circular
      */
     public function up()
@@ -24,8 +24,7 @@ return new class extends Migration
             'contactos_agencia',
             // 'usuario', - EXCLUIDO: no puede tener FK hacia sí mismo
             'ruta_activada',
-            'reserva',
-            'facturas'
+            'reserva'
         ];
 
         foreach ($tables as $table) {
@@ -51,8 +50,7 @@ return new class extends Migration
             'contactos_agencia',
             // 'usuario', - EXCLUIDO
             'ruta_activada',
-            'reserva',
-            'facturas'
+            'reserva'
         ];
 
         foreach ($tables as $table) {

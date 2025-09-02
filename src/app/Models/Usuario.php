@@ -2,16 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
-use Laravel\Sanctum\HasApiTokens;
-use App\Traits\HasAudit;
 use Illuminate\Support\Facades\Hash;
 
-class Usuario extends Authenticatable
+class Usuario extends Model
 {
-    use HasApiTokens, Notifiable, SoftDeletes, HasAudit;
+    use SoftDeletes;
 
     protected $table = 'usuario';
     protected $primaryKey = 'usuario_id';
@@ -27,25 +24,18 @@ class Usuario extends Authenticatable
     protected $casts = [
         'usuario_situacion' => 'boolean',
         'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-        'email_verified_at' => 'datetime'
+        'updated_at' => 'datetime'
     ];
 
     protected $hidden = [
         'usuario_password',
-        'remember_token',
         'created_by',
         'updated_by',
         'deleted_at'
     ];
 
-    protected $appends = [
-        'es_activo',
-        'nombre_completo'
-    ];
-
     /**
-     * Relaciones
+     * RELACIONES BÁSICAS
      */
     public function persona()
     {
@@ -57,127 +47,129 @@ class Usuario extends Authenticatable
         return $this->belongsTo(Rol::class, 'rol_id', 'rol_id');
     }
 
-    public function reservasCreadas()
-    {
-        return $this->hasMany(Reserva::class, 'usuario_id', 'usuario_id');
-    }
-
-    public function rutasActivadas()
-    {
-        return $this->hasMany(RutaActivada::class, 'usuario_id', 'usuario_id');
-    }
-
-    public function facturasEmitidas()
-    {
-        return $this->hasMany(Factura::class, 'usuario_id', 'usuario_id');
-    }
-
     /**
-     * Atributos calculados
-     */
-    public function getEsActivoAttribute()
-    {
-        return $this->usuario_situacion === true;
-    }
-
-    public function getNombreCompletoAttribute()
-    {
-        return $this->persona ? $this->persona->nombre_completo : 'Usuario sin nombre';
-    }
-
-    /**
-     * Métodos requeridos por Authenticatable
-     */
-    public function getAuthIdentifierName()
-    {
-        return 'usuario_id';
-    }
-
-    public function getAuthIdentifier()
-    {
-        return $this->usuario_id;
-    }
-
-    public function getAuthPassword()
-    {
-        return $this->usuario_password;
-    }
-
-    public function getRememberToken()
-    {
-        return $this->remember_token;
-    }
-
-    public function setRememberToken($value)
-    {
-        $this->remember_token = $value;
-    }
-
-    public function getRememberTokenName()
-    {
-        return 'remember_token';
-    }
-
-    /**
-     * Atributos para email (usando persona)
-     */
-    public function getEmailAttribute()
-    {
-        return $this->persona ? $this->persona->persona_email : null;
-    }
-
-    /**
-     * Scopes
+     * SCOPES SIMPLES
      */
     public function scopeActivo($query)
     {
-        return $query->where('usuario_situacion', true);
+        return $query->where('usuario_situacion', 1);
     }
 
-    public function scopePorCodigo($query, $codigo)
+    public function scopeBuscar($query, $termino)
     {
-        return $query->where('usuario_codigo', $codigo);
+        return $query->whereHas('persona', function ($q) use ($termino) {
+            $q->where('persona_nombres', 'like', "%{$termino}%")
+                ->orWhere('persona_apellidos', 'like', "%{$termino}%")
+                ->orWhere('persona_codigo', 'like', "%{$termino}%");
+        })->orWhere('usuario_codigo', 'like', "%{$termino}%");
     }
 
-    public function scopePorRol($query, $rolCodigo)
+    public function scopePorRol($query, $rolId)
     {
-        return $query->whereHas('rol', function ($q) use ($rolCodigo) {
-            $q->where('rol_codigo', $rolCodigo);
-        });
-    }
-
-    public function scopeAdministradores($query)
-    {
-        return $query->whereHas('rol', function ($q) {
-            $q->where('rol_codigo', 'ADMIN');
-        });
-    }
-
-    public function scopeVendedores($query)
-    {
-        return $query->whereHas('rol', function ($q) {
-            $q->where('rol_codigo', 'VENDEDOR');
-        });
-    }
-
-    public function scopeChoferes($query)
-    {
-        return $query->whereHas('rol', function ($q) {
-            $q->where('rol_codigo', 'CHOFER');
-        });
-    }
-
-    public function scopeConPersona($query)
-    {
-        return $query->has('persona');
+        return $query->where('rol_id', $rolId);
     }
 
     /**
-     * Métodos de autenticación y seguridad
+     * GENERADOR DE CÓDIGO AUTOMÁTICO
      */
-    public function setPasswordAttribute($password)
+    public static function generarCodigo()
     {
-        $this->usuario_password = Hash::make($password);
+        $ultimo = self::orderByDesc('usuario_id')->first();
+        $numero = $ultimo ? ((int) substr($ultimo->usuario_codigo, -3)) + 1 : 1;
+        return 'USR-' . str_pad($numero, 3, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * MÉTODOS DE INSTANCIA BÁSICOS
+     */
+    public function getNombreCompletoAttribute()
+    {
+        return $this->persona ? $this->persona->nombre_completo : 'Usuario sin persona';
+    }
+
+    public function getRolNombreAttribute()
+    {
+        return $this->rol ? $this->rol->rol_rol : 'Sin rol';
+    }
+
+    public function getIniciales()
+    {
+        if (!$this->persona) return 'US';
+
+        $nombres = explode(' ', trim($this->persona->persona_nombres ?? ''));
+        $apellidos = explode(' ', trim($this->persona->persona_apellidos ?? ''));
+
+        $inicial_nombre = !empty($nombres[0]) ? strtoupper(substr($nombres[0], 0, 1)) : '';
+        $inicial_apellido = !empty($apellidos[0]) ? strtoupper(substr($apellidos[0], 0, 1)) : '';
+
+        return $inicial_nombre . $inicial_apellido;
+    }
+
+    /**
+     * VALIDACIONES DE NEGOCIO
+     */
+    public function tieneRutasActivadas()
+    {
+        // Los usuarios no tienen rutas directamente, pero pueden verificar a través de su persona
+        if (!$this->persona_id) return false;
+
+        return RutaActivada::where('persona_id', $this->persona_id)
+            ->where('ruta_activada_situacion', 1)
+            ->exists();
+    }
+
+    public function puedeSerEliminado()
+    {
+        // No se puede eliminar si tiene rutas activadas
+        return !$this->tieneRutasActivadas();
+    }
+
+    /**
+     * MÉTODOS DE FORMATO
+     */
+    public function formatearRol()
+    {
+        if (!$this->rol) return 'Sin rol';
+
+        return $this->rol->rol_rol;
+    }
+
+    public function getCodigoPublico()
+    {
+        if (!$this->usuario_codigo) return 'Sin código';
+
+        // Para mostrar en listas públicas, ofuscar el código
+        $codigo = $this->usuario_codigo;
+
+        if (strlen($codigo) > 3) {
+            $codigo = substr($codigo, 0, 2) . '***' . substr($codigo, -1);
+        }
+
+        return $codigo;
+    }
+
+    /**
+     * VALIDACIÓN DE CÓDIGO ÚNICO
+     */
+    public function esCodigoUnico($codigo, $excepto_id = null)
+    {
+        $query = self::where('usuario_codigo', $codigo);
+
+        if ($excepto_id) {
+            $query->where('usuario_id', '!=', $excepto_id);
+        }
+
+        return !$query->exists();
+    }
+
+    /**
+     * MANEJO DE CONTRASEÑAS
+     */
+    public function setUsuarioPasswordAttribute($password)
+    {
+        if ($password) {
+            $this->attributes['usuario_password'] = Hash::make($password);
+        }
     }
 
     public function verificarPassword($password)
@@ -185,146 +177,17 @@ class Usuario extends Authenticatable
         return Hash::check($password, $this->usuario_password);
     }
 
-    public function generarCodigoUnico()
-    {
-        if ($this->rol) {
-            $prefijo = substr($this->rol->rol_codigo, 0, 3);
-            $numero = str_pad($this->usuario_id ?? 0, 3, '0', STR_PAD_LEFT);
-
-            return strtoupper($prefijo . $numero);
-        }
-
-        return 'USR' . str_pad($this->usuario_id ?? 0, 3, '0', STR_PAD_LEFT);
-    }
-
     /**
-     * Métodos de permisos
+     * VALIDACIONES DE PERSONA ÚNICA
      */
-    public function esAdministrador()
+    public function esPersonaUnica($persona_id, $excepto_id = null)
     {
-        return $this->rol && $this->rol->esAdministrador();
-    }
+        $query = self::where('persona_id', $persona_id)->where('usuario_situacion', 1);
 
-    public function esGerente()
-    {
-        return $this->rol && $this->rol->esGerente();
-    }
-
-    public function puedeVender()
-    {
-        return $this->rol && $this->rol->puedeVender();
-    }
-
-    public function puedeOperar()
-    {
-        return $this->rol && $this->rol->puedeOperar();
-    }
-
-    public function tienePermiso($recurso)
-    {
-        return $this->rol && $this->rol->puedeGestionar($recurso);
-    }
-
-    public function tieneAccesoCompleto()
-    {
-        return $this->rol && $this->rol->tieneAccesoCompleto();
-    }
-
-    public function tieneNivelMinimo($nivel)
-    {
-        return $this->rol && $this->rol->tieneNivelMinimo($nivel);
-    }
-
-    /**
-     * Métodos de negocio
-     */
-    public function estaActivo()
-    {
-        return $this->usuario_situacion &&
-            $this->persona &&
-            $this->persona->persona_situacion;
-    }
-
-    public function datosCompletos()
-    {
-        return $this->persona &&
-            $this->persona->datosCompletos() &&
-            $this->rol;
-    }
-
-    public function esChofer()
-    {
-        return $this->rol && $this->rol->rol_codigo === 'CHOFER';
-    }
-
-    public function esVendedor()
-    {
-        return $this->rol && $this->rol->rol_codigo === 'VENDEDOR';
-    }
-
-    public function getVentasDelMes()
-    {
-        return $this->reservasCreadas()
-            ->where('created_at', '>=', now()->startOfMonth())
-            ->count();
-    }
-
-    public function getIngresosGenerados($fechaInicio = null, $fechaFin = null)
-    {
-        $query = $this->reservasCreadas();
-
-        if ($fechaInicio) {
-            $query->where('created_at', '>=', $fechaInicio);
+        if ($excepto_id) {
+            $query->where('usuario_id', '!=', $excepto_id);
         }
 
-        if ($fechaFin) {
-            $query->where('created_at', '<=', $fechaFin);
-        }
-
-        return $query->sum('reserva_monto') ?? 0;
-    }
-
-    public function getRutasAsignadas()
-    {
-        if (!$this->esChofer()) {
-            return collect();
-        }
-
-        return $this->rutasActivadas()
-            ->whereHas('estado', function ($q) {
-                $q->whereIn('estado_codigo', ['RUT_PROG', 'RUT_INIC']);
-            })
-            ->get();
-    }
-
-    public function tieneRutaActiva()
-    {
-        return $this->getRutasAsignadas()->count() > 0;
-    }
-
-    public function ultimaActividad()
-    {
-        return $this->updated_at;
-    }
-
-    public function informacionCompleta()
-    {
-        return [
-            'usuario' => [
-                'codigo' => $this->usuario_codigo,
-                'activo' => $this->es_activo,
-                'ultima_actividad' => $this->ultimaActividad()
-            ],
-            'persona' => $this->persona ? [
-                'nombre_completo' => $this->persona->nombre_completo,
-                'email' => $this->persona->persona_email,
-                'telefono' => $this->persona->telefono_formateado
-            ] : null,
-            'rol' => $this->rol ? [
-                'nombre' => $this->rol->rol_rol,
-                'codigo' => $this->rol->rol_codigo,
-                'nivel_acceso' => $this->rol->nivel_acceso
-            ] : null
-        ];
+        return !$query->exists();
     }
 }

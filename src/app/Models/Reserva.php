@@ -4,11 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Traits\HasAudit;
+use Illuminate\Support\Facades\DB;
 
 class Reserva extends Model
 {
-    use SoftDeletes, HasAudit;
+    use SoftDeletes;
 
     protected $table = 'reserva';
     protected $primaryKey = 'reserva_id';
@@ -33,12 +33,12 @@ class Reserva extends Model
     ];
 
     protected $casts = [
-        'reserva_cliente_nit' => 'integer',
+        'reserva_situacion' => 'boolean',
+        'reserva_cliente_nit' => 'string',
         'reserva_telefono_cliente' => 'integer',
         'reserva_cantidad_adultos' => 'integer',
         'reserva_cantidad_ninos' => 'integer',
         'reserva_monto' => 'decimal:2',
-        'reserva_situacion' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime'
     ];
@@ -49,17 +49,8 @@ class Reserva extends Model
         'deleted_at'
     ];
 
-    protected $appends = [
-        'es_activo',
-        'nombre_completo_cliente',
-        'telefono_formateado',
-        'total_pasajeros',
-        'es_agencia',
-        'tipo_cliente'
-    ];
-
     /**
-     * Relaciones
+     * RELACIONES BÁSICAS - Sincronizadas con nueva DB
      */
     public function usuario()
     {
@@ -81,83 +72,62 @@ class Reserva extends Model
         return $this->belongsTo(RutaActivada::class, 'ruta_activada_id', 'ruta_activada_id');
     }
 
-    public function facturas()
-    {
-        return $this->hasMany(Factura::class, 'reserva_id', 'reserva_id');
-    }
-
-    public function facturaActiva()
-    {
-        return $this->hasOne(Factura::class, 'reserva_id', 'reserva_id')
-            ->where('facturas_situacion', true)
-            ->latest();
-    }
-
     /**
-     * Atributos calculados
+     * SCOPES SIMPLES - Actualizados para nueva DB
      */
-    public function getEsActivoAttribute()
+    public function scopeActiva($query)
     {
-        return $this->reserva_situacion === true;
+        return $query->where('reserva_situacion', 1);
     }
 
-    public function getNombreCompletoClienteAttribute()
+    public function scopeBuscar($query, $termino)
     {
-        return trim(($this->reserva_nombres_cliente ?? '') . ' ' . ($this->reserva_apellidos_cliente ?? ''));
+        return $query->where('reserva_codigo', 'like', "%{$termino}%")
+            ->orWhere('reserva_nombres_cliente', 'like', "%{$termino}%")
+            ->orWhere('reserva_apellidos_cliente', 'like', "%{$termino}%")
+            ->orWhere('reserva_telefono_cliente', 'like', "%{$termino}%")
+            ->orWhere('reserva_email_cliente', 'like', "%{$termino}%")
+            ->orWhereHas('agencia', function ($q) use ($termino) {
+                $q->where('agencia_razon_social', 'like', "%{$termino}%");
+            })
+            ->orWhereHas('rutaActivada.ruta', function ($q) use ($termino) {
+                $q->where('ruta_origen', 'like', "%{$termino}%")
+                    ->orWhere('ruta_destino', 'like', "%{$termino}%");
+            });
     }
 
-    public function getTelefonoFormateadoAttribute()
+    public function scopePorUsuario($query, $usuarioId)
     {
-        if (!$this->reserva_telefono_cliente) {
-            return null;
-        }
-
-        $telefono = (string) $this->reserva_telefono_cliente;
-
-        // Formato guatemalteco: +502 1234-5678
-        if (strlen($telefono) === 11 && substr($telefono, 0, 3) === '502') {
-            return '+502 ' . substr($telefono, 3, 4) . '-' . substr($telefono, 7);
-        }
-
-        return $telefono;
+        return $query->where('usuario_id', $usuarioId);
     }
 
-    public function getTotalPasajerosAttribute()
+    public function scopePorEstado($query, $estadoId)
     {
-        return $this->reserva_cantidad_adultos + ($this->reserva_cantidad_ninos ?? 0);
+        return $query->where('estado_id', $estadoId);
     }
 
-    public function getEsAgenciaAttribute()
+    public function scopePorAgencia($query, $agenciaId)
     {
-        return $this->agencia_id !== null;
+        return $query->where('agencia_id', $agenciaId);
     }
 
-    public function getTipoClienteAttribute()
+    public function scopePorRutaActivada($query, $rutaActivadaId)
     {
-        return $this->es_agencia ? 'Agencia' : 'Directo';
+        return $query->where('ruta_activada_id', $rutaActivadaId);
     }
 
-    /**
-     * Scopes
-     */
-    public function scopeActivo($query)
+    public function scopePorFecha($query, $fecha)
     {
-        return $query->where('reserva_situacion', true);
+        return $query->whereHas('rutaActivada', function ($q) use ($fecha) {
+            $q->whereDate('ruta_activada_fecha_hora', $fecha);
+        });
     }
 
-    public function scopePorCodigo($query, $codigo)
+    public function scopeEntreFechas($query, $fechaInicio, $fechaFin)
     {
-        return $query->where('reserva_codigo', $codigo);
-    }
-
-    public function scopeHoy($query)
-    {
-        return $query->whereDate('created_at', now()->toDateString());
-    }
-
-    public function scopeDeAgencias($query)
-    {
-        return $query->whereNotNull('agencia_id');
+        return $query->whereHas('rutaActivada', function ($q) use ($fechaInicio, $fechaFin) {
+            $q->whereBetween(DB::raw('DATE(ruta_activada_fecha_hora)'), [$fechaInicio, $fechaFin]);
+        });
     }
 
     public function scopeDirectas($query)
@@ -165,217 +135,539 @@ class Reserva extends Model
         return $query->whereNull('agencia_id');
     }
 
-    public function scopePendientes($query)
+    public function scopePorAgencias($query)
     {
-        return $query->whereHas('estado', function ($q) {
-            $q->where('estado_codigo', 'RES_PEND');
-        });
-    }
-
-    public function scopeConfirmadas($query)
-    {
-        return $query->whereHas('estado', function ($q) {
-            $q->where('estado_codigo', 'RES_CONF');
-        });
-    }
-
-    public function scopeEjecutandose($query)
-    {
-        return $query->whereHas('estado', function ($q) {
-            $q->where('estado_codigo', 'RES_EJEC');
-        });
-    }
-
-    public function scopeFinalizadas($query)
-    {
-        return $query->whereHas('estado', function ($q) {
-            $q->where('estado_codigo', 'RES_FIN');
-        });
-    }
-
-    public function scopeCanceladas($query)
-    {
-        return $query->whereHas('estado', function ($q) {
-            $q->where('estado_codigo', 'RES_CANC');
-        });
-    }
-
-    public function scopeBuscarCliente($query, $termino)
-    {
-        return $query->where(function ($q) use ($termino) {
-            $q->where('reserva_nombres_cliente', 'like', "%{$termino}%")
-                ->orWhere('reserva_apellidos_cliente', 'like', "%{$termino}%")
-                ->orWhere('reserva_telefono_cliente', 'like', "%{$termino}%")
-                ->orWhere('reserva_email_cliente', 'like', "%{$termino}%");
-        });
+        return $query->whereNotNull('agencia_id');
     }
 
     /**
-     * Métodos de negocio
+     * GENERADOR DE CÓDIGO AUTOMÁTICO
      */
-    public function estaPendiente()
+    public static function generarCodigo()
     {
-        return $this->estado && $this->estado->estado_codigo === 'RES_PEND';
+        $ultimo = self::orderByDesc('reserva_id')->first();
+        $numero = $ultimo ? ((int) substr($ultimo->reserva_codigo, -4)) + 1 : 1;
+        return 'RES-' . str_pad($numero, 4, '0', STR_PAD_LEFT);
     }
 
-    public function estaConfirmada()
+    /**
+     * ATRIBUTOS CALCULADOS - Sincronizados con RutaActivada
+     */
+    public function getNombreCompletoClienteAttribute()
     {
-        return $this->estado && $this->estado->estado_codigo === 'RES_CONF';
+        return trim($this->reserva_nombres_cliente . ' ' . $this->reserva_apellidos_cliente);
     }
 
-    public function seEstaEjecutando()
+    public function getVendedorNombreAttribute()
     {
-        return $this->estado && $this->estado->estado_codigo === 'RES_EJEC';
+        return $this->usuario && $this->usuario->persona
+            ? trim($this->usuario->persona->persona_nombres . ' ' . $this->usuario->persona->persona_apellidos)
+            : 'Sin vendedor';
     }
 
-    public function estaFinalizada()
+    public function getEstadoNombreAttribute()
     {
-        return $this->estado && $this->estado->estado_codigo === 'RES_FIN';
+        return $this->estado ? $this->estado->estado_estado : 'Sin estado';
     }
 
-    public function estaCancelada()
+    public function getAgenciaNombreAttribute()
     {
-        return $this->estado && $this->estado->estado_codigo === 'RES_CANC';
+        return $this->agencia ? $this->agencia->agencia_razon_social : 'Venta directa';
     }
 
-    public function cambiarEstado($nuevoEstadoCodigo)
+    public function getRutaCompletaAttribute()
     {
-        $nuevoEstado = Estado::where('estado_codigo', $nuevoEstadoCodigo)->first();
+        return $this->rutaActivada ? $this->rutaActivada->ruta_completa : 'Ruta no definida';
+    }
 
-        if (!$nuevoEstado) {
-            throw new \Exception("Estado {$nuevoEstadoCodigo} no encontrado");
+    public function getFechaViajeAttribute()
+    {
+        return $this->rutaActivada && $this->rutaActivada->ruta_activada_fecha_hora
+            ? $this->rutaActivada->ruta_activada_fecha_hora->format('d/m/Y')
+            : 'Sin fecha';
+    }
+
+    public function getHoraViajeAttribute()
+    {
+        return $this->rutaActivada && $this->rutaActivada->ruta_activada_fecha_hora
+            ? $this->rutaActivada->ruta_activada_fecha_hora->format('H:i')
+            : 'Sin hora';
+    }
+
+    public function getFechaHoraViajeAttribute()
+    {
+        return $this->rutaActivada ? $this->rutaActivada->fecha_formateada : 'Sin fecha/hora';
+    }
+
+    /**
+     * TIPOS DE VENTA - Lógica de negocio
+     */
+    public function getEsVentaDirectaAttribute()
+    {
+        return is_null($this->agencia_id);
+    }
+
+    public function getEsVentaAgenciaAttribute()
+    {
+        return !is_null($this->agencia_id);
+    }
+
+    public function getTipoVentaAttribute()
+    {
+        return $this->es_venta_directa ? 'DIRECTA' : 'AGENCIA';
+    }
+
+    /**
+     * TOTAL PASAJEROS - Calculado dinámicamente (sin campo en BD)
+     */
+    public function getTotalPasajerosAttribute()
+    {
+        return ($this->reserva_cantidad_adultos ?? 0) + ($this->reserva_cantidad_ninos ?? 0);
+    }
+
+    /**
+     * VALIDACIONES DE NEGOCIO - Actualizadas según nueva DB
+     */
+    public function puedeSerModificada()
+    {
+        if (!$this->estado) return true;
+
+        $estados_bloqueados = ['ejecutada', 'facturada', 'cancelada'];
+        return !in_array(strtolower($this->estado->estado_estado), $estados_bloqueados);
+    }
+
+    public function puedeSerCancelada()
+    {
+        if (!$this->estado) return false;
+
+        $estados_cancelables = ['pendiente', 'confirmada'];
+        return in_array(strtolower($this->estado->estado_estado), $estados_cancelables);
+    }
+
+    public function puedeSerConfirmada()
+    {
+        if (!$this->estado) return false;
+        return strtolower($this->estado->estado_estado) === 'pendiente';
+    }
+
+
+
+    /**
+     * CAMBIO IMPORTANTE: Estado para facturación es 'confirmada' (no 'ejecutada')
+     */
+    public function puedeGenerarFactura()
+    {
+        if (!$this->estado) return false;
+
+        // Abstracto: buscar estados "Confirmada" independientemente del ID
+        return strtolower($this->estado->estado_estado) === 'confirmada';
+    }
+
+    /**
+     * Obtener estados válidos para facturación - Método estático abstracto
+     */
+    public static function obtenerEstadosFacturables()
+    {
+        return Estado::where('estado_codigo', 'LIKE', 'RES-%')
+            ->where('estado_situacion', 1)
+            ->where('estado_estado', 'Confirmada')
+            ->get();
+    }
+
+    /**
+     * Validar si el estado permite facturación
+     */
+    public function estadoPermiteFacturacion()
+    {
+        if (!$this->estado) return false;
+
+        // Abstracto: cualquier estado de reserva "Confirmada" puede facturar
+        return $this->estado->estado_codigo &&
+            str_starts_with($this->estado->estado_codigo, 'RES-') &&
+            strtolower($this->estado->estado_estado) === 'confirmada';
+    }
+
+    /**
+     * DISPONIBILIDAD - Usando métodos sincronizados con RutaActivada
+     */
+    public function consultarDisponibilidadRuta()
+    {
+        if (!$this->rutaActivada) {
+            return [
+                'disponible' => false,
+                'mensaje' => 'Ruta no asignada'
+            ];
         }
 
-        if ($this->estado && !$this->estado->permiteTransicion($nuevoEstadoCodigo)) {
-            throw new \Exception("Transición no válida de {$this->estado->estado_codigo} a {$nuevoEstadoCodigo}");
-        }
-
-        $this->estado_id = $nuevoEstado->estado_id;
-        $this->save();
-
-        return $this;
+        return $this->rutaActivada->verificarDisponibilidad($this->total_pasajeros);
     }
 
-    public function confirmar()
+    public function cabeEnLaRuta()
     {
-        return $this->cambiarEstado('RES_CONF');
+        if (!$this->rutaActivada) return false;
+        return $this->rutaActivada->puedeRecibirPasajeros($this->total_pasajeros);
     }
 
-    public function ejecutar()
-    {
-        return $this->cambiarEstado('RES_EJEC');
-    }
-
-    public function finalizar()
-    {
-        return $this->cambiarEstado('RES_FIN');
-    }
-
-    public function cancelar()
-    {
-        return $this->cambiarEstado('RES_CANC');
-    }
-
-    public function generarCodigoUnico()
-    {
-        $prefijo = $this->es_agencia ? 'AG' : 'DR';
-        $fecha = $this->created_at ? $this->created_at->format('ymd') : now()->format('ymd');
-        $numero = str_pad($this->reserva_id ?? 0, 4, '0', STR_PAD_LEFT);
-
-        return $prefijo . '-' . $fecha . '-' . $numero;
-    }
-
+    /**
+     * ESTADO DE FACTURACIÓN - Sin tabla facturas
+     */
     public function tieneFactura()
     {
-        return $this->facturas()->where('facturas_situacion', true)->exists();
+        if (!$this->estado) return false;
+        return strtolower($this->estado->estado_estado) === 'facturada';
     }
 
-    public function calcularMonto()
+    public function tieneFacturaActiva()
     {
-        if (!$this->rutaActivada || !$this->rutaActivada->servicio) {
-            return 0;
+        return $this->tieneFactura();
+    }
+
+    /**
+     * Generar datos estructurados para factura
+     */
+    public function generarDatosFactura()
+    {
+        if (!$this->puedeGenerarFactura()) {
+            throw new \Exception('Esta reserva no puede generar factura. Estado: ' . $this->estado_nombre);
         }
 
-        return $this->rutaActivada->servicio->calcularPrecio(
+        return [
+            'reserva' => [
+                'id' => $this->reserva_id,
+                'codigo' => $this->reserva_codigo,
+                'fecha_reserva' => $this->created_at->format('d/m/Y H:i')
+            ],
+            'cliente' => [
+                'nombre_completo' => $this->nombre_completo_cliente,
+                'nit' => $this->reserva_cliente_nit,
+                'telefono' => $this->reserva_telefono_cliente,
+                'email' => $this->reserva_email_cliente,
+                'direccion_abordaje' => $this->reserva_direccion_abordaje
+            ],
+            'servicio' => [
+                'nombre' => $this->formatearServicio(),
+                'ruta' => $this->ruta_completa,
+                'fecha_viaje' => $this->fecha_viaje,
+                'hora_viaje' => $this->hora_viaje
+            ],
+            'pasajeros' => [
+                'adultos' => $this->reserva_cantidad_adultos,
+                'ninos' => $this->reserva_cantidad_ninos ?? 0,
+                'total' => $this->total_pasajeros
+            ],
+            'montos' => [
+                'subtotal' => $this->reserva_monto,
+                'total' => $this->reserva_monto
+            ],
+            'venta' => [
+                'tipo' => $this->tipo_venta,
+                'agencia' => $this->es_venta_agencia ? $this->agencia_nombre : null,
+                'vendedor' => $this->vendedor_nombre
+            ]
+        ];
+    }
+
+    /**
+     * BÚSQUEDA DE DISPONIBILIDAD - Usando RutaActivada
+     */
+    public static function buscarDisponibilidad($servicio_id, $fecha, $pasajeros)
+    {
+        return RutaActivada::asignarAutomaticamente($servicio_id, $fecha, $pasajeros);
+    }
+
+    /**
+     * MONTO CALCULADO - Los triggers de BD se encargan automáticamente
+     */
+    public function getMontoAutomatico()
+    {
+        return $this->reserva_monto;
+    }
+
+    /**
+     * CÁLCULO DE PRECIO - Usando método de RutaActivada
+     */
+    public function calcularPrecioCompleto()
+    {
+        if (!$this->rutaActivada) return 0;
+
+        return $this->rutaActivada->calcularPrecioReserva(
             $this->reserva_cantidad_adultos,
-            $this->reserva_cantidad_ninos,
-            $this->es_agencia
+            $this->reserva_cantidad_ninos ?? 0,
+            $this->es_venta_agencia
         );
     }
 
-    public function tieneTelefonoValido()
+    /**
+     * FUNCIONALIDAD WHATSAPP - Mantenida completa
+     */
+    public function generarMensajeWhatsAppConfirmacion()
     {
-        return $this->reserva_telefono_cliente &&
-            strlen((string) $this->reserva_telefono_cliente) >= 8;
-    }
+        $mensaje = "🚌 *MAGIC TRAVEL* 🚌\n\n";
+        $mensaje .= "✅ *RESERVA CONFIRMADA*\n\n";
+        $mensaje .= "👤 *Cliente:* {$this->nombre_completo_cliente}\n";
+        $mensaje .= "🎫 *Código:* {$this->reserva_codigo}\n\n";
 
-    public function tieneEmailValido()
-    {
-        return $this->reserva_email_cliente &&
-            filter_var($this->reserva_email_cliente, FILTER_VALIDATE_EMAIL);
-    }
+        $mensaje .= "📍 *Ruta:* {$this->ruta_completa}\n";
+        $mensaje .= "📅 *Fecha:* {$this->fecha_viaje}\n";
+        $mensaje .= "🕐 *Hora:* {$this->hora_viaje}\n\n";
 
-    public function datosCompletos()
-    {
-        return !empty($this->reserva_nombres_cliente) &&
-            !empty($this->reserva_apellidos_cliente) &&
-            $this->reserva_cantidad_adultos > 0 &&
-            $this->tieneTelefonoValido();
-    }
+        $mensaje .= "👥 *Pasajeros:*\n";
+        $mensaje .= "   • Adultos: {$this->reserva_cantidad_adultos}\n";
+        if ($this->reserva_cantidad_ninos > 0) {
+            $mensaje .= "   • Niños: {$this->reserva_cantidad_ninos}\n";
+        }
+        $mensaje .= "   • Total: {$this->total_pasajeros} personas\n\n";
 
-    public function linkWhatsApp($mensaje = null)
-    {
-        if (!$this->tieneTelefonoValido()) {
-            return null;
+        if ($this->reserva_direccion_abordaje) {
+            $mensaje .= "🏨 *Punto de abordaje:* {$this->reserva_direccion_abordaje}\n\n";
         }
 
+        $mensaje .= "💰 *Monto total:* Q. " . number_format($this->reserva_monto, 2) . "\n";
+        if ($this->es_venta_agencia) {
+            $mensaje .= "🏢 *Agencia:* {$this->agencia_nombre}\n";
+        }
+        $mensaje .= "\n📞 *Contacto:* {$this->formatearTelefono()}\n\n";
+
+        $mensaje .= "⚠️ *IMPORTANTE:*\n";
+        $mensaje .= "• Llegar 10 minutos antes\n";
+        $mensaje .= "• Portar documento de identidad\n";
+        $mensaje .= "• Guardar este mensaje como comprobante\n\n";
+
+        $mensaje .= "¡Gracias por viajar con Magic Travel! 🌟";
+
+        return $mensaje;
+    }
+
+    public function generarMensajeWhatsAppRecordatorio()
+    {
+        $mensaje = "🚌 *MAGIC TRAVEL* - RECORDATORIO 🚌\n\n";
+        $mensaje .= "⏰ *SU VIAJE ES HOY*\n\n";
+        $mensaje .= "👤 {$this->nombre_completo_cliente}\n";
+        $mensaje .= "🎫 Reserva: {$this->reserva_codigo}\n\n";
+
+        $mensaje .= "📍 *Salida:* {$this->ruta_completa}\n";
+        $mensaje .= "🕐 *Hora:* {$this->hora_viaje}\n";
+        if ($this->reserva_direccion_abordaje) {
+            $mensaje .= "🏨 *Punto de abordaje:* {$this->reserva_direccion_abordaje}\n";
+        }
+        $mensaje .= "\n👥 Pasajeros: {$this->total_pasajeros}\n";
+        $mensaje .= "💰 Monto: Q. " . number_format($this->reserva_monto, 2) . "\n\n";
+
+        $mensaje .= "⚠️ Recuerde llegar 10 minutos antes\n\n";
+        $mensaje .= "¡Buen viaje! 🌟";
+
+        return $mensaje;
+    }
+
+    public function generarMensajeWhatsAppCancelacion()
+    {
+        $mensaje = "🚌 *MAGIC TRAVEL* 🚌\n\n";
+        $mensaje .= "❌ *RESERVA CANCELADA*\n\n";
+        $mensaje .= "👤 {$this->nombre_completo_cliente}\n";
+        $mensaje .= "🎫 Código: {$this->reserva_codigo}\n\n";
+
+        $mensaje .= "📍 Ruta: {$this->ruta_completa}\n";
+        $mensaje .= "📅 Fecha: {$this->fecha_viaje}\n";
+        $mensaje .= "🕐 Hora: {$this->hora_viaje}\n\n";
+
+        if ($this->reserva_notas) {
+            $mensaje .= "📝 *Motivo:* {$this->reserva_notas}\n\n";
+        }
+
+        $mensaje .= "💰 Monto: Q. " . number_format($this->reserva_monto, 2) . "\n\n";
+        $mensaje .= "ℹ️ Para nuevas reservas, contáctenos\n";
+        $mensaje .= "Lamentamos los inconvenientes 🙏";
+
+        return $mensaje;
+    }
+
+    public function generarMensajeWhatsAppPersonalizado($tipo = 'confirmacion')
+    {
+        switch (strtolower($tipo)) {
+            case 'recordatorio':
+                return $this->generarMensajeWhatsAppRecordatorio();
+            case 'cancelacion':
+                return $this->generarMensajeWhatsAppCancelacion();
+            case 'confirmacion':
+            default:
+                return $this->generarMensajeWhatsAppConfirmacion();
+        }
+    }
+
+    /**
+     * MÉTODOS DE FORMATO - Usando RutaActivada sincronizada
+     */
+    public function formatearServicio()
+    {
+        return $this->rutaActivada ? $this->rutaActivada->formatearServicio() : 'Sin servicio';
+    }
+
+    public function formatearVehiculo()
+    {
+        return $this->rutaActivada ? $this->rutaActivada->vehiculo_info : 'Sin vehículo';
+    }
+
+    public function getCodigoPublico()
+    {
+        if (!$this->reserva_codigo) return 'Sin código';
+
+        $codigo = $this->reserva_codigo;
+        if (strlen($codigo) > 4) {
+            $codigo = substr($codigo, 0, 3) . '***' . substr($codigo, -1);
+        }
+
+        return $codigo;
+    }
+
+    public function formatearTelefono()
+    {
         $telefono = (string) $this->reserva_telefono_cliente;
-        $mensaje_encoded = $mensaje ? urlencode($mensaje) : '';
-
-        return "https://wa.me/{$telefono}" . ($mensaje ? "?text={$mensaje_encoded}" : '');
+        if (strlen($telefono) === 8) {
+            return substr($telefono, 0, 4) . '-' . substr($telefono, 4);
+        }
+        return $telefono;
     }
 
-    public function mensajeWhatsAppConfirmacion()
+    /**
+     * VALIDACIÓN DE CÓDIGO ÚNICO
+     */
+    public function esCodigoUnico($codigo, $excepto_id = null)
     {
-        if (!$this->rutaActivada) {
-            return null;
+        $query = self::where('reserva_codigo', $codigo);
+
+        if ($excepto_id) {
+            $query->where('reserva_id', '!=', $excepto_id);
         }
 
-        return "Hola {$this->reserva_nombres_cliente}, tu reserva {$this->reserva_codigo} ha sido confirmada. " .
-            "Detalles: {$this->total_pasajeros} pasajeros para el servicio del " .
-            "{$this->rutaActivada->ruta_activada_fecha->format('d/m/Y')} a las " .
-            "{$this->rutaActivada->ruta_activada_hora->format('H:i')}. " .
-            "Monto: Q{$this->reserva_monto}. ¡Gracias por elegir Magic Travel!";
+        return !$query->exists();
     }
 
-    public function resumenCompleto()
+    /**
+     * VALIDACIONES DE DISPONIBILIDAD - Usando RutaActivada
+     */
+    public static function validarCapacidadEnRuta($ruta_activada_id, $pasajeros, $excepto_reserva_id = null)
     {
-        return [
-            'reserva' => [
-                'codigo' => $this->reserva_codigo,
-                'cliente' => $this->nombre_completo_cliente,
-                'telefono' => $this->telefono_formateado,
-                'email' => $this->reserva_email_cliente,
-                'pasajeros' => [
-                    'adultos' => $this->reserva_cantidad_adultos,
-                    'ninos' => $this->reserva_cantidad_ninos,
-                    'total' => $this->total_pasajeros
-                ],
-                'monto' => $this->reserva_monto,
-                'tipo_cliente' => $this->tipo_cliente,
-                'direccion_abordaje' => $this->reserva_direccion_abordaje,
-                'notas' => $this->reserva_notas
-            ],
-            'servicio' => $this->rutaActivada && $this->rutaActivada->servicio ? [
-                'nombre' => $this->rutaActivada->servicio->servicio_servicio,
-                'fecha' => $this->rutaActivada->ruta_activada_fecha->format('d/m/Y'),
-                'hora' => $this->rutaActivada->ruta_activada_hora->format('H:i'),
-                'ruta' => $this->rutaActivada->ruta ? $this->rutaActivada->ruta->ruta_completa : null
-            ] : null,
-            'estado' => $this->estado ? $this->estado->estado_estado : 'Sin estado',
-            'vendedor' => $this->usuario ? $this->usuario->nombre_completo : 'Sin vendedor',
-            'agencia' => $this->agencia ? $this->agencia->agencia_razon_social : null,
-            'facturado' => $this->tieneFactura()
-        ];
+        $ruta = RutaActivada::find($ruta_activada_id);
+        if (!$ruta) {
+            return ['valido' => false, 'mensaje' => 'Ruta no encontrada'];
+        }
+
+        $ocupacion_actual = self::where('ruta_activada_id', $ruta_activada_id)
+            ->where('reserva_situacion', 1);
+
+        if ($excepto_reserva_id) {
+            $ocupacion_actual->where('reserva_id', '!=', $excepto_reserva_id);
+        }
+
+        $total_ocupado = $ocupacion_actual->sum(DB::raw('reserva_cantidad_adultos + IFNULL(reserva_cantidad_ninos, 0)'));
+        $capacidad = $ruta->vehiculo ? $ruta->vehiculo->vehiculo_capacidad : 0;
+
+        if ($capacidad <= 0) {
+            return ['valido' => true, 'mensaje' => 'Sin límite de capacidad'];
+        }
+
+        if (($total_ocupado + $pasajeros) > $capacidad) {
+            return [
+                'valido' => false,
+                'mensaje' => "Capacidad insuficiente. Disponible: " . ($capacidad - $total_ocupado)
+            ];
+        }
+
+        return ['valido' => true, 'mensaje' => 'Capacidad disponible'];
+    }
+
+    public function validarCapacidadPropia()
+    {
+        return self::validarCapacidadEnRuta(
+            $this->ruta_activada_id,
+            $this->total_pasajeros,
+            $this->reserva_id
+        );
+    }
+
+    /**
+     * USAR VISTAS DE LA NUEVA DB - Métodos estáticos para reportes
+     */
+    public static function obtenerReservasCompletas()
+    {
+        return DB::table('v_reservas_completas')->get();
+    }
+
+    public static function obtenerIngresosDiarios()
+    {
+        return DB::table('v_ingresos_diarios')->get();
+    }
+
+    public static function obtenerOcupacionRutas()
+    {
+        return DB::table('v_ocupacion_rutas')->get();
+    }
+
+    /**
+     * INTEGRACIÓN COMPLETA - Aprovechar capacidades de RutaActivada
+     */
+    public function necesitaAlertaCapacidad()
+    {
+        return $this->rutaActivada ? $this->rutaActivada->necesitaAlertaCapacidad() : false;
+    }
+
+    public function obtenerStatusDisponibilidad()
+    {
+        return $this->rutaActivada ? $this->rutaActivada->status_disponibilidad : 'DESCONOCIDO';
+    }
+
+    public function obtenerPorcentajeOcupacion()
+    {
+        return $this->rutaActivada ? $this->rutaActivada->porcentaje_ocupacion : 0;
+    }
+
+    /**
+     * Obtener notificaciones inteligentes para la reserva
+     */
+    public function obtenerNotificacionesInteligentes()
+    {
+        $notificaciones = [];
+
+        // Verificar si puede cambiar de estado
+        if ($this->estado && stripos($this->estado->estado_estado, 'cancelada') !== false) {
+            $notificaciones[] = [
+                'tipo' => 'info',
+                'mensaje' => 'Esta reserva está cancelada y no puede modificarse'
+            ];
+        }
+
+        // Verificar si puede ser confirmada
+        if ($this->estado && stripos($this->estado->estado_estado, 'pendiente') !== false) {
+            $notificaciones[] = [
+                'tipo' => 'warning',
+                'mensaje' => 'Reserva pendiente - puede ser confirmada o cancelada'
+            ];
+        }
+
+        return $notificaciones;
+    }
+
+    /**
+     * Validar cambio de estado
+     */
+    public function validarCambioDeEstado($nuevoEstado)
+    {
+        // Si está cancelada, no puede cambiar
+        if ($this->estado && stripos($this->estado->estado_estado, 'cancelada') !== false) {
+            return [
+                'puede_cambiar' => false,
+                'mensaje' => 'Las reservas canceladas no pueden cambiar de estado'
+            ];
+        }
+
+        return ['puede_cambiar' => true];
+    }
+
+    /**
+     * Procesar después de cambio de estado
+     */
+    public function procesarDespuesDeCambioEstado()
+    {
+        return $this->obtenerNotificacionesInteligentes();
     }
 }

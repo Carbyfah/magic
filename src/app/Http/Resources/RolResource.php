@@ -15,33 +15,51 @@ class RolResource extends JsonResource
             'nombre' => $this->rol_rol,
             'descripcion' => $this->rol_descripcion,
             'activo' => $this->es_activo,
-            'nivel_acceso' => $this->nivel_acceso,
 
-            // Contadores para dashboard
-            'total_usuarios' => $this->whenCounted('usuarios'),
-
-            // Permisos detallados para la interfaz
-            'permisos' => [
-                'es_administrador' => $this->esAdministrador(),
-                'es_gerente' => $this->esGerente(),
-                'puede_vender' => $this->puedeVender(),
-                'puede_operar' => $this->puedeOperar(),
-                'acceso_completo' => $this->tieneAccesoCompleto(),
+            // Información combinada para la interfaz
+            'descripcion_completa' => [
+                'completa' => $this->rol_completo,
+                'resumen' => $this->resumen_rol,
             ],
 
-            // Recursos que puede gestionar (para menús dinámicos)
-            'recursos_permitidos' => [
-                'usuarios' => $this->puedeGestionar('usuarios'),
-                'roles' => $this->puedeGestionar('roles'),
-                'configuracion' => $this->puedeGestionar('configuracion'),
-                'reportes' => $this->puedeGestionar('reportes'),
-                'auditoria' => $this->puedeGestionar('auditoria'),
-                'vehiculos' => $this->puedeGestionar('vehiculos'),
-                'rutas' => $this->puedeGestionar('rutas'),
-                'servicios' => $this->puedeGestionar('servicios'),
-                'reservas' => $this->puedeGestionar('reservas'),
-                'facturas' => $this->puedeGestionar('facturas'),
+            // Clasificaciones para filtros y lógica
+            'caracteristicas' => [
+                'es_administrativo' => $this->esRolAdministrativo(),
+                'es_operativo' => $this->esRolOperativo(),
+                'nivel_acceso' => $this->getNivelAcceso(),
             ],
+
+            // Estadísticas de uso
+            'estadisticas' => $this->when(
+                $request->has('include_estadisticas'),
+                [
+                    'total_usuarios' => $this->whenCounted('usuarios'),
+                    'es_popular' => $this->esPopular(),
+                    'tiene_usuarios' => $this->tieneUsuariosActivos(),
+                ]
+            ),
+
+            // Rol superior para jerarquía
+            'rol_jerarquia' => $this->when(
+                $request->has('include_jerarquia'),
+                function () {
+                    $superior = $this->rolSuperior();
+                    return $superior ? [
+                        'id' => $superior->rol_id,
+                        'codigo' => $superior->rol_codigo,
+                        'existe' => true
+                    ] : ['existe' => false];
+                }
+            ),
+
+            // Información para permisos y planificación
+            'planificacion' => $this->when(
+                $request->has('include_planificacion'),
+                [
+                    'puede_asignar' => $this->es_activo,
+                    'requiere_atencion_especial' => $this->esRolAdministrativo(),
+                ]
+            ),
 
             // Timestamps
             'created_at' => $this->created_at?->toISOString(),

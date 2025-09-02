@@ -4,11 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Traits\HasAudit;
 
 class Servicio extends Model
 {
-    use SoftDeletes, HasAudit;
+    use SoftDeletes;
 
     protected $table = 'servicio';
     protected $primaryKey = 'servicio_id';
@@ -18,14 +17,12 @@ class Servicio extends Model
         'servicio_servicio',
         'servicio_precio_normal',
         'servicio_precio_descuento',
-        'servicio_precio_total',
         'servicio_situacion'
     ];
 
     protected $casts = [
         'servicio_precio_normal' => 'decimal:2',
         'servicio_precio_descuento' => 'decimal:2',
-        'servicio_precio_total' => 'decimal:2',
         'servicio_situacion' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime'
@@ -37,15 +34,8 @@ class Servicio extends Model
         'deleted_at'
     ];
 
-    protected $appends = [
-        'es_activo',
-        'tipo_servicio',
-        'precio_ninos_normal',
-        'precio_ninos_descuento'
-    ];
-
     /**
-     * Relaciones
+     * RELACIONES BÁSICAS
      */
     public function rutasActivadas()
     {
@@ -58,153 +48,43 @@ class Servicio extends Model
     }
 
     /**
-     * Atributos calculados
-     */
-    public function getEsActivoAttribute()
-    {
-        return $this->servicio_situacion === true;
-    }
-
-    public function getTipoServicioAttribute()
-    {
-        $nombre = strtolower($this->servicio_servicio ?? '');
-
-        if (str_contains($nombre, 'tour')) {
-            return 'Tour';
-        } elseif (str_contains($nombre, 'transport')) {
-            return 'Transporte';
-        } elseif (str_contains($nombre, 'shuttle')) {
-            return 'Shuttle';
-        }
-
-        return 'General';
-    }
-
-    public function getPrecioNinosNormalAttribute()
-    {
-        return $this->servicio_precio_normal ? $this->servicio_precio_normal * 0.5 : 0;
-    }
-
-    public function getPrecioNinosDescuentoAttribute()
-    {
-        return $this->servicio_precio_descuento ? $this->servicio_precio_descuento * 0.5 : 0;
-    }
-
-    /**
-     * Scopes
+     * SCOPES SIMPLES
      */
     public function scopeActivo($query)
     {
-        return $query->where('servicio_situacion', true);
+        return $query->where('servicio_situacion', 1);
     }
 
-    public function scopePorCodigo($query, $codigo)
+    public function scopeBuscar($query, $termino)
     {
-        return $query->where('servicio_codigo', $codigo);
-    }
-
-    public function scopeTours($query)
-    {
-        return $query->where('servicio_servicio', 'like', '%tour%');
-    }
-
-    public function scopeTransporte($query)
-    {
-        return $query->where('servicio_servicio', 'like', '%transport%');
-    }
-
-    public function scopeShuttle($query)
-    {
-        return $query->where('servicio_servicio', 'like', '%shuttle%');
-    }
-
-    public function scopeConPrecio($query)
-    {
-        return $query->whereNotNull('servicio_precio_normal')
-            ->where('servicio_precio_normal', '>', 0);
+        return $query->where('servicio_servicio', 'like', "%{$termino}%")
+            ->orWhere('servicio_codigo', 'like', "%{$termino}%");
     }
 
     /**
-     * Métodos estáticos para servicios específicos
+     * GENERADOR DE CÓDIGO AUTOMÁTICO
      */
-    public static function transporteEstandar()
+    public static function generarCodigo()
     {
-        return self::where('servicio_codigo', 'TRANS_STD')->first();
-    }
-
-    public static function transportePremium()
-    {
-        return self::where('servicio_codigo', 'TRANS_PREM')->first();
-    }
-
-    public static function tourAntigua()
-    {
-        return self::where('servicio_codigo', 'TOUR_ANTI')->first();
-    }
-
-    public static function tourTikal()
-    {
-        return self::where('servicio_codigo', 'TOUR_TIKAL')->first();
-    }
-
-    public static function tourAtitlan()
-    {
-        return self::where('servicio_codigo', 'TOUR_ATIT')->first();
-    }
-
-    public static function shuttleAeropuerto()
-    {
-        return self::where('servicio_codigo', 'SHUTTLE')->first();
+        $ultimo = self::orderByDesc('servicio_id')->first();
+        $numero = $ultimo ? ((int) substr($ultimo->servicio_codigo, -3)) + 1 : 1;
+        return 'SRV-' . str_pad($numero, 3, '0', STR_PAD_LEFT);
     }
 
     /**
-     * Métodos de negocio
+     * MÉTODOS DE INSTANCIA BÁSICOS
      */
-    public function calcularPrecio($adultos, $ninos = 0, $esAgencia = false)
+    public function tieneReservasActivas()
     {
-        if (!$this->servicio_precio_normal || !$this->servicio_precio_descuento) {
-            return 0;
-        }
-
-        $precioAdulto = $esAgencia ? $this->servicio_precio_descuento : $this->servicio_precio_normal;
-        $precioNino = $precioAdulto * 0.5;
-
-        return ($adultos * $precioAdulto) + ($ninos * $precioNino);
+        return $this->rutasActivadas()
+            ->whereHas('reservas', function ($query) {
+                $query->where('reserva_situacion', 1);
+            })
+            ->exists();
     }
 
-    public function esTour()
+    public function getPrecioParaAgenciaAttribute()
     {
-        return $this->tipo_servicio === 'Tour';
-    }
-
-    public function esTransporte()
-    {
-        return $this->tipo_servicio === 'Transporte';
-    }
-
-    public function esShuttle()
-    {
-        return $this->tipo_servicio === 'Shuttle';
-    }
-
-    public function tieneDescuento()
-    {
-        return $this->servicio_precio_descuento &&
-            $this->servicio_precio_normal &&
-            $this->servicio_precio_descuento < $this->servicio_precio_normal;
-    }
-
-    public function porcentajeDescuento()
-    {
-        if (!$this->tieneDescuento()) {
-            return 0;
-        }
-
-        return round((1 - ($this->servicio_precio_descuento / $this->servicio_precio_normal)) * 100, 2);
-    }
-
-    public function tienePreciosCompletos()
-    {
-        return $this->servicio_precio_normal > 0 && $this->servicio_precio_descuento > 0;
+        return $this->servicio_precio_descuento ?: $this->servicio_precio_normal;
     }
 }

@@ -12,59 +12,99 @@ class AgenciaResource extends JsonResource
         return [
             'id' => $this->agencia_id,
             'codigo' => $this->agencia_codigo,
-            'razon_social' => $this->agencia_razon_social,
+            'nombre' => $this->agencia_razon_social,
             'nit' => $this->agencia_nit,
             'email' => $this->agencia_email,
             'telefono' => $this->agencia_telefono,
-            'telefono_formateado' => $this->telefono_formateado,
-            'activo' => $this->es_activo,
-            'tipo' => $this->tipo_agencia,
+            'activo' => $this->agencia_situacion,
 
-            // Clasificaciones para lógica de negocio
+            // Información combinada para la interfaz
+            'descripcion_completa' => [
+                'completa' => $this->nombre_completo,
+                'categoria' => $this->getCategoria(),
+            ],
+
+            // Clasificaciones para filtros y lógica
             'caracteristicas' => [
-                'es_internacional' => $this->esInternacional(),
-                'es_operador_turistico' => $this->esOperadorTuristico(),
-                'es_vip' => $this->esClienteVip(),
-                'esta_activa' => $this->estaActiva(),
-                'necesita_seguimiento' => $this->necesitaSeguimiento(),
+                'es_nacional' => $this->esAgenciaNacional(),
+                'es_internacional' => $this->esAgenciaInternacional(),
+                'es_operador_directo' => $this->esOperadorDirecto(),
             ],
 
-            // Estadísticas comerciales
-            'estadisticas' => [
-                'reservas_mes_actual' => $this->getTotalReservasMes(),
-                'total_contactos' => $this->whenCounted('contactos'),
-                'total_reservas' => $this->whenCounted('reservas'),
-                'tiene_contacto_activo' => $this->tieneContactoActivo(),
-            ],
-
-            // Información financiera (solo para usuarios autorizados)
-            'financiero' => $this->when(
-                $request->user()?->tienePermiso('reportes'),
+            // Estadísticas de uso
+            'estadisticas' => $this->when(
+                $request->has('include_estadisticas'),
                 [
-                    'ingresos_totales' => $this->ingresosTotales(),
-                    'comisiones_generadas' => $this->comisionesGeneradas(),
+                    'total_reservas' => $this->whenCounted('reservas'),
+                    'total_contactos' => $this->whenCounted('contactosAgencia'),
+                    'en_uso' => $this->tieneRegistrosAsociados(),
                 ]
             ),
 
-            // Contacto principal para comunicación rápida
-            'contacto_principal' => ContactoAgenciaResource::make(
-                $this->whenLoaded('contactoPrincipal')
+            // Agencias relacionadas para planificación
+            'agencias_relacionadas' => $this->when(
+                $request->has('include_relacionadas'),
+                function () {
+                    return $this->getAgenciasRelacionadas();
+                }
             ),
 
-            // Contactos completos cuando se requiera
-            'contactos' => ContactoAgenciaResource::collection(
-                $this->whenLoaded('contactos')
-            ),
-
-            // Reservas recientes para seguimiento
-            'reservas_recientes' => $this->when(
-                $request->has('include_reservas'),
-                ReservaResource::collection($this->whenLoaded('reservas'))
+            // Información para filtros y planificación
+            'planificacion' => $this->when(
+                $request->has('include_planificacion'),
+                [
+                    'puede_eliminar' => !$this->tieneRegistrosAsociados(),
+                    'es_socio_preferente' => $this->esSocioPreferente(),
+                ]
             ),
 
             // Timestamps
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
         ];
+    }
+
+    private function getCategoria(): string
+    {
+        $codigo = $this->agencia_codigo;
+
+        if (str_starts_with($codigo, 'NAC_')) return 'Nacional';
+        if (str_starts_with($codigo, 'INT_')) return 'Internacional';
+        if (str_starts_with($codigo, 'OPE_')) return 'Operador Directo';
+        if (str_starts_with($codigo, 'COL_')) return 'Colaborador';
+
+        return 'General';
+    }
+
+    private function esAgenciaNacional(): bool
+    {
+        return str_starts_with($this->agencia_codigo, 'NAC_');
+    }
+
+    private function esAgenciaInternacional(): bool
+    {
+        return str_starts_with($this->agencia_codigo, 'INT_');
+    }
+
+    private function esOperadorDirecto(): bool
+    {
+        return str_starts_with($this->agencia_codigo, 'OPE_');
+    }
+
+    private function esSocioPreferente(): bool
+    {
+        $sociosPreferentes = ['NAC_PREM', 'INT_PREM', 'OPE_PREM'];
+        return in_array($this->agencia_codigo, $sociosPreferentes);
+    }
+
+    private function getAgenciasRelacionadas(): array
+    {
+        $categoria = $this->getCategoria();
+
+        return Agencia::where('agencia_codigo', 'like', substr($this->agencia_codigo, 0, 4) . '%')
+            ->where('agencia_id', '!=', $this->agencia_id)
+            ->activo()
+            ->get(['agencia_id', 'agencia_codigo', 'agencia_razon_social'])
+            ->toArray();
     }
 }

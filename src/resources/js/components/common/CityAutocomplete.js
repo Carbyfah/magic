@@ -17,6 +17,7 @@ function CityAutocomplete({
     const [selectedIndex, setSelectedIndex] = useState(-1);
     const [isLoading, setIsLoading] = useState(false);
     const inputRef = useRef(null);
+    const containerRef = useRef(null);
 
     // BASE DE DATOS COMPLETA DE MUNICIPIOS DE GUATEMALA (340 municipios)
     const guatemalaCities = [
@@ -440,15 +441,22 @@ function CityAutocomplete({
     // Manejar clics fuera del componente
     useEffect(() => {
         const handleClickOutside = (event) => {
-            if (inputRef.current && !inputRef.current.contains(event.target)) {
+            if (containerRef.current && !containerRef.current.contains(event.target)) {
                 setShowSuggestions(false);
                 setSelectedIndex(-1);
             }
         };
 
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+        if (showSuggestions) {
+            document.addEventListener('mousedown', handleClickOutside);
+            document.addEventListener('touchstart', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('touchstart', handleClickOutside);
+        };
+    }, [showSuggestions]);
 
     // Manejar navegación por teclado
     const handleKeyDown = (e) => {
@@ -485,7 +493,7 @@ function CityAutocomplete({
 
     // Seleccionar ciudad de la lista
     const selectCity = (city) => {
-        console.log('🏙️ Ciudad seleccionada:', city);
+        console.log('Ciudad seleccionada:', city);
 
         // Actualizar el campo de nombre
         onChange(city.nombre);
@@ -505,7 +513,7 @@ function CityAutocomplete({
     };
 
     return e('div', {
-        ref: inputRef,
+        ref: containerRef,
         style: {
             position: 'relative',
             width: '100%'
@@ -514,6 +522,7 @@ function CityAutocomplete({
         // Input principal
         e('input', {
             key: 'city-input',
+            ref: inputRef,
             type: 'text',
             value: value,
             placeholder: placeholder,
@@ -572,15 +581,18 @@ function CityAutocomplete({
             key: 'suggestions',
             style: {
                 position: 'absolute',
-                top: '100%',
+                // APLICAR LA MISMA LÓGICA QUE FUNCIONA EN SEARCHABLE SELECT
+                ...(containerRef.current && containerRef.current.getBoundingClientRect().bottom > window.innerHeight - 200
+                    ? { bottom: '100%', marginBottom: '4px' }
+                    : { top: '100%', marginTop: '4px' }
+                ),
                 left: '0',
                 right: '0',
                 backgroundColor: 'white',
                 border: '1px solid #e5e7eb',
                 borderRadius: '8px',
                 boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                zIndex: 1000,
-                marginTop: '4px',
+                zIndex: 6000,
                 maxHeight: '300px',
                 overflowY: 'auto'
             }

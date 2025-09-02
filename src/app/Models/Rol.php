@@ -4,11 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Traits\HasAudit;
 
 class Rol extends Model
 {
-    use SoftDeletes, HasAudit;
+    use SoftDeletes;
 
     protected $table = 'rol';
     protected $primaryKey = 'rol_id';
@@ -32,13 +31,8 @@ class Rol extends Model
         'deleted_at'
     ];
 
-    protected $appends = [
-        'es_activo',
-        'nivel_acceso'
-    ];
-
     /**
-     * Relaciones
+     * RELACIONES BÁSICAS
      */
     public function usuarios()
     {
@@ -46,115 +40,40 @@ class Rol extends Model
     }
 
     /**
-     * Atributos calculados
-     */
-    public function getEsActivoAttribute()
-    {
-        return $this->rol_situacion === true;
-    }
-
-    public function getNivelAccesoAttribute()
-    {
-        $niveles = [
-            'ADMIN' => 5,
-            'GERENTE' => 4,
-            'VENDEDOR' => 3,
-            'OPERADOR' => 2,
-            'CHOFER' => 1
-        ];
-
-        return $niveles[$this->rol_codigo] ?? 0;
-    }
-
-    /**
-     * Scopes
+     * SCOPES SIMPLES
      */
     public function scopeActivo($query)
     {
-        return $query->where('rol_situacion', true);
+        return $query->where('rol_situacion', 1);
     }
 
-    public function scopePorCodigo($query, $codigo)
+    public function scopeBuscar($query, $termino)
     {
-        return $query->where('rol_codigo', $codigo);
-    }
-
-    public function scopeConUsuarios($query)
-    {
-        return $query->has('usuarios');
+        return $query->where('rol_rol', 'like', "%{$termino}%")
+            ->orWhere('rol_descripcion', 'like', "%{$termino}%")
+            ->orWhere('rol_codigo', 'like', "%{$termino}%");
     }
 
     /**
-     * Métodos estáticos para obtener roles específicos
+     * GENERADOR DE CÓDIGO AUTOMÁTICO
      */
-    public static function admin()
+    public static function generarCodigo()
     {
-        return self::where('rol_codigo', 'ADMIN')->first();
-    }
-
-    public static function gerente()
-    {
-        return self::where('rol_codigo', 'GERENTE')->first();
-    }
-
-    public static function vendedor()
-    {
-        return self::where('rol_codigo', 'VENDEDOR')->first();
-    }
-
-    public static function chofer()
-    {
-        return self::where('rol_codigo', 'CHOFER')->first();
-    }
-
-    public static function operador()
-    {
-        return self::where('rol_codigo', 'OPERADOR')->first();
+        $ultimo = self::orderByDesc('rol_id')->first();
+        $numero = $ultimo ? ((int) substr($ultimo->rol_codigo, -3)) + 1 : 1;
+        return 'ROL-' . str_pad($numero, 3, '0', STR_PAD_LEFT);
     }
 
     /**
-     * Métodos de permisos
+     * MÉTODOS DE INSTANCIA BÁSICOS
      */
-    public function puedeGestionar($recurso)
+    public function getNombreCompletoAttribute()
     {
-        $permisos = [
-            'ADMIN' => ['usuarios', 'roles', 'configuracion', 'reportes', 'auditoria'],
-            'GERENTE' => ['reportes', 'vehiculos', 'rutas', 'servicios', 'empleados'],
-            'VENDEDOR' => ['reservas', 'clientes', 'agencias', 'facturas'],
-            'OPERADOR' => ['rutas_activadas', 'vehiculos', 'reservas'],
-            'CHOFER' => ['rutas_asignadas']
-        ];
-
-        return in_array($recurso, $permisos[$this->rol_codigo] ?? []);
+        return "{$this->rol_rol} - {$this->rol_descripcion}";
     }
 
-    public function esAdministrador()
+    public function tieneUsuarios()
     {
-        return $this->rol_codigo === 'ADMIN';
-    }
-
-    public function esGerente()
-    {
-        return in_array($this->rol_codigo, ['ADMIN', 'GERENTE']);
-    }
-
-    public function puedeVender()
-    {
-        return in_array($this->rol_codigo, ['ADMIN', 'GERENTE', 'VENDEDOR']);
-    }
-
-    public function puedeOperar()
-    {
-        return in_array($this->rol_codigo, ['ADMIN', 'GERENTE', 'OPERADOR']);
-    }
-
-    public function tieneAccesoCompleto()
-    {
-        return $this->rol_codigo === 'ADMIN';
-    }
-
-    public function tieneNivelMinimo($nivelMinimo)
-    {
-        return $this->nivel_acceso >= $nivelMinimo;
+        return $this->usuarios()->where('usuario_situacion', 1)->exists();
     }
 }

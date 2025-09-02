@@ -12,89 +12,70 @@ class UsuarioResource extends JsonResource
         return [
             'id' => $this->usuario_id,
             'codigo' => $this->usuario_codigo,
-            'activo' => $this->es_activo,
+            'activo' => $this->usuario_situacion,
+
+            // Información combinada para la interfaz
             'nombre_completo' => $this->nombre_completo,
+            'iniciales' => $this->getIniciales(),
+            'persona_id' => $this->persona_id,
+            'rol_id' => $this->rol_id,
 
-            // Información de la persona asociada
-            'persona' => PersonaResource::make(
-                $this->whenLoaded('persona')
-            ),
-
-            // Rol y permisos
-            'rol' => RolResource::make(
-                $this->whenLoaded('rol')
-            ),
-
-            // Permisos específicos para la interfaz
-            'permisos' => [
-                'es_administrador' => $this->esAdministrador(),
-                'es_gerente' => $this->esGerente(),
-                'puede_vender' => $this->puedeVender(),
-                'puede_operar' => $this->puedeOperar(),
-                'acceso_completo' => $this->tieneAccesoCompleto(),
-                'es_chofer' => $this->esChofer(),
-                'es_vendedor' => $this->esVendedor(),
+            // Información relacionada (FK)
+            'persona' => [
+                'id' => $this->persona?->persona_id,
+                'nombre' => $this->persona?->nombre_completo,
+                'codigo' => $this->persona?->persona_codigo,
             ],
 
-            // Recursos específicos que puede gestionar
-            'accesos' => [
-                'usuarios' => $this->tienePermiso('usuarios'),
-                'roles' => $this->tienePermiso('roles'),
-                'configuracion' => $this->tienePermiso('configuracion'),
-                'reportes' => $this->tienePermiso('reportes'),
-                'auditoria' => $this->tienePermiso('auditoria'),
-                'vehiculos' => $this->tienePermiso('vehiculos'),
-                'rutas' => $this->tienePermiso('rutas'),
-                'servicios' => $this->tienePermiso('servicios'),
-                'reservas' => $this->tienePermiso('reservas'),
-                'facturas' => $this->tienePermiso('facturas'),
+            'rol' => [
+                'id' => $this->rol?->rol_id,
+                'nombre' => $this->rol?->rol_rol,
+                'codigo' => $this->rol?->rol_codigo,
             ],
 
-            // Estado y validaciones
-            'estado' => [
-                'esta_activo' => $this->estaActivo(),
-                'datos_completos' => $this->datosCompletos(),
-                'ultima_actividad' => $this->ultimaActividad()?->toISOString(),
+            // Información formateada para la interfaz
+            'contacto' => [
+                'rol_formateado' => $this->formatearRol(),
+                'codigo_publico' => $this->getCodigoPublico(),
+                'tiene_datos_completos' => !empty($this->usuario_codigo) && !empty($this->persona_id),
             ],
 
-            // Estadísticas de rendimiento (solo para gerencia)
-            'rendimiento' => $this->when(
-                $request->user()?->esGerente() || $request->user()->usuario_id === $this->usuario_id,
-                [
-                    'ventas_mes_actual' => $this->getVentasDelMes(),
-                    'ingresos_generados' => $this->getIngresosGenerados(),
-                ]
-            ),
+            // Clasificaciones para filtros y lógica
+            'caracteristicas' => [
+                'es_administrador' => $this->rol?->rol_codigo === 'ADMIN',
+                'es_gerente' => $this->rol?->rol_codigo === 'GERENTE',
+                'es_vendedor' => $this->rol?->rol_codigo === 'VENDEDOR',
+            ],
 
-            // Información específica para choferes
-            'chofer_info' => $this->when(
-                $this->esChofer(),
-                [
-                    'rutas_asignadas' => $this->getRutasAsignadas()->count(),
-                    'tiene_ruta_activa' => $this->tieneRutaActiva(),
-                    'rutas_actuales' => RutaActivadaResource::collection(
-                        $this->whenLoaded('rutasActivadas', $this->getRutasAsignadas())
-                    ),
-                ]
-            ),
-
-            // Estadísticas de creaciones (reservas, rutas, facturas)
-            'estadisticas_creacion' => $this->when(
+            // Estadísticas de uso
+            'estadisticas' => $this->when(
                 $request->has('include_estadisticas'),
                 [
-                    'total_reservas_creadas' => $this->whenCounted('reservasCreadas'),
-                    'total_rutas_activadas' => $this->whenCounted('rutasActivadas'),
-                    'total_facturas_emitidas' => $this->whenCounted('facturasEmitidas'),
+                    'puede_eliminar' => $this->puedeSerEliminado(),
                 ]
             ),
 
-            // Información completa para perfiles
-            'informacion_completa' => $this->when(
-                $request->has('perfil_completo'),
-                $this->informacionCompleta()
+            // Información para planificación y asignaciones
+            'planificacion' => $this->when(
+                $request->has('include_planificacion'),
+                [
+                    'disponible_para_ruta' => true,
+                    'puede_ser_operador' => $this->rol?->rol_codigo === 'OPERADOR',
+                    'puede_administrar' => in_array($this->rol?->rol_codigo, ['ADMIN', 'GERENTE']),
+                ]
             ),
 
-            // Timestamps (sin mostrar campos de auditoría sensibles)
+            // Información de auditoría básica
+            'auditoria' => $this->when(
+                $request->has('include_auditoria'),
+                [
+                    'fecha_registro' => $this->created_at?->format('d/m/Y H:i'),
+                    'ultima_modificacion' => $this->updated_at?->format('d/m/Y H:i'),
+                    'dias_desde_registro' => $this->created_at?->diffInDays(now()),
+                ]
+            ),
+
+            // Timestamps
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
         ];

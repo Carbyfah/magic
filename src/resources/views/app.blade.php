@@ -118,10 +118,14 @@
     <!-- Primero iziToast -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/izitoast/1.4.0/js/iziToast.min.js"></script>
 
+    <!-- ✅ CHART.JS - AGREGADO PARA ESTADÍSTICAS -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+
     <!-- Script para verificar carga -->
     <script>
-        console.log('🔍 Verificando iziToast...');
+        console.log('🔍 Verificando librerías...');
         console.log('iziToast disponible:', typeof iziToast !== 'undefined');
+        console.log('Chart.js disponible:', typeof Chart !== 'undefined');
 
         // Ocultar loader cuando todo esté listo
         document.addEventListener('DOMContentLoaded', function() {

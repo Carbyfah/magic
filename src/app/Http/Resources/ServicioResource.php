@@ -22,7 +22,6 @@ class ServicioResource extends JsonResource
                 'adulto_descuento' => (float) $this->servicio_precio_descuento,
                 'nino_normal' => (float) $this->precio_ninos_normal,
                 'nino_descuento' => (float) $this->precio_ninos_descuento,
-                'total_calculado' => (float) $this->servicio_precio_total,
                 'tiene_descuento' => $this->tieneDescuento(),
                 'porcentaje_descuento' => $this->porcentajeDescuento(),
                 'precios_completos' => $this->tienePreciosCompletos(),

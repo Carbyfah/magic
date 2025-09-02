@@ -1,23 +1,45 @@
 // src/resources/js/components/layouts/Sidebar.js
 import React from 'react';
-import Icons from '../../utils/Icons'; // Importar iconos
+import Icons from '../../utils/Icons';
 const { createElement: e, useState } = React;
 
 function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
     const [expandedSections, setExpandedSections] = useState({
         operacion: true,
         comercial: false,
-        flota: false,
-        reportes: false,
-        configuracion: false
+        catalogos: false,
+        personal: false,
+        reportes: false
     });
 
     const toggleSection = (section) => {
-        if (!collapsed) {
+        if (collapsed) {
+            // Si está colapsado y se presiona una sección, expandir y abrir esa sección
+            onToggle(); // Expandir sidebar
+            setTimeout(() => {
+                setExpandedSections(prev => ({
+                    ...prev,
+                    [section]: true
+                }));
+            }, 100); // Delay para que la animación se vea bien
+        } else {
+            // Comportamiento normal cuando está expandido
             setExpandedSections(prev => ({
                 ...prev,
                 [section]: !prev[section]
             }));
+        }
+    };
+
+    const handleChildClick = (childId) => {
+        if (collapsed) {
+            // Si está colapsado, expandir primero y luego cambiar módulo
+            onToggle();
+            setTimeout(() => {
+                onModuleChange(childId);
+            }, 100);
+        } else {
+            onModuleChange(childId);
         }
     };
 
@@ -29,14 +51,26 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
             type: 'single'
         },
         {
+            id: 'catalogos',
+            label: 'CATÁLOGOS BASE',
+            icon: Icons.database(),
+            type: 'section',
+            children: [
+                { id: 'rutas-servicios', label: 'Rutas y Servicios', icon: Icons.map() },
+                { id: 'estados-sistema', label: 'Estados del Sistema', icon: Icons.tag() },
+                { id: 'tipos-persona', label: 'Tipos de Persona', icon: Icons.userGroup() },
+                { id: 'agencias', label: 'Agencias', icon: Icons.building() },
+            ]
+        },
+        {
             id: 'operacion',
             label: 'OPERACIÓN DIARIA',
             icon: Icons.operacion(),
             type: 'section',
             children: [
-                { id: 'reservaciones', label: 'Reservaciones', icon: Icons.calendar() },
-                { id: 'rutas-dia', label: 'Rutas del Día', icon: Icons.map() },
-                { id: 'control-flota', label: 'Control de Flota', icon: Icons.truck() }
+                { id: 'control-flota', label: 'Control de Flota', icon: Icons.truck() },
+                { id: 'rutas-activas', label: 'Rutas Activas', icon: Icons.route() },
+                { id: 'reservaciones', label: 'Reservaciones', icon: Icons.calendar() }
             ]
         },
         {
@@ -45,21 +79,19 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
             icon: Icons.comercial(),
             type: 'section',
             children: [
-                { id: 'ventas', label: 'Ventas', icon: Icons.dollar() },
-                { id: 'pagos', label: 'Pagos', icon: Icons.creditCard() },
-                { id: 'agencias', label: 'Agencias', icon: Icons.building() },
-                { id: 'clientes', label: 'Clientes', icon: Icons.user() }
+                { id: 'contactos-agencia', label: 'Contactos Agencias', icon: Icons.userGroup() },
+                { id: 'dashboard-ventas', label: 'Dashboard Ventas', icon: Icons.chartBar() }
             ]
         },
         {
-            id: 'flota',
-            label: 'FLOTA Y PERSONAL',
+            id: 'personal',
+            label: 'PERSONAL',
             icon: Icons.flota(),
             type: 'section',
             children: [
-                { id: 'vehiculos', label: 'Vehículos', icon: Icons.truck() },
-                { id: 'choferes', label: 'Choferes', icon: Icons.user() },
-                { id: 'empleados', label: 'Empleados', icon: Icons.users() }
+                { id: 'empleados', label: 'Empleados', icon: Icons.users() },
+                { id: 'roles-permisos', label: 'Roles y Permisos', icon: Icons.shield() },
+                { id: 'usuarios-sistema', label: 'Usuarios del Sistema', icon: Icons.userCheck() }
             ]
         },
         {
@@ -68,21 +100,8 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
             icon: Icons.reportes(),
             type: 'section',
             children: [
-                { id: 'reporte-ventas', label: 'Ventas', icon: Icons.dollar() },
-                { id: 'reporte-operacion', label: 'Operación', icon: Icons.truck() },
-                { id: 'reporte-financiero', label: 'Financiero', icon: Icons.creditCard() },
-                { id: 'auditoria', label: 'Auditoría', icon: Icons.calendar() }
-            ]
-        },
-        {
-            id: 'configuracion',
-            label: 'CONFIGURACIÓN',
-            icon: Icons.configuracion(),
-            type: 'section',
-            children: [
-                { id: 'rutas-servicios', label: 'Rutas y Servicios', icon: Icons.map() },
-                { id: 'catalogos', label: 'Catálogos', icon: Icons.calendar() },
-                { id: 'usuarios', label: 'Usuarios y Permisos', icon: Icons.users() }
+                { id: 'auditoria', label: 'Auditoría', icon: Icons.fileText() },
+                { id: 'estadisticas', label: 'Estadísticas', icon: Icons.trendingUp() }
             ]
         }
     ];
@@ -102,7 +121,7 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
             transition: 'width 0.3s ease'
         }
     }, [
-        // Navigation Menu (SIN STATS)
+        // Navigation Menu
         e('nav', {
             key: 'nav',
             style: {
@@ -112,7 +131,16 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
             if (item.type === 'single') {
                 return e('div', {
                     key: item.id,
-                    onClick: () => onModuleChange(item.id),
+                    onClick: () => {
+                        if (collapsed) {
+                            onToggle();
+                            setTimeout(() => {
+                                onModuleChange(item.id);
+                            }, 100);
+                        } else {
+                            onModuleChange(item.id);
+                        }
+                    },
                     title: collapsed ? item.label : '',
                     style: {
                         display: 'flex',
@@ -152,6 +180,7 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
                     e('div', {
                         key: 'header',
                         onClick: () => toggleSection(item.id),
+                        title: collapsed ? item.label : '',
                         style: {
                             display: 'flex',
                             alignItems: 'center',
@@ -167,6 +196,16 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
                             fontWeight: '600',
                             letterSpacing: collapsed ? '0' : '0.05em',
                             textTransform: collapsed ? 'none' : 'uppercase'
+                        },
+                        onMouseEnter: (e) => {
+                            if (collapsed) {
+                                e.currentTarget.style.backgroundColor = '#f3f4f6';
+                            }
+                        },
+                        onMouseLeave: (e) => {
+                            if (collapsed) {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                            }
                         }
                     }, [
                         e('div', {
@@ -198,7 +237,7 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
                     }, item.children.map(child =>
                         e('div', {
                             key: child.id,
-                            onClick: () => onModuleChange(child.id),
+                            onClick: () => handleChildClick(child.id),
                             style: {
                                 display: 'flex',
                                 alignItems: 'center',
@@ -231,15 +270,15 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
             }
         })),
 
-        // Toggle Button - INTEGRADO EN EL SIDEBAR (PARTE IZQUIERDA)
+        // Toggle Button
         e('div', {
             key: 'toggleBtn',
             style: {
-                position: 'absolute',  // Parte del sidebar
-                top: '50%',  // Centrado vertical
-                left: '12px',  // SIEMPRE a la izquierda dentro del sidebar
-                transform: 'translateY(-50%)',  // Centrado vertical
-                zIndex: 100,  // Normal, no necesita estar tan alto
+                position: 'absolute',
+                top: '50%',
+                left: '12px',
+                transform: 'translateY(-50%)',
+                zIndex: 100,
                 transition: 'all 0.3s ease'
             }
         },
@@ -251,7 +290,7 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
                     height: '28px',
                     backgroundColor: 'rgba(255, 255, 255, 0.9)',
                     border: '1.5px solid #d1d5db',
-                    borderRadius: '6px',  // Bordes ligeramente redondeados
+                    borderRadius: '6px',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
@@ -269,7 +308,7 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
                     e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
                     e.currentTarget.style.borderColor = '#d1d5db';
                 }
-            }, Icons.toggleSidebar(collapsed ? 'right' : 'left'))  // USANDO EL ÍCONO MEJORADO
+            }, Icons.toggleSidebar(collapsed ? 'right' : 'left'))
         )
     ]);
 }
