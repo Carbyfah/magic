@@ -29,7 +29,8 @@ class Reserva extends Model
         'usuario_id',
         'estado_id',
         'agencia_id',
-        'ruta_activada_id'
+        'ruta_activada_id',
+        'tour_activado_id'  // NUEVO: Soporte para tours
     ];
 
     protected $casts = [
@@ -72,6 +73,12 @@ class Reserva extends Model
         return $this->belongsTo(RutaActivada::class, 'ruta_activada_id', 'ruta_activada_id');
     }
 
+    // NUEVA: Relación con tours
+    public function tourActivado()
+    {
+        return $this->belongsTo(TourActivado::class, 'tour_activado_id', 'tour_activado_id');
+    }
+
     /**
      * SCOPES SIMPLES - Actualizados para nueva DB
      */
@@ -93,6 +100,11 @@ class Reserva extends Model
             ->orWhereHas('rutaActivada.ruta', function ($q) use ($termino) {
                 $q->where('ruta_origen', 'like', "%{$termino}%")
                     ->orWhere('ruta_destino', 'like', "%{$termino}%");
+            })
+            // NUEVO: Búsqueda en tours
+            ->orWhereHas('tourActivado', function ($q) use ($termino) {
+                $q->where('tour_activado_descripcion', 'like', "%{$termino}%")
+                    ->orWhere('tour_activado_punto_encuentro', 'like', "%{$termino}%");
             });
     }
 
@@ -116,17 +128,35 @@ class Reserva extends Model
         return $query->where('ruta_activada_id', $rutaActivadaId);
     }
 
+    // NUEVO: Scope para tours
+    public function scopePorTourActivado($query, $tourActivadoId)
+    {
+        return $query->where('tour_activado_id', $tourActivadoId);
+    }
+
     public function scopePorFecha($query, $fecha)
     {
-        return $query->whereHas('rutaActivada', function ($q) use ($fecha) {
-            $q->whereDate('ruta_activada_fecha_hora', $fecha);
+        return $query->where(function ($q) use ($fecha) {
+            $q->whereHas('rutaActivada', function ($subQ) use ($fecha) {
+                $subQ->whereDate('ruta_activada_fecha_hora', $fecha);
+            })
+                // NUEVO: También buscar en tours
+                ->orWhereHas('tourActivado', function ($subQ) use ($fecha) {
+                    $subQ->whereDate('tour_activado_fecha_hora', $fecha);
+                });
         });
     }
 
     public function scopeEntreFechas($query, $fechaInicio, $fechaFin)
     {
-        return $query->whereHas('rutaActivada', function ($q) use ($fechaInicio, $fechaFin) {
-            $q->whereBetween(DB::raw('DATE(ruta_activada_fecha_hora)'), [$fechaInicio, $fechaFin]);
+        return $query->where(function ($q) use ($fechaInicio, $fechaFin) {
+            $q->whereHas('rutaActivada', function ($subQ) use ($fechaInicio, $fechaFin) {
+                $subQ->whereBetween(DB::raw('DATE(ruta_activada_fecha_hora)'), [$fechaInicio, $fechaFin]);
+            })
+                // NUEVO: También buscar en tours
+                ->orWhereHas('tourActivado', function ($subQ) use ($fechaInicio, $fechaFin) {
+                    $subQ->whereBetween(DB::raw('DATE(tour_activado_fecha_hora)'), [$fechaInicio, $fechaFin]);
+                });
         });
     }
 
@@ -140,6 +170,17 @@ class Reserva extends Model
         return $query->whereNotNull('agencia_id');
     }
 
+    // NUEVOS: Scopes para tipo de servicio
+    public function scopeSoloRutas($query)
+    {
+        return $query->whereNotNull('ruta_activada_id')->whereNull('tour_activado_id');
+    }
+
+    public function scopeSoloTours($query)
+    {
+        return $query->whereNotNull('tour_activado_id')->whereNull('ruta_activada_id');
+    }
+
     /**
      * GENERADOR DE CÓDIGO AUTOMÁTICO
      */
@@ -151,7 +192,7 @@ class Reserva extends Model
     }
 
     /**
-     * ATRIBUTOS CALCULADOS - Sincronizados con RutaActivada
+     * ATRIBUTOS CALCULADOS - Sincronizados con RutaActivada y Tours
      */
     public function getNombreCompletoClienteAttribute()
     {
@@ -175,28 +216,70 @@ class Reserva extends Model
         return $this->agencia ? $this->agencia->agencia_razon_social : 'Venta directa';
     }
 
+    // ACTUALIZADO: Funciona para rutas y tours
     public function getRutaCompletaAttribute()
     {
-        return $this->rutaActivada ? $this->rutaActivada->ruta_completa : 'Ruta no definida';
+        if ($this->rutaActivada) {
+            return $this->rutaActivada->ruta_completa;
+        }
+
+        if ($this->tourActivado) {
+            return $this->tourActivado->tour_activado_descripcion ?: 'Tour';
+        }
+
+        return 'Servicio no definido';
     }
 
+    // ACTUALIZADO: Funciona para rutas y tours
     public function getFechaViajeAttribute()
     {
-        return $this->rutaActivada && $this->rutaActivada->ruta_activada_fecha_hora
-            ? $this->rutaActivada->ruta_activada_fecha_hora->format('d/m/Y')
-            : 'Sin fecha';
+        if ($this->rutaActivada && $this->rutaActivada->ruta_activada_fecha_hora) {
+            return $this->rutaActivada->ruta_activada_fecha_hora->format('d/m/Y');
+        }
+
+        if ($this->tourActivado && $this->tourActivado->tour_activado_fecha_hora) {
+            return $this->tourActivado->tour_activado_fecha_hora->format('d/m/Y');
+        }
+
+        return 'Sin fecha';
     }
 
+    // ACTUALIZADO: Funciona para rutas y tours
     public function getHoraViajeAttribute()
     {
-        return $this->rutaActivada && $this->rutaActivada->ruta_activada_fecha_hora
-            ? $this->rutaActivada->ruta_activada_fecha_hora->format('H:i')
-            : 'Sin hora';
+        if ($this->rutaActivada && $this->rutaActivada->ruta_activada_fecha_hora) {
+            return $this->rutaActivada->ruta_activada_fecha_hora->format('H:i');
+        }
+
+        if ($this->tourActivado && $this->tourActivado->tour_activado_fecha_hora) {
+            return $this->tourActivado->tour_activado_fecha_hora->format('H:i');
+        }
+
+        return 'Sin hora';
     }
 
+    // ACTUALIZADO: Funciona para rutas y tours
     public function getFechaHoraViajeAttribute()
     {
-        return $this->rutaActivada ? $this->rutaActivada->fecha_formateada : 'Sin fecha/hora';
+        if ($this->rutaActivada) {
+            return $this->rutaActivada->fecha_formateada;
+        }
+
+        if ($this->tourActivado) {
+            return $this->tourActivado->tour_activado_fecha_hora
+                ? $this->tourActivado->tour_activado_fecha_hora->format('d/m/Y H:i')
+                : 'Sin fecha/hora';
+        }
+
+        return 'Sin fecha/hora';
+    }
+
+    // NUEVO: Identificar tipo de servicio
+    public function getTipoServicioAttribute()
+    {
+        if ($this->rutaActivada) return 'RUTA';
+        if ($this->tourActivado) return 'TOUR';
+        return 'INDEFINIDO';
     }
 
     /**
@@ -250,8 +333,6 @@ class Reserva extends Model
         return strtolower($this->estado->estado_estado) === 'pendiente';
     }
 
-
-
     /**
      * CAMBIO IMPORTANTE: Estado para facturación es 'confirmada' (no 'ejecutada')
      */
@@ -288,24 +369,40 @@ class Reserva extends Model
     }
 
     /**
-     * DISPONIBILIDAD - Usando métodos sincronizados con RutaActivada
+     * DISPONIBILIDAD - Usando métodos sincronizados con RutaActivada y Tours
      */
     public function consultarDisponibilidadRuta()
     {
-        if (!$this->rutaActivada) {
+        if ($this->rutaActivada) {
+            return $this->rutaActivada->verificarDisponibilidad($this->total_pasajeros);
+        }
+
+        if ($this->tourActivado) {
+            // Tours no tienen límite de capacidad
             return [
-                'disponible' => false,
-                'mensaje' => 'Ruta no asignada'
+                'disponible' => true,
+                'mensaje' => 'Tour sin límite de capacidad'
             ];
         }
 
-        return $this->rutaActivada->verificarDisponibilidad($this->total_pasajeros);
+        return [
+            'disponible' => false,
+            'mensaje' => 'Servicio no asignado'
+        ];
     }
 
     public function cabeEnLaRuta()
     {
-        if (!$this->rutaActivada) return false;
-        return $this->rutaActivada->puedeRecibirPasajeros($this->total_pasajeros);
+        if ($this->rutaActivada) {
+            return $this->rutaActivada->puedeRecibirPasajeros($this->total_pasajeros);
+        }
+
+        if ($this->tourActivado) {
+            // Tours siempre pueden recibir pasajeros
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -345,8 +442,9 @@ class Reserva extends Model
                 'direccion_abordaje' => $this->reserva_direccion_abordaje
             ],
             'servicio' => [
+                'tipo' => $this->tipo_servicio,
                 'nombre' => $this->formatearServicio(),
-                'ruta' => $this->ruta_completa,
+                'detalle' => $this->ruta_completa,
                 'fecha_viaje' => $this->fecha_viaje,
                 'hora_viaje' => $this->hora_viaje
             ],
@@ -368,11 +466,18 @@ class Reserva extends Model
     }
 
     /**
-     * BÚSQUEDA DE DISPONIBILIDAD - Usando RutaActivada
+     * BÚSQUEDA DE DISPONIBILIDAD - Usando RutaActivada y Tours
      */
     public static function buscarDisponibilidad($servicio_id, $fecha, $pasajeros)
     {
-        return RutaActivada::asignarAutomaticamente($servicio_id, $fecha, $pasajeros);
+        // Primero intentar rutas
+        $ruta_disponible = RutaActivada::asignarAutomaticamente($servicio_id, $fecha, $pasajeros);
+        if ($ruta_disponible) {
+            return $ruta_disponible;
+        }
+
+        // Si no hay rutas, buscar tours (que no tienen límite)
+        return TourActivado::buscarDisponible($servicio_id, $fecha);
     }
 
     /**
@@ -384,21 +489,31 @@ class Reserva extends Model
     }
 
     /**
-     * CÁLCULO DE PRECIO - Usando método de RutaActivada
+     * CÁLCULO DE PRECIO - Usando método de RutaActivada o Tours
      */
     public function calcularPrecioCompleto()
     {
-        if (!$this->rutaActivada) return 0;
+        if ($this->rutaActivada) {
+            return $this->rutaActivada->calcularPrecioReserva(
+                $this->reserva_cantidad_adultos,
+                $this->reserva_cantidad_ninos ?? 0,
+                $this->es_venta_agencia
+            );
+        }
 
-        return $this->rutaActivada->calcularPrecioReserva(
-            $this->reserva_cantidad_adultos,
-            $this->reserva_cantidad_ninos ?? 0,
-            $this->es_venta_agencia
-        );
+        if ($this->tourActivado) {
+            return $this->tourActivado->calcularPrecioReserva(
+                $this->reserva_cantidad_adultos,
+                $this->reserva_cantidad_ninos ?? 0,
+                $this->es_venta_agencia
+            );
+        }
+
+        return 0;
     }
 
     /**
-     * FUNCIONALIDAD WHATSAPP - Mantenida completa
+     * FUNCIONALIDAD WHATSAPP - Mantenida completa y actualizada para tours
      */
     public function generarMensajeWhatsAppConfirmacion()
     {
@@ -407,9 +522,17 @@ class Reserva extends Model
         $mensaje .= "👤 *Cliente:* {$this->nombre_completo_cliente}\n";
         $mensaje .= "🎫 *Código:* {$this->reserva_codigo}\n\n";
 
-        $mensaje .= "📍 *Ruta:* {$this->ruta_completa}\n";
+        if ($this->tipo_servicio === 'RUTA') {
+            $mensaje .= "🛣 *Ruta:* {$this->ruta_completa}\n";
+        } else {
+            $mensaje .= "🎯 *Tour:* {$this->ruta_completa}\n";
+            if ($this->tourActivado && $this->tourActivado->tour_activado_punto_encuentro) {
+                $mensaje .= "📍 *Punto encuentro:* {$this->tourActivado->tour_activado_punto_encuentro}\n";
+            }
+        }
+
         $mensaje .= "📅 *Fecha:* {$this->fecha_viaje}\n";
-        $mensaje .= "🕐 *Hora:* {$this->hora_viaje}\n\n";
+        $mensaje .= "🕒 *Hora:* {$this->hora_viaje}\n\n";
 
         $mensaje .= "👥 *Pasajeros:*\n";
         $mensaje .= "   • Adultos: {$this->reserva_cantidad_adultos}\n";
@@ -445,11 +568,22 @@ class Reserva extends Model
         $mensaje .= "👤 {$this->nombre_completo_cliente}\n";
         $mensaje .= "🎫 Reserva: {$this->reserva_codigo}\n\n";
 
-        $mensaje .= "📍 *Salida:* {$this->ruta_completa}\n";
-        $mensaje .= "🕐 *Hora:* {$this->hora_viaje}\n";
+        if ($this->tipo_servicio === 'RUTA') {
+            $mensaje .= "🛣 *Salida:* {$this->ruta_completa}\n";
+        } else {
+            $mensaje .= "🎯 *Tour:* {$this->ruta_completa}\n";
+        }
+
+        $mensaje .= "🕒 *Hora:* {$this->hora_viaje}\n";
+
         if ($this->reserva_direccion_abordaje) {
             $mensaje .= "🏨 *Punto de abordaje:* {$this->reserva_direccion_abordaje}\n";
         }
+
+        if ($this->tourActivado && $this->tourActivado->tour_activado_punto_encuentro) {
+            $mensaje .= "📍 *Punto encuentro:* {$this->tourActivado->tour_activado_punto_encuentro}\n";
+        }
+
         $mensaje .= "\n👥 Pasajeros: {$this->total_pasajeros}\n";
         $mensaje .= "💰 Monto: Q. " . number_format($this->reserva_monto, 2) . "\n\n";
 
@@ -466,9 +600,9 @@ class Reserva extends Model
         $mensaje .= "👤 {$this->nombre_completo_cliente}\n";
         $mensaje .= "🎫 Código: {$this->reserva_codigo}\n\n";
 
-        $mensaje .= "📍 Ruta: {$this->ruta_completa}\n";
+        $mensaje .= "🛣 Servicio: {$this->ruta_completa}\n";
         $mensaje .= "📅 Fecha: {$this->fecha_viaje}\n";
-        $mensaje .= "🕐 Hora: {$this->hora_viaje}\n\n";
+        $mensaje .= "🕒 Hora: {$this->hora_viaje}\n\n";
 
         if ($this->reserva_notas) {
             $mensaje .= "📝 *Motivo:* {$this->reserva_notas}\n\n";
@@ -495,16 +629,32 @@ class Reserva extends Model
     }
 
     /**
-     * MÉTODOS DE FORMATO - Usando RutaActivada sincronizada
+     * MÉTODOS DE FORMATO - Usando RutaActivada sincronizada y Tours
      */
     public function formatearServicio()
     {
-        return $this->rutaActivada ? $this->rutaActivada->formatearServicio() : 'Sin servicio';
+        if ($this->rutaActivada) {
+            return $this->rutaActivada->formatearServicio();
+        }
+
+        if ($this->tourActivado) {
+            return $this->tourActivado->formatearServicio();
+        }
+
+        return 'Sin servicio';
     }
 
     public function formatearVehiculo()
     {
-        return $this->rutaActivada ? $this->rutaActivada->vehiculo_info : 'Sin vehículo';
+        if ($this->rutaActivada) {
+            return $this->rutaActivada->vehiculo_info;
+        }
+
+        if ($this->tourActivado) {
+            return 'N/A (Tour)';
+        }
+
+        return 'Sin vehículo';
     }
 
     public function getCodigoPublico()
@@ -543,7 +693,7 @@ class Reserva extends Model
     }
 
     /**
-     * VALIDACIONES DE DISPONIBILIDAD - Usando RutaActivada
+     * VALIDACIONES DE DISPONIBILIDAD - Usando RutaActivada y Tours
      */
     public static function validarCapacidadEnRuta($ruta_activada_id, $pasajeros, $excepto_reserva_id = null)
     {
@@ -576,13 +726,36 @@ class Reserva extends Model
         return ['valido' => true, 'mensaje' => 'Capacidad disponible'];
     }
 
+    // NUEVO: Validación para tours (siempre válida)
+    public static function validarCapacidadEnTour($tour_activado_id, $pasajeros, $excepto_reserva_id = null)
+    {
+        $tour = TourActivado::find($tour_activado_id);
+        if (!$tour) {
+            return ['valido' => false, 'mensaje' => 'Tour no encontrado'];
+        }
+
+        return ['valido' => true, 'mensaje' => 'Tours sin límite de capacidad'];
+    }
+
     public function validarCapacidadPropia()
     {
-        return self::validarCapacidadEnRuta(
-            $this->ruta_activada_id,
-            $this->total_pasajeros,
-            $this->reserva_id
-        );
+        if ($this->ruta_activada_id) {
+            return self::validarCapacidadEnRuta(
+                $this->ruta_activada_id,
+                $this->total_pasajeros,
+                $this->reserva_id
+            );
+        }
+
+        if ($this->tour_activado_id) {
+            return self::validarCapacidadEnTour(
+                $this->tour_activado_id,
+                $this->total_pasajeros,
+                $this->reserva_id
+            );
+        }
+
+        return ['valido' => false, 'mensaje' => 'Servicio no definido'];
     }
 
     /**
@@ -603,22 +776,52 @@ class Reserva extends Model
         return DB::table('v_ocupacion_rutas')->get();
     }
 
+    // NUEVO: Obtener información de tours
+    public static function obtenerInfoTours()
+    {
+        return DB::table('v_info_tours')->get();
+    }
+
+    // NUEVO: Dashboard unificado
+    public static function obtenerDashboardUnificado()
+    {
+        return DB::table('v_dashboard_unificado')->get();
+    }
+
     /**
-     * INTEGRACIÓN COMPLETA - Aprovechar capacidades de RutaActivada
+     * INTEGRACIÓN COMPLETA - Aprovechar capacidades de RutaActivada y Tours
      */
     public function necesitaAlertaCapacidad()
     {
-        return $this->rutaActivada ? $this->rutaActivada->necesitaAlertaCapacidad() : false;
+        if ($this->rutaActivada) {
+            return $this->rutaActivada->necesitaAlertaCapacidad();
+        }
+
+        // Tours no necesitan alerta de capacidad
+        return false;
     }
 
     public function obtenerStatusDisponibilidad()
     {
-        return $this->rutaActivada ? $this->rutaActivada->status_disponibilidad : 'DESCONOCIDO';
+        if ($this->rutaActivada) {
+            return $this->rutaActivada->status_disponibilidad;
+        }
+
+        if ($this->tourActivado) {
+            return 'SIEMPRE_DISPONIBLE';
+        }
+
+        return 'DESCONOCIDO';
     }
 
     public function obtenerPorcentajeOcupacion()
     {
-        return $this->rutaActivada ? $this->rutaActivada->porcentaje_ocupacion : 0;
+        if ($this->rutaActivada) {
+            return $this->rutaActivada->porcentaje_ocupacion;
+        }
+
+        // Tours no tienen porcentaje de ocupación
+        return 0;
     }
 
     /**
@@ -641,6 +844,14 @@ class Reserva extends Model
             $notificaciones[] = [
                 'tipo' => 'warning',
                 'mensaje' => 'Reserva pendiente - puede ser confirmada o cancelada'
+            ];
+        }
+
+        // Notificación específica para tours
+        if ($this->tourActivado) {
+            $notificaciones[] = [
+                'tipo' => 'info',
+                'mensaje' => 'Tour sin límite de capacidad - siempre disponible'
             ];
         }
 
@@ -669,5 +880,103 @@ class Reserva extends Model
     public function procesarDespuesDeCambioEstado()
     {
         return $this->obtenerNotificacionesInteligentes();
+    }
+
+    /**
+     * NUEVOS MÉTODOS ESPECÍFICOS PARA TOURS
+     */
+
+    /**
+     * Verificar si es una reserva de tour
+     */
+    public function esTour()
+    {
+        return !is_null($this->tour_activado_id) && is_null($this->ruta_activada_id);
+    }
+
+    /**
+     * Verificar si es una reserva de ruta
+     */
+    public function esRuta()
+    {
+        return !is_null($this->ruta_activada_id) && is_null($this->tour_activado_id);
+    }
+
+    /**
+     * Obtener detalles específicos del tour
+     */
+    public function obtenerDetallesTour()
+    {
+        if (!$this->tourActivado) {
+            return null;
+        }
+
+        return [
+            'descripcion' => $this->tourActivado->tour_activado_descripcion,
+            'punto_encuentro' => $this->tourActivado->tour_activado_punto_encuentro,
+            'duracion_horas' => $this->tourActivado->tour_activado_duracion_horas,
+            'guia' => $this->tourActivado->persona
+                ? $this->tourActivado->persona->persona_nombres . ' ' . $this->tourActivado->persona->persona_apellidos
+                : 'Guía externo'
+        ];
+    }
+
+    /**
+     * Obtener información del servicio (unificado para rutas y tours)
+     */
+    public function obtenerInfoServicio()
+    {
+        if ($this->rutaActivada) {
+            return [
+                'tipo' => 'RUTA',
+                'servicio' => $this->rutaActivada->servicio,
+                'ruta' => $this->rutaActivada->ruta,
+                'vehiculo' => $this->rutaActivada->vehiculo,
+                'conductor' => $this->rutaActivada->persona,
+                'capacidad_total' => $this->rutaActivada->vehiculo->vehiculo_capacidad ?? 0,
+                'fecha_hora' => $this->rutaActivada->ruta_activada_fecha_hora
+            ];
+        }
+
+        if ($this->tourActivado) {
+            return [
+                'tipo' => 'TOUR',
+                'servicio' => $this->tourActivado->servicio,
+                'descripcion' => $this->tourActivado->tour_activado_descripcion,
+                'punto_encuentro' => $this->tourActivado->tour_activado_punto_encuentro,
+                'duracion_horas' => $this->tourActivado->tour_activado_duracion_horas,
+                'guia' => $this->tourActivado->persona,
+                'sin_limite_capacidad' => true,
+                'fecha_hora' => $this->tourActivado->tour_activado_fecha_hora
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * Validar constraint de base de datos (solo un tipo de servicio)
+     */
+    public function validarConstraintServicio()
+    {
+        $tiene_ruta = !is_null($this->ruta_activada_id);
+        $tiene_tour = !is_null($this->tour_activado_id);
+
+        // Debe tener exactamente uno
+        if ($tiene_ruta && $tiene_tour) {
+            return [
+                'valido' => false,
+                'mensaje' => 'No puede tener ruta y tour asignados simultáneamente'
+            ];
+        }
+
+        if (!$tiene_ruta && !$tiene_tour) {
+            return [
+                'valido' => false,
+                'mensaje' => 'Debe tener asignada una ruta o un tour'
+            ];
+        }
+
+        return ['valido' => true];
     }
 }

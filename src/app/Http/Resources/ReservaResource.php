@@ -33,6 +33,11 @@ class ReservaResource extends JsonResource
             'es_venta_directa' => $this->es_venta_directa,
             'es_venta_agencia' => $this->es_venta_agencia,
 
+            // NUEVO: TIPO DE SERVICIO
+            'tipo_servicio' => $this->tipo_servicio, // 'RUTA' o 'TOUR'
+            'es_ruta' => $this->esRuta(),
+            'es_tour' => $this->esTour(),
+
             // RELACIONES FORÁNEAS - FORMATO ESTÁNDAR
             'usuario_id' => $this->usuario_id,
             'usuario' => [
@@ -67,23 +72,51 @@ class ReservaResource extends JsonResource
                 'fecha_completa' => $this->fecha_hora_viaje,
             ],
 
-            // INFORMACIÓN DE VIAJE (CORREGIDA - usa campo datetime unificado)
+            // NUEVO: RELACIÓN CON TOURS
+            'tour_activado_id' => $this->tour_activado_id,
+            'tour_activado' => [
+                'id' => $this->tourActivado?->tour_activado_id,
+                'codigo' => $this->tourActivado?->tour_activado_codigo,
+                'fecha' => $this->fecha_viaje,
+                'hora' => $this->hora_viaje,
+                'fecha_completa' => $this->fecha_hora_viaje,
+                'descripcion' => $this->tourActivado?->tour_activado_descripcion,
+                'punto_encuentro' => $this->tourActivado?->tour_activado_punto_encuentro,
+                'duracion_horas' => $this->tourActivado?->tour_activado_duracion_horas,
+            ],
+
+            // INFORMACIÓN DE VIAJE (UNIFICADA PARA RUTAS Y TOURS)
             'viaje' => [
-                'ruta_completa' => $this->ruta_completa,
+                'tipo_servicio' => $this->tipo_servicio,
+                'detalle_servicio' => $this->ruta_completa,
                 'fecha' => $this->fecha_viaje,
                 'hora' => $this->hora_viaje,
                 'fecha_hora' => $this->fecha_hora_viaje,
                 'servicio' => $this->formatearServicio(),
                 'vehiculo' => $this->formatearVehiculo(),
-                'origen' => $this->rutaActivada?->ruta?->ruta_origen,
-                'destino' => $this->rutaActivada?->ruta?->ruta_destino,
+
+                // Información específica según tipo
+                'ruta_info' => $this->when($this->esRuta(), [
+                    'origen' => $this->rutaActivada?->ruta?->ruta_origen,
+                    'destino' => $this->rutaActivada?->ruta?->ruta_destino,
+                    'vehiculo_placa' => $this->rutaActivada?->vehiculo?->vehiculo_placa,
+                    'conductor' => $this->rutaActivada?->conductor_nombre,
+                ]),
+
+                'tour_info' => $this->when($this->esTour(), [
+                    'descripcion' => $this->tourActivado?->tour_activado_descripcion,
+                    'punto_encuentro' => $this->tourActivado?->tour_activado_punto_encuentro,
+                    'duracion_horas' => $this->tourActivado?->tour_activado_duracion_horas,
+                    'guia' => $this->tourActivado?->guia_nombre,
+                    'tipo_guia' => $this->tourActivado?->tieneGuiaAsignado() ? 'interno' : 'externo',
+                ]),
             ],
 
             // VALIDACIONES BÁSICAS DE NEGOCIO (ACTUALIZADAS)
             'puede_ser_modificada' => $this->puedeSerModificada(),
             'puede_ser_cancelada' => $this->puedeSerCancelada(),
             'puede_ser_confirmada' => $this->puedeSerConfirmada(),
-            'puede_generar_factura' => $this->puedeGenerarFactura(), // AHORA requiere 'confirmada'
+            'puede_generar_factura' => $this->puedeGenerarFactura(),
 
             // VALIDACIÓN DE FACTURACIÓN - Sin tabla facturas
             'tiene_factura' => $this->tieneFactura(),
@@ -103,18 +136,20 @@ class ReservaResource extends JsonResource
                 ]
             ),
 
-            // INFORMACIÓN DE CAPACIDAD Y DISPONIBILIDAD
+            // INFORMACIÓN DE CAPACIDAD Y DISPONIBILIDAD (ACTUALIZADA PARA TOURS)
             'disponibilidad' => $this->when(
                 $request->has('include_disponibilidad'),
                 function () {
                     $disponibilidad = $this->consultarDisponibilidadRuta();
                     return [
+                        'tipo_servicio' => $this->tipo_servicio,
                         'cabe_en_ruta' => $this->cabeEnLaRuta(),
-                        'disponibilidad_ruta' => $disponibilidad,
+                        'disponibilidad_servicio' => $disponibilidad,
                         'validacion_capacidad' => $this->validarCapacidadPropia(),
                         'necesita_alerta' => $this->necesitaAlertaCapacidad(),
                         'status_disponibilidad' => $this->obtenerStatusDisponibilidad(),
                         'porcentaje_ocupacion' => $this->obtenerPorcentajeOcupacion(),
+                        'sin_limite_capacidad' => $this->esTour(),
                     ];
                 }
             ),
@@ -125,7 +160,7 @@ class ReservaResource extends JsonResource
                 [
                     'tiene_factura' => $this->tieneFactura(),
                     'esta_facturada' => $this->tieneFacturaActiva(),
-                    'puede_facturarse' => $this->puedeGenerarFactura(), // CAMBIADO: 'confirmada' no 'ejecutada'
+                    'puede_facturarse' => $this->puedeGenerarFactura(),
                     'estado_facturacion' => $this->obtenerEstadoFacturacion(),
                     'monto_facturado' => $this->tieneFactura() ? (float) $this->reserva_monto : 0,
                     'requiere_facturacion' => false,
@@ -140,32 +175,33 @@ class ReservaResource extends JsonResource
                 ]
             ),
 
-            // INFORMACIÓN FINANCIERA - Usando método del modelo sincronizado
+            // INFORMACIÓN FINANCIERA (ACTUALIZADA PARA TOURS)
             'financiero' => $this->when(
                 $request->has('include_financiero'),
                 [
                     'monto_automatico' => $this->getMontoAutomatico(),
-                    'servicio_precio_normal' => $this->rutaActivada?->servicio?->servicio_precio_normal ?? 0,
-                    'servicio_precio_descuento' => $this->rutaActivada?->servicio?->servicio_precio_descuento ?? 0,
+                    'servicio_precio_normal' => $this->obtenerPrecioNormalServicio(),
+                    'servicio_precio_descuento' => $this->obtenerPrecioDescuentoServicio(),
                     'precio_aplicado' => $this->obtenerPrecioAplicado(),
                     'precio_calculado' => $this->calcularPrecioCompleto(),
                 ]
             ),
 
-            // INFORMACIÓN OPERATIVA
+            // INFORMACIÓN OPERATIVA (ACTUALIZADA)
             'operacion' => $this->when(
                 $request->has('include_operacion'),
                 [
                     'codigo_publico' => $this->getCodigoPublico(),
                     'puede_eliminar' => $this->puedeSerModificada(),
                     'puede_transferir' => $this->puedeSerModificada(),
-                    'requiere_validacion_capacidad' => !$this->cabeEnLaRuta(),
+                    'requiere_validacion_capacidad' => !$this->cabeEnLaRuta() && $this->esRuta(),
                     'datos_completos' => $this->validarDatosCompletos(),
                     'bloqueos' => $this->obtenerBloqueos(),
+                    'validacion_constraint' => $this->validarConstraintServicio(),
                 ]
             ),
 
-            // MENSAJES WHATSAPP - MANTENIDOS COMPLETOS
+            // MENSAJES WHATSAPP - ACTUALIZADOS PARA TOURS
             'whatsapp' => $this->when(
                 $request->has('include_whatsapp'),
                 [
@@ -173,24 +209,31 @@ class ReservaResource extends JsonResource
                     'mensaje_recordatorio' => $this->generarMensajeWhatsAppRecordatorio(),
                     'mensaje_cancelacion' => $this->generarMensajeWhatsAppCancelacion(),
                     'puede_generar_mensaje' => !empty($this->reserva_nombres_cliente) &&
-                        !empty($this->ruta_activada_id),
+                        ($this->ruta_activada_id || $this->tour_activado_id),
                 ]
             ),
 
-            // RELACIONES DETALLADAS VIA RUTA ACTIVADA
+            // RELACIONES DETALLADAS VIA SERVICIO (UNIFICADO)
             'servicio_detallado' => $this->when(
                 $request->has('include_servicio'),
-                [
-                    'id' => $this->rutaActivada?->servicio?->servicio_id,
-                    'nombre' => $this->rutaActivada?->servicio?->servicio_servicio,
-                    'codigo' => $this->rutaActivada?->servicio?->servicio_codigo,
-                    'precio_normal' => $this->rutaActivada?->servicio?->servicio_precio_normal ?? 0,
-                    'precio_descuento' => $this->rutaActivada?->servicio?->servicio_precio_descuento ?? 0,
-                ]
+                function () {
+                    $servicio = $this->esRuta()
+                        ? $this->rutaActivada?->servicio
+                        : $this->tourActivado?->servicio;
+
+                    return [
+                        'id' => $servicio?->servicio_id,
+                        'nombre' => $servicio?->servicio_servicio,
+                        'codigo' => $servicio?->servicio_codigo,
+                        'precio_normal' => $servicio?->servicio_precio_normal ?? 0,
+                        'precio_descuento' => $servicio?->servicio_precio_descuento ?? 0,
+                    ];
+                }
             ),
 
+            // INFORMACIÓN ESPECÍFICA DE VEHÍCULO (SOLO RUTAS)
             'vehiculo_detallado' => $this->when(
-                $request->has('include_vehiculo'),
+                $request->has('include_vehiculo') && $this->esRuta(),
                 [
                     'id' => $this->rutaActivada?->vehiculo?->vehiculo_id,
                     'placa' => $this->rutaActivada?->vehiculo?->vehiculo_placa,
@@ -201,8 +244,9 @@ class ReservaResource extends JsonResource
                 ]
             ),
 
+            // INFORMACIÓN ESPECÍFICA DE RUTA
             'ruta_detallada' => $this->when(
-                $request->has('include_ruta'),
+                $request->has('include_ruta') && $this->esRuta(),
                 [
                     'id' => $this->rutaActivada?->ruta?->ruta_id,
                     'nombre' => $this->rutaActivada?->ruta?->ruta_ruta,
@@ -213,13 +257,21 @@ class ReservaResource extends JsonResource
                 ]
             ),
 
-            // CARACTERÍSTICAS TEMPORALES (CORREGIDAS - usa datetime unificado)
+            // NUEVO: INFORMACIÓN ESPECÍFICA DE TOUR
+            'tour_detallado' => $this->when(
+                $request->has('include_tour') && $this->esTour(),
+                function () {
+                    return $this->obtenerDetallesTour();
+                }
+            ),
+
+            // CARACTERÍSTICAS TEMPORALES (UNIFICADA)
             'caracteristicas' => [
-                'es_del_dia' => $this->rutaActivada?->ruta_activada_fecha_hora?->isToday() ?? false,
-                'es_futura' => $this->rutaActivada?->ruta_activada_fecha_hora?->isFuture() ?? false,
-                'es_pasada' => $this->rutaActivada?->ruta_activada_fecha_hora?->isPast() ?? false,
-                'es_esta_semana' => $this->rutaActivada?->ruta_activada_fecha_hora?->isCurrentWeek() ?? false,
-                'viaje_hoy' => $this->rutaActivada?->ruta_activada_fecha_hora?->isToday() ?? false,
+                'es_del_dia' => $this->esFechaViajeDia(),
+                'es_futura' => $this->esFechaViajesFutura(),
+                'es_pasada' => $this->esFechaViajePasada(),
+                'es_esta_semana' => $this->esFechaViajeSemanaActual(),
+                'viaje_hoy' => $this->esFechaViajeDia(),
             ],
 
             // INFORMACIÓN DE AUDITORÍA
@@ -234,20 +286,22 @@ class ReservaResource extends JsonResource
                 ]
             ),
 
-            // APROVECHANDO VISTAS DE LA NUEVA DB
+            // APROVECHANDO VISTAS DE LA NUEVA DB (ACTUALIZADO PARA TOURS)
             'reportes' => $this->when(
                 $request->has('include_reportes'),
                 [
-                    'aparece_en_reservas_completas' => true, // Siempre aparece en v_reservas_completas
+                    'aparece_en_reservas_completas' => true,
                     'contribuye_ingresos_diarios' => $this->reserva_situacion == 1,
-                    'visible_en_ocupacion_rutas' => $this->rutaActivada?->ruta_activada_situacion == 1,
+                    'visible_en_ocupacion_rutas' => $this->esRuta() && $this->rutaActivada?->ruta_activada_situacion == 1,
+                    'visible_en_info_tours' => $this->esTour() && $this->tourActivado?->tour_activado_situacion == 1,
+                    'aparece_en_dashboard_unificado' => true,
                 ]
             ),
 
-            // TIMESTAMPS ESTÁNDAR (CORREGIDOS)
+            // TIMESTAMPS ESTÁNDAR
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
-            'fecha_viaje_iso' => $this->rutaActivada?->ruta_activada_fecha_hora?->toISOString(),
+            'fecha_viaje_iso' => $this->obtenerFechaViajeISO(),
         ];
     }
 
@@ -272,15 +326,40 @@ class ReservaResource extends JsonResource
         }
     }
 
+    /**
+     * MÉTODOS ACTUALIZADOS PARA SOPORTE DE TOURS
+     */
     private function obtenerPrecioAplicado(): float
     {
-        if (!$this->rutaActivada || !$this->rutaActivada->servicio) return 0;
+        $servicio = $this->esRuta()
+            ? $this->rutaActivada?->servicio
+            : $this->tourActivado?->servicio;
 
-        if ($this->es_venta_agencia && $this->rutaActivada->servicio->servicio_precio_descuento > 0) {
-            return (float) $this->rutaActivada->servicio->servicio_precio_descuento;
+        if (!$servicio) return 0;
+
+        if ($this->es_venta_agencia && $servicio->servicio_precio_descuento > 0) {
+            return (float) $servicio->servicio_precio_descuento;
         }
 
-        return (float) ($this->rutaActivada->servicio->servicio_precio_normal ?? 0);
+        return (float) ($servicio->servicio_precio_normal ?? 0);
+    }
+
+    private function obtenerPrecioNormalServicio(): float
+    {
+        $servicio = $this->esRuta()
+            ? $this->rutaActivada?->servicio
+            : $this->tourActivado?->servicio;
+
+        return (float) ($servicio?->servicio_precio_normal ?? 0);
+    }
+
+    private function obtenerPrecioDescuentoServicio(): float
+    {
+        $servicio = $this->esRuta()
+            ? $this->rutaActivada?->servicio
+            : $this->tourActivado?->servicio;
+
+        return (float) ($servicio?->servicio_precio_descuento ?? 0);
     }
 
     private function validarDatosCompletos(): bool
@@ -289,7 +368,7 @@ class ReservaResource extends JsonResource
             !empty($this->reserva_nombres_cliente) &&
             !empty($this->reserva_apellidos_cliente) &&
             !empty($this->reserva_telefono_cliente) &&
-            !empty($this->ruta_activada_id);
+            ($this->ruta_activada_id || $this->tour_activado_id);
     }
 
     private function obtenerBloqueos(): array
@@ -304,10 +383,83 @@ class ReservaResource extends JsonResource
             $bloqueos[] = 'estado_bloqueado';
         }
 
-        if (!$this->cabeEnLaRuta()) {
+        if (!$this->cabeEnLaRuta() && $this->esRuta()) {
             $bloqueos[] = 'capacidad_excedida';
         }
 
+        $validacionConstraint = $this->validarConstraintServicio();
+        if (!$validacionConstraint['valido']) {
+            $bloqueos[] = 'constraint_servicio';
+        }
+
         return $bloqueos;
+    }
+
+    /**
+     * NUEVOS MÉTODOS PARA FECHAS UNIFICADAS
+     */
+    private function obtenerFechaViajeISO(): ?string
+    {
+        if ($this->esRuta()) {
+            return $this->rutaActivada?->ruta_activada_fecha_hora?->toISOString();
+        }
+
+        if ($this->esTour()) {
+            return $this->tourActivado?->tour_activado_fecha_hora?->toISOString();
+        }
+
+        return null;
+    }
+
+    private function esFechaViajeDia(): bool
+    {
+        if ($this->esRuta()) {
+            return $this->rutaActivada?->ruta_activada_fecha_hora?->isToday() ?? false;
+        }
+
+        if ($this->esTour()) {
+            return $this->tourActivado?->tour_activado_fecha_hora?->isToday() ?? false;
+        }
+
+        return false;
+    }
+
+    private function esFechaViajesFutura(): bool
+    {
+        if ($this->esRuta()) {
+            return $this->rutaActivada?->ruta_activada_fecha_hora?->isFuture() ?? false;
+        }
+
+        if ($this->esTour()) {
+            return $this->tourActivado?->tour_activado_fecha_hora?->isFuture() ?? false;
+        }
+
+        return false;
+    }
+
+    private function esFechaViajePasada(): bool
+    {
+        if ($this->esRuta()) {
+            return $this->rutaActivada?->ruta_activada_fecha_hora?->isPast() ?? false;
+        }
+
+        if ($this->esTour()) {
+            return $this->tourActivado?->tour_activado_fecha_hora?->isPast() ?? false;
+        }
+
+        return false;
+    }
+
+    private function esFechaViajeSemanaActual(): bool
+    {
+        if ($this->esRuta()) {
+            return $this->rutaActivada?->ruta_activada_fecha_hora?->isCurrentWeek() ?? false;
+        }
+
+        if ($this->esTour()) {
+            return $this->tourActivado?->tour_activado_fecha_hora?->isCurrentWeek() ?? false;
+        }
+
+        return false;
     }
 }

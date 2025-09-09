@@ -299,7 +299,8 @@ return new class extends Migration
             $table->unsignedBigInteger('usuario_id');
             $table->unsignedBigInteger('estado_id');
             $table->unsignedBigInteger('agencia_id')->nullable();
-            $table->unsignedBigInteger('ruta_activada_id');
+            $table->unsignedBigInteger('ruta_activada_id')->nullable();
+            $table->unsignedBigInteger('tour_activado_id')->nullable();
             $table->timestamp('original_created_at')->nullable();
             $table->timestamp('original_updated_at')->nullable();
             $table->unsignedBigInteger('original_created_by')->nullable();
@@ -312,6 +313,33 @@ return new class extends Migration
 
             $table->index(['reserva_id', 'fecha_modificacion'], 'idx_reserva_audit');
             $table->index('usuario_modificacion', 'idx_reserva_user');
+        });
+
+        // 13. Auditoría Tour Activado
+        Schema::create('tour_activado_auditoria', function (Blueprint $table) {
+            $table->id('auditoria_id');
+            $table->unsignedBigInteger('tour_activado_id');
+            $table->string('tour_activado_codigo', 45);
+            $table->dateTime('tour_activado_fecha_hora');
+            $table->string('tour_activado_descripcion', 255)->nullable();
+            $table->string('tour_activado_punto_encuentro', 255)->nullable();
+            $table->decimal('tour_activado_duracion_horas', 4, 2)->nullable();
+            $table->boolean('tour_activado_situacion');
+            $table->unsignedBigInteger('persona_id')->nullable();
+            $table->unsignedBigInteger('estado_id');
+            $table->unsignedBigInteger('servicio_id');
+            $table->timestamp('original_created_at')->nullable();
+            $table->timestamp('original_updated_at')->nullable();
+            $table->unsignedBigInteger('original_created_by')->nullable();
+            $table->unsignedBigInteger('original_updated_by')->nullable();
+            $table->timestamp('original_deleted_at')->nullable();
+            $table->enum('accion', ['INSERT', 'UPDATE', 'DELETE']);
+            $table->unsignedBigInteger('usuario_modificacion');
+            $table->timestamp('fecha_modificacion')->useCurrent();
+            $table->string('ip_modificacion', 45)->nullable();
+
+            $table->index(['tour_activado_id', 'fecha_modificacion'], 'idx_tour_act_audit');
+            $table->index('usuario_modificacion', 'idx_tour_act_user');
         });
     }
 
@@ -327,9 +355,9 @@ return new class extends Migration
             'persona',
             'vehiculo',
             'contactos_agencia',
-            'usuario',
             'ruta_activada',
-            'reserva'
+            'reserva',
+            'tour_activado'
         ];
 
         foreach ($tables as $table) {
@@ -430,7 +458,8 @@ return new class extends Migration
             'contactos_agencia' => 'contactos_agencia_id, contactos_agencia_codigo, contactos_agencia_nombres, contactos_agencia_apellidos, contactos_agencia_cargo, contactos_agencia_telefono, contactos_agencia_situacion, agencia_id, original_created_at, original_updated_at, original_created_by, original_updated_by, original_deleted_at',
             'usuario' => 'usuario_id, usuario_codigo, usuario_password, usuario_situacion, persona_id, rol_id, original_created_at, original_updated_at, original_created_by, original_updated_by, original_deleted_at',
             'ruta_activada' => 'ruta_activada_id, ruta_activada_codigo, ruta_activada_fecha_hora, ruta_activada_situacion, persona_id, estado_id, servicio_id, ruta_id, vehiculo_id, original_created_at, original_updated_at, original_created_by, original_updated_by, original_deleted_at',
-            'reserva' => 'reserva_id, reserva_codigo, reserva_nombres_cliente, reserva_apellidos_cliente, reserva_cliente_nit, reserva_telefono_cliente, reserva_email_cliente, reserva_cantidad_adultos, reserva_cantidad_ninos, reserva_direccion_abordaje, reserva_notas, reserva_monto, reserva_situacion, usuario_id, estado_id, agencia_id, ruta_activada_id, original_created_at, original_updated_at, original_created_by, original_updated_by, original_deleted_at'
+            'reserva' => 'reserva_id, reserva_codigo, reserva_nombres_cliente, reserva_apellidos_cliente, reserva_cliente_nit, reserva_telefono_cliente, reserva_email_cliente, reserva_cantidad_adultos, reserva_cantidad_ninos, reserva_direccion_abordaje, reserva_notas, reserva_monto, reserva_situacion, usuario_id, estado_id, agencia_id, ruta_activada_id, tour_activado_id, original_created_at, original_updated_at, original_created_by, original_updated_by, original_deleted_at',
+            'tour_activado' => 'tour_activado_id, tour_activado_codigo, tour_activado_fecha_hora, tour_activado_descripcion, tour_activado_punto_encuentro, tour_activado_duracion_horas, tour_activado_situacion, persona_id, estado_id, servicio_id, original_created_at, original_updated_at, original_created_by, original_updated_by, original_deleted_at'
         ];
 
         return $columns[$table];
@@ -450,7 +479,8 @@ return new class extends Migration
             'contactos_agencia' => 'NEW.contactos_agencia_id, NEW.contactos_agencia_codigo, NEW.contactos_agencia_nombres, NEW.contactos_agencia_apellidos, NEW.contactos_agencia_cargo, NEW.contactos_agencia_telefono, NEW.contactos_agencia_situacion, NEW.agencia_id, NEW.created_at, NEW.updated_at, NEW.created_by, NEW.updated_by, NEW.deleted_at',
             'usuario' => 'NEW.usuario_id, NEW.usuario_codigo, NEW.usuario_password, NEW.usuario_situacion, NEW.persona_id, NEW.rol_id, NEW.created_at, NEW.updated_at, NEW.created_by, NEW.updated_by, NEW.deleted_at',
             'ruta_activada' => 'NEW.ruta_activada_id, NEW.ruta_activada_codigo, NEW.ruta_activada_fecha_hora, NEW.ruta_activada_situacion, NEW.persona_id, NEW.estado_id, NEW.servicio_id, NEW.ruta_id, NEW.vehiculo_id, NEW.created_at, NEW.updated_at, NEW.created_by, NEW.updated_by, NEW.deleted_at',
-            'reserva' => 'NEW.reserva_id, NEW.reserva_codigo, NEW.reserva_nombres_cliente, NEW.reserva_apellidos_cliente, NEW.reserva_cliente_nit, NEW.reserva_telefono_cliente, NEW.reserva_email_cliente, NEW.reserva_cantidad_adultos, NEW.reserva_cantidad_ninos, NEW.reserva_direccion_abordaje, NEW.reserva_notas, NEW.reserva_monto, NEW.reserva_situacion, NEW.usuario_id, NEW.estado_id, NEW.agencia_id, NEW.ruta_activada_id, NEW.created_at, NEW.updated_at, NEW.created_by, NEW.updated_by, NEW.deleted_at'
+            'reserva' => 'NEW.reserva_id, NEW.reserva_codigo, NEW.reserva_nombres_cliente, NEW.reserva_apellidos_cliente, NEW.reserva_cliente_nit, NEW.reserva_telefono_cliente, NEW.reserva_email_cliente, NEW.reserva_cantidad_adultos, NEW.reserva_cantidad_ninos, NEW.reserva_direccion_abordaje, NEW.reserva_notas, NEW.reserva_monto, NEW.reserva_situacion, NEW.usuario_id, NEW.estado_id, NEW.agencia_id, NEW.ruta_activada_id, NEW.tour_activado_id, NEW.created_at, NEW.updated_at, NEW.created_by, NEW.updated_by, NEW.deleted_at',
+            'tour_activado' => 'NEW.tour_activado_id, NEW.tour_activado_codigo, NEW.tour_activado_fecha_hora, NEW.tour_activado_descripcion, NEW.tour_activado_punto_encuentro, NEW.tour_activado_duracion_horas, NEW.tour_activado_situacion, NEW.persona_id, NEW.estado_id, NEW.servicio_id, NEW.created_at, NEW.updated_at, NEW.created_by, NEW.updated_by, NEW.deleted_at'
         ];
 
         return $values[$table];
@@ -470,7 +500,8 @@ return new class extends Migration
             'contactos_agencia' => 'OLD.contactos_agencia_id, OLD.contactos_agencia_codigo, OLD.contactos_agencia_nombres, OLD.contactos_agencia_apellidos, OLD.contactos_agencia_cargo, OLD.contactos_agencia_telefono, OLD.contactos_agencia_situacion, OLD.agencia_id, OLD.created_at, OLD.updated_at, OLD.created_by, OLD.updated_by, OLD.deleted_at',
             'usuario' => 'OLD.usuario_id, OLD.usuario_codigo, OLD.usuario_password, OLD.usuario_situacion, OLD.persona_id, OLD.rol_id, OLD.created_at, OLD.updated_at, OLD.created_by, OLD.updated_by, OLD.deleted_at',
             'ruta_activada' => 'OLD.ruta_activada_id, OLD.ruta_activada_codigo, OLD.ruta_activada_fecha_hora, OLD.ruta_activada_situacion, OLD.persona_id, OLD.estado_id, OLD.servicio_id, OLD.ruta_id, OLD.vehiculo_id, OLD.created_at, OLD.updated_at, OLD.created_by, OLD.updated_by, OLD.deleted_at',
-            'reserva' => 'OLD.reserva_id, OLD.reserva_codigo, OLD.reserva_nombres_cliente, OLD.reserva_apellidos_cliente, OLD.reserva_cliente_nit, OLD.reserva_telefono_cliente, OLD.reserva_email_cliente, OLD.reserva_cantidad_adultos, OLD.reserva_cantidad_ninos, OLD.reserva_direccion_abordaje, OLD.reserva_notas, OLD.reserva_monto, OLD.reserva_situacion, OLD.usuario_id, OLD.estado_id, OLD.agencia_id, OLD.ruta_activada_id, OLD.created_at, OLD.updated_at, OLD.created_by, OLD.updated_by, OLD.deleted_at'
+            'reserva' => 'OLD.reserva_id, OLD.reserva_codigo, OLD.reserva_nombres_cliente, OLD.reserva_apellidos_cliente, OLD.reserva_cliente_nit, OLD.reserva_telefono_cliente, OLD.reserva_email_cliente, OLD.reserva_cantidad_adultos, OLD.reserva_cantidad_ninos, OLD.reserva_direccion_abordaje, OLD.reserva_notas, OLD.reserva_monto, OLD.reserva_situacion, OLD.usuario_id, OLD.estado_id, OLD.agencia_id, OLD.ruta_activada_id, OLD.tour_activado_id, OLD.created_at, OLD.updated_at, OLD.created_by, OLD.updated_by, OLD.deleted_at',
+            'tour_activado' => 'OLD.tour_activado_id, OLD.tour_activado_codigo, OLD.tour_activado_fecha_hora, OLD.tour_activado_descripcion, OLD.tour_activado_punto_encuentro, OLD.tour_activado_duracion_horas, OLD.tour_activado_situacion, OLD.persona_id, OLD.estado_id, OLD.servicio_id, OLD.created_at, OLD.updated_at, OLD.created_by, OLD.updated_by, OLD.deleted_at'
         ];
 
         return $values[$table];
@@ -493,7 +524,8 @@ return new class extends Migration
             'contactos_agencia',
             'usuario',
             'ruta_activada',
-            'reserva'
+            'reserva',
+            'tour_activado'
         ];
 
         // Eliminar triggers

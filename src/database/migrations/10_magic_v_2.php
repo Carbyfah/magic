@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -200,6 +201,28 @@ return new class extends Migration
             $table->foreign('vehiculo_id')->references('vehiculo_id')->on('vehiculo');
         });
 
+        // 11.5. Tours Activados (Sin vehículo ni capacidad)
+        Schema::create('tour_activado', function (Blueprint $table) {
+            $table->id('tour_activado_id');
+            $table->string('tour_activado_codigo', 45)->unique();
+            $table->dateTime('tour_activado_fecha_hora');
+            $table->string('tour_activado_descripcion', 255)->nullable();
+            $table->string('tour_activado_punto_encuentro', 255)->nullable();
+            $table->decimal('tour_activado_duracion_horas', 4, 2)->nullable();
+            $table->boolean('tour_activado_situacion')->default(1);
+            $table->unsignedBigInteger('persona_id')->nullable(); // Guía puede ser externo
+            $table->unsignedBigInteger('estado_id');
+            $table->unsignedBigInteger('servicio_id');
+            $table->timestamps();
+            $table->unsignedBigInteger('created_by')->nullable();
+            $table->unsignedBigInteger('updated_by')->nullable();
+            $table->softDeletes();
+
+            $table->foreign('persona_id')->references('persona_id')->on('persona');
+            $table->foreign('estado_id')->references('estado_id')->on('estado');
+            $table->foreign('servicio_id')->references('servicio_id')->on('servicio');
+        });
+
         // =====================================================
         // NIVEL 4: TABLAS FINALES (Dependen de Nivel 3)
         // =====================================================
@@ -223,7 +246,8 @@ return new class extends Migration
             $table->unsignedBigInteger('usuario_id');
             $table->unsignedBigInteger('estado_id');
             $table->unsignedBigInteger('agencia_id')->nullable();
-            $table->unsignedBigInteger('ruta_activada_id');
+            $table->unsignedBigInteger('ruta_activada_id')->nullable();
+            $table->unsignedBigInteger('tour_activado_id')->nullable();
             $table->timestamps();
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();
@@ -233,7 +257,16 @@ return new class extends Migration
             $table->foreign('estado_id')->references('estado_id')->on('estado');
             $table->foreign('agencia_id')->references('agencia_id')->on('agencia');
             $table->foreign('ruta_activada_id')->references('ruta_activada_id')->on('ruta_activada');
+            $table->foreign('tour_activado_id')->references('tour_activado_id')->on('tour_activado');
+
+            // Nota: Constraint se agregará después de crear la tabla
         });
+
+        // Agregar constraint después de crear la tabla
+        DB::statement('ALTER TABLE reserva ADD CONSTRAINT chk_reserva_tipo CHECK (
+            (ruta_activada_id IS NOT NULL AND tour_activado_id IS NULL) OR
+            (ruta_activada_id IS NULL AND tour_activado_id IS NOT NULL)
+        )');
 
         // =====================================================
         // NOTA: Las FKs de auditoría (created_by, updated_by)
@@ -246,6 +279,7 @@ return new class extends Migration
      */
     public function down()
     {
+        Schema::dropIfExists('tour_activado');
         Schema::dropIfExists('reserva');
         Schema::dropIfExists('ruta_activada');
         Schema::dropIfExists('usuario');

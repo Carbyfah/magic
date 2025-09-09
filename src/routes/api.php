@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\ReservaController;
 use App\Http\Controllers\Api\AuditoriaController;
 use App\Http\Controllers\Api\DashboardVentasController;
 use App\Http\Controllers\Api\EstadisticaController;
+use App\Http\Controllers\Api\TourActivadoController;
 
 // Magic Travel API Routes
 Route::prefix('magic')->middleware(['api'])->group(function () {
@@ -194,16 +195,54 @@ Route::prefix('magic')->middleware(['api'])->group(function () {
         Route::post('/{rutaActivada}/verificar-capacidad', [RutaActivadaController::class, 'verificarCapacidad']);
     });
 
+    // TOURS ACTIVADOS ROUTES - NUEVO MÓDULO
+    Route::prefix('tours-activados')->group(function () {
+        // CRUD BÁSICO - RUTAS ESTÁTICAS PRIMERO
+        Route::get('/', [TourActivadoController::class, 'index']);           // GET /api/magic/tours-activados
+        Route::post('/', [TourActivadoController::class, 'store']);          // POST /api/magic/tours-activados
+
+        // RUTAS ESTÁTICAS ESPECÍFICAS - ANTES DE LAS DINÁMICAS
+        Route::post('/verificar-codigo', [TourActivadoController::class, 'verificarCodigo']); // POST /api/magic/tours-activados/verificar-codigo
+        Route::post('/buscar-disponible', [TourActivadoController::class, 'buscarDisponible']); // POST /api/magic/tours-activados/buscar-disponible
+        Route::get('/con-guia-interno', [TourActivadoController::class, 'conGuiaInterno']); // GET /api/magic/tours-activados/con-guia-interno
+        Route::get('/con-guia-externo', [TourActivadoController::class, 'conGuiaExterno']); // GET /api/magic/tours-activados/con-guia-externo
+
+        // FILTROS POR RELACIONES - RUTAS ESTÁTICAS
+        Route::get('/estado/{estadoId}', [TourActivadoController::class, 'porEstado']);       // GET /api/magic/tours-activados/estado/{id}
+        Route::get('/persona/{personaId}', [TourActivadoController::class, 'porPersona']);  // GET /api/magic/tours-activados/persona/{id}
+        Route::get('/servicio/{servicioId}', [TourActivadoController::class, 'porServicio']); // GET /api/magic/tours-activados/servicio/{id}
+        Route::get('/fecha/{fecha}', [TourActivadoController::class, 'porFecha']);           // GET /api/magic/tours-activados/fecha/{fecha}
+
+        // RUTAS DINÁMICAS CON {tourActivado} - AL FINAL
+        Route::get('/{tourActivado}', [TourActivadoController::class, 'show']);    // GET /api/magic/tours-activados/{id}
+        Route::put('/{tourActivado}', [TourActivadoController::class, 'update']);  // PUT /api/magic/tours-activados/{id}
+        Route::delete('/{tourActivado}', [TourActivadoController::class, 'destroy']); // DELETE /api/magic/tours-activados/{id}
+        Route::patch('/{tourActivado}/activate', [TourActivadoController::class, 'activate']);   // Activar
+        Route::patch('/{tourActivado}/deactivate', [TourActivadoController::class, 'deactivate']); // Desactivar
+
+        // FUNCIONALIDADES ESPECÍFICAS DE TOURS CON {tourActivado}
+        Route::get('/{tourActivado}/lista-guia-pdf', [TourActivadoController::class, 'generarListaGuia']); // Generar PDF para guía
+        Route::get('/{tourActivado}/resumen', [TourActivadoController::class, 'obtenerResumen']); // Resumen completo
+        Route::patch('/{tourActivado}/completar-info', [TourActivadoController::class, 'completarInformacion']); // Completar información
+        Route::patch('/{tourActivado}/asignar-guia', [TourActivadoController::class, 'asignarGuia']); // Asignar/remover guía
+
+        // NOTIFICACIONES Y VALIDACIONES CON {tourActivado}
+        Route::get('/{tourActivado}/notificaciones', [TourActivadoController::class, 'obtenerNotificaciones']);
+        Route::post('/{tourActivado}/validar-reserva', [TourActivadoController::class, 'validarAgregarReserva']);
+        Route::post('/{tourActivado}/procesar-reserva', [TourActivadoController::class, 'procesarDespuesReserva']);
+
+        // OPERACIONES ESPECÍFICAS DEL SISTEMA CON {tourActivado}
+        Route::post('/{tourActivado}/cerrar', [TourActivadoController::class, 'cerrarTour']);
+        Route::post('/{tourActivado}/verificar-disponibilidad', [TourActivadoController::class, 'verificarDisponibilidad']);
+    });
+
     // RESERVA ROUTES - ORDEN CORRECTO
     Route::prefix('reservas')->group(function () {
-        // CRUD básico
+        // CRUD BÁSICO - RUTAS PRINCIPALES
         Route::get('/', [ReservaController::class, 'index']);
         Route::post('/', [ReservaController::class, 'store']);
-        Route::get('/{reserva}', [ReservaController::class, 'show']);
-        Route::put('/{reserva}', [ReservaController::class, 'update']);
-        Route::delete('/{reserva}', [ReservaController::class, 'destroy']);
 
-        // RUTAS ESTÁTICAS PRIMERO (antes de las dinámicas)
+        // RUTAS ESTÁTICAS PRIMERO (ANTES DE LAS DINÁMICAS)
         Route::get('/directas', [ReservaController::class, 'directas']);
         Route::post('/verificar-codigo', [ReservaController::class, 'verificarCodigo']);
         Route::post('/buscar-disponibilidad', [ReservaController::class, 'buscarDisponibilidad']);
@@ -212,36 +251,49 @@ Route::prefix('magic')->middleware(['api'])->group(function () {
         Route::get('/completas', [ReservaController::class, 'obtenerReservasCompletas']);
         Route::get('/ingresos-diarios', [ReservaController::class, 'obtenerIngresosDiarios']);
 
-        // Acciones específicas individuales
-        Route::patch('/{reserva}/confirm', [ReservaController::class, 'confirm']);
-        Route::patch('/{reserva}/cancel', [ReservaController::class, 'cancel']);
-        Route::patch('/{reserva}/execute', [ReservaController::class, 'execute']);
-        Route::patch('/{reserva}/facturar', [ReservaController::class, 'generarFactura']); // NUEVA
+        // NUEVAS RUTAS PARA TOURS - ESTÁTICAS
+        Route::get('/solo-rutas', [ReservaController::class, 'soloRutas']);
+        Route::get('/solo-tours', [ReservaController::class, 'soloTours']);
+        Route::get('/dashboard-unificado', [ReservaController::class, 'obtenerDashboardUnificado']);
+        Route::get('/info-tours', [ReservaController::class, 'obtenerInfoTours']);
 
-        // Funcionalidades específicas
-        Route::get('/{reserva}/whatsapp', [ReservaController::class, 'whatsapp']);
-        Route::get('/{reserva}/voucher-pdf', [ReservaController::class, 'generarVoucherPDF']);
-
-        // Acciones masivas por ruta
+        // ACCIONES MASIVAS POR RUTA - ESTÁTICAS
         Route::patch('/ruta/{rutaActivadaId}/confirm-all', [ReservaController::class, 'confirmByRuta']);
         Route::patch('/ruta/{rutaActivadaId}/cancel-all', [ReservaController::class, 'cancelByRuta']);
 
-        // RUTAS DINÁMICAS AL FINAL
+        // ACCIONES MASIVAS POR TOUR - ESTÁTICAS
+        Route::patch('/tour/{tourActivadoId}/confirm-all', [ReservaController::class, 'confirmByTour']);
+        Route::patch('/tour/{tourActivadoId}/cancel-all', [ReservaController::class, 'cancelByTour']);
+
+        // FILTROS POR RELACIONES - ESTÁTICAS
         Route::get('/usuario/{usuarioId}', [ReservaController::class, 'porUsuario']);
         Route::get('/estado/{estadoId}', [ReservaController::class, 'porEstado']);
         Route::get('/agencia/{agenciaId}', [ReservaController::class, 'porAgencia']);
         Route::get('/fecha/{fecha}', [ReservaController::class, 'porFecha']);
+        Route::get('/tour/{tourActivadoId}', [ReservaController::class, 'porTour']);
 
-        // Notificaciones de reservas
-        Route::get('/{reserva}/notificaciones', [ReservaController::class, 'obtenerNotificaciones']);
-        Route::post('/{reserva}/validar-estado', [ReservaController::class, 'validarCambioEstado']);
-        Route::post('/{reserva}/procesar-estado', [ReservaController::class, 'procesarDespuesCambioEstado']);
+        // RUTAS DINÁMICAS CON {reserva} - AL FINAL
+        Route::get('/{reserva}', [ReservaController::class, 'show']);
+        Route::put('/{reserva}', [ReservaController::class, 'update']);
+        Route::delete('/{reserva}', [ReservaController::class, 'destroy']);
 
-        // ... después de las otras rutas, agrega:
+        // ACCIONES ESPECÍFICAS INDIVIDUALES CON {reserva}
+        Route::patch('/{reserva}/confirm', [ReservaController::class, 'confirm']);
+        Route::patch('/{reserva}/cancel', [ReservaController::class, 'cancel']);
+        Route::patch('/{reserva}/execute', [ReservaController::class, 'execute']);
+        Route::patch('/{reserva}/facturar', [ReservaController::class, 'generarFactura']);
         Route::patch('/{reserva}/activate', [ReservaController::class, 'activate']);
         Route::patch('/{reserva}/deactivate', [ReservaController::class, 'deactivate']);
 
+        // FUNCIONALIDADES ESPECÍFICAS CON {reserva}
+        Route::get('/{reserva}/whatsapp', [ReservaController::class, 'whatsapp']);
+        Route::get('/{reserva}/voucher-pdf', [ReservaController::class, 'generarVoucherPDF']);
         Route::get('/{reserva}/factura-pdf', [ReservaController::class, 'generarFacturaPDF']);
+
+        // NOTIFICACIONES DE RESERVAS CON {reserva}
+        Route::get('/{reserva}/notificaciones', [ReservaController::class, 'obtenerNotificaciones']);
+        Route::post('/{reserva}/validar-estado', [ReservaController::class, 'validarCambioEstado']);
+        Route::post('/{reserva}/procesar-estado', [ReservaController::class, 'procesarDespuesCambioEstado']);
     });
 
     // Dashboard de Ventas - SEPARAR DEL GENERAL

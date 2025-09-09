@@ -53,7 +53,7 @@ services:
       - magictravel_network
     restart: unless-stopped
 
-  # 🆕 PHPMYADMIN - ADMINISTRADOR DE BASE DE DATOS
+  # PHPMYADMIN - ADMINISTRADOR DE BASE DE DATOS
   phpmyadmin:
     image: phpmyadmin/phpmyadmin:latest
     container_name: magictravel_phpmyadmin
