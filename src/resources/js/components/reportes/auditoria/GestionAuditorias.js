@@ -2,635 +2,821 @@
 import React from 'react';
 import Icons from '../../../utils/Icons';
 import Notifications from '../../../utils/notifications';
+import ModalUniversal from '../../common/ModalUniversal';
+import BotonesUniversal from '../../common/BotonesUniversal';
+
+// IMPORTAR EL NUEVO SISTEMA REUTILIZABLE
+import useTableData from '../../common/useTableData';
+import TableControls from '../../common/TableControls';
+import TablePagination from '../../common/TablePagination';
+import { auditoriasConfig } from './auditoriasConfig';
 
 const { createElement: e, useState, useEffect } = React;
 
 function GestionAuditorias() {
     // Estados principales
     const [auditorias, setAuditorias] = useState([]);
-    const [auditoriasFiltradas, setAuditoriasFiltradas] = useState([]);
+    const [usuarios, setUsuarios] = useState([]);
+    const [estadisticas, setEstadisticas] = useState(null);
     const [loading, setLoading] = useState(false);
-
-    // Estados de filtros y búsqueda
-    const [searchTerm, setSearchTerm] = useState('');
-    const [filtroTabla, setFiltroTabla] = useState('todas');
-    const [filtroAccion, setFiltroAccion] = useState('todas');
-    const [filtroUsuario, setFiltroUsuario] = useState('todos');
-    const [filtroFecha, setFiltroFecha] = useState('hoy');
+    const [loadingAction, setLoadingAction] = useState(false);
 
     // Estados de modales
     const [modalDetalles, setModalDetalles] = useState(false);
-    const [modalFiltrosAvanzados, setModalFiltrosAvanzados] = useState(false);
+    const [modalReporte, setModalReporte] = useState(false);
+    const [modalLimpiar, setModalLimpiar] = useState(false);
+    const [modalConfirmacion, setModalConfirmacion] = useState(false);
 
     // Estados de datos específicos
-    const [auditoriaSeleccionada, setAuditoriaSeleccionada] = useState(null);
+    const [itemDetalles, setItemDetalles] = useState(null);
+    const [itemConfirmacion, setItemConfirmacion] = useState(null);
+    const [accionConfirmacion, setAccionConfirmacion] = useState(null);
 
-    // Estados de catálogos
-    const [catalogos, setCatalogos] = useState({
-        usuarios: [],
-        tablas: [
-            { codigo: 'reserva', nombre: 'Reservas', icono: 'calendar' },
-            { codigo: 'agencia', nombre: 'Agencias', icono: 'building' },
-            { codigo: 'usuario', nombre: 'Usuarios', icono: 'user' },
-            { codigo: 'persona', nombre: 'Personas', icono: 'users' },
-            { codigo: 'vehiculo', nombre: 'Vehículos', icono: 'truck' },
-            { codigo: 'servicio', nombre: 'Servicios', icono: 'package' },
-            { codigo: 'ruta_activada', nombre: 'Rutas Activadas', icono: 'route' },
-            { codigo: 'facturas', nombre: 'Facturas', icono: 'receipt' }
-        ]
+    // Estados de filtros MEJORADOS
+    const [filtros, setFiltros] = useState({
+        tabla: '',
+        accion: '',
+        usuario_id: '',
+        fecha_inicio: '',
+        fecha_fin: '',
+        busqueda: ''
     });
 
-    // Estado de estadísticas
-    const [estadisticas, setEstadisticas] = useState({
-        total_eventos: 0,
-        eventos_hoy: 0,
-        eventos_semana: 0,
-        usuarios_activos: 0,
-        tabla_mas_modificada: '',
-        accion_mas_frecuente: '',
-        ultimo_evento: null
+    // Estados del formulario de reportes - MODIFICADO CON EXCEL
+    const [formularioReporte, setFormularioReporte] = useState({
+        fecha_inicio: '',
+        fecha_fin: '',
+        tabla: '',
+        accion: '',
+        usuario_id: '',
+        tipo_reporte: 'resumen' // NUEVO
     });
+
+    // Estados para limpieza
+    const [diasLimpiar, setDiasLimpiar] = useState(90);
+
+    // INTEGRAR EL NUEVO SISTEMA REUTILIZABLE
+    const currentConfig = auditoriasConfig.auditorias;
+    const currentRawData = auditorias;
+
+    const tableData = useTableData(currentConfig, currentRawData);
 
     // Efectos principales
     useEffect(() => {
-        cargarAuditorias();
+        cargarDatos();
+        cargarEstadisticas();
         cargarUsuarios();
-    }, []);
+    }, [filtros]);
 
-    useEffect(() => {
-        filtrarAuditorias();
-    }, [auditorias, searchTerm, filtroTabla, filtroAccion, filtroUsuario, filtroFecha]);
+    // NUEVA FUNCIÓN: Cargar usuarios para el filtro
+    const cargarUsuarios = async () => {
+        try {
+            const response = await fetch('/api/magic/usuarios', {
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
 
-    // Funciones de carga de datos
-    const cargarAuditorias = async () => {
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success && result.data) {
+                    setUsuarios(result.data);
+                } else if (result.data) {
+                    setUsuarios(result.data);
+                } else {
+                    setUsuarios([]);
+                }
+            }
+        } catch (error) {
+            console.error('Error al cargar usuarios:', error);
+        }
+    };
+
+    // Función para cargar datos desde API - MEJORADA
+    const cargarDatos = async () => {
         try {
             setLoading(true);
 
-            // Endpoint que crearemos después - por ahora datos mock
-            // const response = await fetch('/api/magic/auditorias', {
-            //     headers: {
-            //         'Accept': 'application/json',
-            //         'Content-Type': 'application/json'
-            //     }
-            // });
+            const params = new URLSearchParams();
+            Object.entries(filtros).forEach(([key, value]) => {
+                if (value) params.append(key, value);
+            });
 
-            // Por ahora usamos datos de ejemplo para mostrar la estructura
-            const auditoriasMock = [
-                {
-                    auditoria_id: 1,
-                    tabla: 'reserva',
-                    registro_id: 15,
-                    accion: 'UPDATE',
-                    usuario_modificacion: 3,
-                    usuario_nombre: 'María González',
-                    fecha_modificacion: new Date().toISOString(),
-                    ip_modificacion: '192.168.1.100',
-                    datos_anteriores: { estado_id: 1, reserva_monto: 100 },
-                    datos_nuevos: { estado_id: 2, reserva_monto: 100 },
-                    campos_modificados: ['estado_id']
-                },
-                {
-                    auditoria_id: 2,
-                    tabla: 'agencia',
-                    registro_id: 8,
-                    accion: 'INSERT',
-                    usuario_modificacion: 1,
-                    usuario_nombre: 'Admin Sistema',
-                    fecha_modificacion: new Date(Date.now() - 60000).toISOString(),
-                    ip_modificacion: '192.168.1.50',
-                    datos_nuevos: { agencia_razon_social: 'Tours Guatemala', agencia_nit: '12345678-9' },
-                    campos_modificados: []
+            const response = await fetch(`/api/magic/auditorias?${params.toString()}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
                 }
-            ];
+            });
 
-            setAuditorias(auditoriasMock);
-            calcularEstadisticas(auditoriasMock);
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success && result.data) {
+                    setAuditorias(result.data);
+                    console.log('Auditorías cargadas:', result.data.length, 'items');
+                } else {
+                    setAuditorias([]);
+                    console.log('No se encontraron auditorías');
+                }
+            } else {
+                console.error('Error al cargar auditorías:', response.status);
+                Notifications.error(`Error al cargar auditorías: ${response.status}`);
+            }
+
         } catch (error) {
-            console.error('Error:', error);
-            Notifications.error('Error de conexión al cargar auditorías');
+            console.error('Error de conexión:', error);
+            Notifications.error('Error de conexión al cargar datos');
         } finally {
             setLoading(false);
         }
     };
 
-    const cargarUsuarios = async () => {
+    // Función para cargar estadísticas
+    const cargarEstadisticas = async () => {
         try {
-            const response = await fetch('/api/magic/usuarios/vendedores');
+            const response = await fetch('/api/magic/auditorias/stats', {
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
             if (response.ok) {
-                const data = await response.json();
-                setCatalogos(prev => ({
-                    ...prev,
-                    usuarios: Array.isArray(data) ? data : data.data || []
-                }));
+                const result = await response.json();
+                setEstadisticas(result.data);
             }
         } catch (error) {
-            console.error('Error cargando usuarios:', error);
+            console.error('Error al cargar estadísticas:', error);
         }
     };
 
-    const calcularEstadisticas = (auditoriasArray) => {
-        const hoy = new Date();
-        const inicioSemana = new Date(hoy.getTime() - 7 * 24 * 60 * 60 * 1000);
+    // Función para manejar cambios en filtros
+    const manejarCambioFiltro = (campo, valor) => {
+        setFiltros(prev => ({ ...prev, [campo]: valor }));
+    };
 
-        const eventosHoy = auditoriasArray.filter(a => {
-            const fechaEvento = new Date(a.fecha_modificacion);
-            return fechaEvento.toDateString() === hoy.toDateString();
-        });
-
-        const eventosSemana = auditoriasArray.filter(a => {
-            const fechaEvento = new Date(a.fecha_modificacion);
-            return fechaEvento >= inicioSemana;
-        });
-
-        // Tabla más modificada
-        const conteoTablas = {};
-        auditoriasArray.forEach(a => {
-            conteoTablas[a.tabla] = (conteoTablas[a.tabla] || 0) + 1;
-        });
-        const tablaMasModificada = Object.keys(conteoTablas).reduce((a, b) =>
-            conteoTablas[a] > conteoTablas[b] ? a : b, 'N/A'
-        );
-
-        // Acción más frecuente
-        const conteoAcciones = {};
-        auditoriasArray.forEach(a => {
-            conteoAcciones[a.accion] = (conteoAcciones[a.accion] || 0) + 1;
-        });
-        const accionMasFrecuente = Object.keys(conteoAcciones).reduce((a, b) =>
-            conteoAcciones[a] > conteoAcciones[b] ? a : b, 'N/A'
-        );
-
-        setEstadisticas({
-            total_eventos: auditoriasArray.length,
-            eventos_hoy: eventosHoy.length,
-            eventos_semana: eventosSemana.length,
-            usuarios_activos: new Set(auditoriasArray.map(a => a.usuario_modificacion)).size,
-            tabla_mas_modificada: tablaMasModificada,
-            accion_mas_frecuente: accionMasFrecuente,
-            ultimo_evento: auditoriasArray.length > 0 ? auditoriasArray[0] : null
+    // Función para limpiar filtros
+    const limpiarFiltros = () => {
+        setFiltros({
+            tabla: '',
+            accion: '',
+            usuario_id: '',
+            fecha_inicio: '',
+            fecha_fin: '',
+            busqueda: ''
         });
     };
 
-    const filtrarAuditorias = () => {
-        let resultado = [...auditorias];
+    // NUEVA FUNCIÓN: Obtener nombre de usuario CORREGIDA
+    const obtenerNombreUsuario = (usuarioId) => {
+        if (!usuarioId) return 'Sistema';
 
-        // Filtro por búsqueda
-        if (searchTerm.trim()) {
-            const termino = searchTerm.toLowerCase();
-            resultado = resultado.filter(auditoria =>
-                auditoria.tabla?.toLowerCase().includes(termino) ||
-                auditoria.usuario_nombre?.toLowerCase().includes(termino) ||
-                auditoria.registro_id?.toString().includes(termino) ||
-                auditoria.ip_modificacion?.includes(termino)
-            );
+        const usuario = usuarios.find(u => u.id == usuarioId);
+        if (usuario) {
+            return usuario.nombre_completo ||
+                (usuario.persona ? usuario.persona.nombre : '') ||
+                `Usuario ${usuario.codigo}`;
         }
+        return `Usuario ID: ${usuarioId}`;
+    };
 
-        // Filtro por tabla
-        if (filtroTabla !== 'todas') {
-            resultado = resultado.filter(auditoria => auditoria.tabla === filtroTabla);
-        }
+    // NUEVA FUNCIÓN: Generar labels personalizados para el modal
+    const generarLabelsPersonalizados = (item) => {
+        if (!item || !item.tabla_original) return {};
 
-        // Filtro por acción
-        if (filtroAccion !== 'todas') {
-            resultado = resultado.filter(auditoria => auditoria.accion === filtroAccion);
-        }
-
-        // Filtro por usuario
-        if (filtroUsuario !== 'todos') {
-            resultado = resultado.filter(auditoria =>
-                auditoria.usuario_modificacion?.toString() === filtroUsuario
-            );
-        }
-
-        // Filtro por fecha
-        if (filtroFecha !== 'todas') {
-            const hoy = new Date();
-            let fechaInicio;
-
-            switch (filtroFecha) {
-                case 'hoy':
-                    fechaInicio = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
-                    break;
-                case 'ayer':
-                    fechaInicio = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - 1);
-                    break;
-                case 'semana':
-                    fechaInicio = new Date(hoy.getTime() - 7 * 24 * 60 * 60 * 1000);
-                    break;
-                case 'mes':
-                    fechaInicio = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-                    break;
+        const tabla = item.tabla_original;
+        const labelsMap = {
+            'reserva': {
+                'reserva_codigo': 'Código de Reserva',
+                'reserva_nombres_cliente': 'Nombres del Cliente',
+                'reserva_apellidos_cliente': 'Apellidos del Cliente',
+                'reserva_telefono_cliente': 'Teléfono del Cliente',
+                'reserva_monto': 'Monto de la Reserva',
+                'reserva_cantidad_adultos': 'Cantidad de Adultos',
+                'reserva_cantidad_ninos': 'Cantidad de Niños',
+                'reserva_observaciones': 'Observaciones',
+                'usuario_modificacion': 'Usuario que Modificó',
+                'fecha_modificacion': 'Fecha de Modificación',
+                'accion': 'Tipo de Acción',
+                'ip_modificacion': 'Dirección IP'
+            },
+            'vehiculo': {
+                'vehiculo_codigo': 'Código del Vehículo',
+                'vehiculo_placa': 'Placa del Vehículo',
+                'vehiculo_marca': 'Marca',
+                'vehiculo_modelo': 'Modelo',
+                'vehiculo_capacidad': 'Capacidad de Pasajeros',
+                'vehiculo_observaciones': 'Observaciones del Vehículo',
+                'usuario_modificacion': 'Usuario que Modificó',
+                'fecha_modificacion': 'Fecha de Modificación',
+                'accion': 'Tipo de Acción',
+                'ip_modificacion': 'Dirección IP'
+            },
+            'persona': {
+                'persona_codigo': 'Código de Persona',
+                'persona_nombres': 'Nombres',
+                'persona_apellidos': 'Apellidos',
+                'persona_email': 'Correo Electrónico',
+                'persona_telefono': 'Teléfono',
+                'persona_direccion': 'Dirección',
+                'usuario_modificacion': 'Usuario que Modificó',
+                'fecha_modificacion': 'Fecha de Modificación',
+                'accion': 'Tipo de Acción',
+                'ip_modificacion': 'Dirección IP'
+            },
+            'ruta_activada': {
+                'ruta_activada_codigo': 'Código de Ruta Activada',
+                'ruta_activada_fecha_hora': 'Fecha y Hora Programada',
+                'ruta_activada_precio_adulto': 'Precio por Adulto',
+                'ruta_activada_precio_nino': 'Precio por Niño',
+                'ruta_activada_observaciones': 'Observaciones',
+                'usuario_modificacion': 'Usuario que Modificó',
+                'fecha_modificacion': 'Fecha de Modificación',
+                'accion': 'Tipo de Acción',
+                'ip_modificacion': 'Dirección IP'
+            },
+            'usuario': {
+                'usuario_codigo': 'Código de Usuario',
+                'usuario_modificacion': 'Usuario que Modificó',
+                'fecha_modificacion': 'Fecha de Modificación',
+                'accion': 'Tipo de Acción',
+                'ip_modificacion': 'Dirección IP'
+            },
+            'agencia': {
+                'agencia_codigo': 'Código de Agencia',
+                'agencia_razon_social': 'Razón Social',
+                'agencia_direccion': 'Dirección',
+                'agencia_telefono': 'Teléfono',
+                'agencia_email': 'Correo Electrónico',
+                'usuario_modificacion': 'Usuario que Modificó',
+                'fecha_modificacion': 'Fecha de Modificación',
+                'accion': 'Tipo de Acción',
+                'ip_modificacion': 'Dirección IP'
             }
+        };
 
-            if (fechaInicio) {
-                resultado = resultado.filter(auditoria => {
-                    const fechaEvento = new Date(auditoria.fecha_modificacion);
-                    return fechaEvento >= fechaInicio;
-                });
+        // Labels comunes para todas las tablas
+        const labelsComunes = {
+            'usuario_modificacion': 'Usuario que Realizó el Cambio',
+            'fecha_modificacion': 'Fecha y Hora del Cambio',
+            'accion': 'Tipo de Operación',
+            'ip_modificacion': 'Dirección IP de Origen',
+            'tabla_original': 'Tabla Afectada',
+            'auditoria_id': 'ID de Auditoría'
+        };
+
+        return { ...(labelsMap[tabla] || {}), ...labelsComunes };
+    };
+
+    // Renderizar item de lista - MEJORADO
+    const renderizarItem = (item) => {
+        const tabla = item.tabla_original || 'desconocida';
+        const accion = item.accion || 'N/A';
+        const fecha = item.fecha_modificacion ? new Date(item.fecha_modificacion).toLocaleString('es-GT') : 'N/A';
+        const usuarioNombre = obtenerNombreUsuario(item.usuario_modificacion);
+
+        // Obtener el campo principal del registro auditado
+        let campoPrincipal = 'N/A';
+        const tablaSinSufijo = tabla.replace('_auditoria', '');
+
+        // Definir campos específicos por tabla
+        const camposEspecificos = {
+            'reserva': ['reserva_codigo', 'reserva_nombres_cliente', 'reserva_apellidos_cliente'],
+            'vehiculo': ['vehiculo_codigo', 'vehiculo_placa'],
+            'persona': ['persona_codigo', 'persona_nombres', 'persona_apellidos'],
+            'usuario': ['usuario_codigo'],
+            'servicio': ['servicio_codigo', 'servicio_servicio'],
+            'ruta': ['ruta_codigo', 'ruta_ruta'],
+            'agencia': ['agencia_codigo', 'agencia_razon_social'],
+            'tipo_persona': ['tipo_persona_codigo', 'tipo_persona_tipo'],
+            'rol': ['rol_codigo', 'rol_rol'],
+            'estado': ['estado_codigo', 'estado_estado'],
+            'ruta_activada': ['ruta_activada_codigo'],
+            'contactos_agencia': ['contactos_agencia_codigo', 'contactos_agencia_nombres']
+        };
+
+        // Usar campos específicos de la tabla o fallback genérico
+        const campos = camposEspecificos[tablaSinSufijo] || [
+            `${tablaSinSufijo}_codigo`,
+            `${tablaSinSufijo}_nombre`,
+            `${tablaSinSufijo}_${tablaSinSufijo}`
+        ];
+
+        for (const campo of campos) {
+            if (item[campo]) {
+                if (tablaSinSufijo === 'reserva' && campo === 'reserva_nombres_cliente' && item['reserva_apellidos_cliente']) {
+                    campoPrincipal = `${item['reserva_nombres_cliente']} ${item['reserva_apellidos_cliente']}`;
+                } else if (tablaSinSufijo === 'persona' && campo === 'persona_nombres' && item['persona_apellidos']) {
+                    campoPrincipal = `${item['persona_nombres']} ${item['persona_apellidos']}`;
+                } else {
+                    campoPrincipal = item[campo];
+                }
+                break;
             }
         }
 
-        setAuditoriasFiltradas(resultado);
-    };
-
-    // Funciones de modal
-    const abrirModalDetalles = (auditoria) => {
-        setAuditoriaSeleccionada(auditoria);
-        setModalDetalles(true);
-    };
-
-    const cerrarModales = () => {
-        setModalDetalles(false);
-        setModalFiltrosAvanzados(false);
-        setAuditoriaSeleccionada(null);
-    };
-
-    // Funciones de utilidad
-    const formatearFecha = (fecha) => {
-        return new Date(fecha).toLocaleString('es-GT', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
-        });
-    };
-
-    const getAccionColor = (accion) => {
-        const colores = {
+        const colorAccion = {
             'INSERT': '#22c55e',
             'UPDATE': '#f59e0b',
             'DELETE': '#ef4444'
-        };
-        return colores[accion] || '#6b7280';
+        }[accion] || '#6b7280';
+
+        return e('div', {
+            style: {
+                display: 'grid',
+                gridTemplateColumns: 'auto 1fr auto auto',
+                gap: '1rem',
+                alignItems: 'center',
+                color: '#6b7280',
+                fontSize: '0.875rem'
+            }
+        }, [
+            // Indicador visual de acción
+            e('div', {
+                key: 'indicador',
+                style: {
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '50%',
+                    backgroundColor: colorAccion,
+                    flexShrink: 0
+                }
+            }),
+
+            // Información principal - MEJORADA
+            e('div', {
+                key: 'info',
+                style: {
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.25rem'
+                }
+            }, [
+                e('div', {
+                    style: {
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        flexWrap: 'wrap'
+                    }
+                }, [
+                    BotonesUniversal.badge({
+                        texto: accion,
+                        color: accion === 'INSERT' ? 'verde' : accion === 'UPDATE' ? 'amarillo' : 'rojo'
+                    }),
+                    e('strong', { style: { color: '#374151' } }, tabla.replace('_', ' ').toUpperCase()),
+                    e('span', {}, '→'),
+                    e('span', { style: { color: '#111827' } }, campoPrincipal)
+                ]),
+                e('div', {
+                    style: {
+                        fontSize: '0.75rem',
+                        color: '#9ca3af'
+                    }
+                }, [
+                    e('span', {}, `Usuario: ${usuarioNombre} | `),
+                    e('span', {}, `Fecha: ${fecha}`)
+                ])
+            ]),
+
+            // IP (si existe)
+            item.ip_modificacion && e('div', {
+                key: 'ip',
+                style: {
+                    fontSize: '0.75rem',
+                    color: '#6b7280',
+                    fontFamily: 'monospace'
+                }
+            }, item.ip_modificacion),
+
+            // ID de auditoría
+            e('div', {
+                key: 'id',
+                style: {
+                    fontSize: '0.75rem',
+                    color: '#9ca3af',
+                    fontFamily: 'monospace'
+                }
+            }, `#${item.auditoria_id}`)
+        ]);
     };
 
-    const getAccionTexto = (accion) => {
-        const textos = {
-            'INSERT': 'Creación',
-            'UPDATE': 'Modificación',
-            'DELETE': 'Eliminación'
-        };
-        return textos[accion] || accion;
+    // Funciones auxiliares
+    const obtenerNombreItem = (item) => {
+        return `Auditoría #${item.auditoria_id}` || 'Auditoría';
     };
 
-    const getTablaTexto = (codigo) => {
-        const tabla = catalogos.tablas.find(t => t.codigo === codigo);
-        return tabla ? tabla.nombre : codigo;
+    const obtenerIdItem = (item) => {
+        return item.auditoria_id;
     };
 
-    const getTablaIcono = (codigo) => {
-        const tabla = catalogos.tablas.find(t => t.codigo === codigo);
-        if (!tabla) return Icons.database();
-
-        const iconos = {
-            'calendar': Icons.calendar(),
-            'building': Icons.building(),
-            'user': Icons.user(),
-            'users': Icons.users(),
-            'truck': Icons.truck(),
-            'package': Icons.package(),
-            'route': Icons.route(),
-            'receipt': Icons.receipt()
-        };
-
-        return iconos[tabla.icono] || Icons.database();
+    // Abrir modal de detalles - MEJORADO
+    const abrirModalDetalles = (item) => {
+        setItemDetalles(item);
+        setModalDetalles(true);
     };
 
-    const exportarAuditoria = () => {
-        // Función para exportar a CSV o Excel
-        const csv = auditoriasFiltradas.map(a => ({
-            Fecha: formatearFecha(a.fecha_modificacion),
-            Tabla: getTablaTexto(a.tabla),
-            Accion: getAccionTexto(a.accion),
-            Usuario: a.usuario_nombre,
-            Registro: a.registro_id,
-            IP: a.ip_modificacion
-        }));
-
-        console.log('Exportar auditoría:', csv);
-        Notifications.info('Funcionalidad de exportación pendiente de implementar');
+    // Abrir modal de reporte
+    const abrirModalReporte = () => {
+        setFormularioReporte({
+            fecha_inicio: '',
+            fecha_fin: '',
+            tabla: '',
+            accion: '',
+            usuario_id: '',
+            tipo_reporte: 'resumen' // NUEVO
+        });
+        setModalReporte(true);
     };
+
+    // Generar reporte (texto original)
+    const generarReporte = async () => {
+        if (!formularioReporte.fecha_inicio || !formularioReporte.fecha_fin) {
+            Notifications.error('Las fechas de inicio y fin son requeridas');
+            return;
+        }
+
+        setLoadingAction(true);
+        try {
+            const response = await fetch('/api/magic/auditorias/reporte', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify(formularioReporte)
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+
+                // Crear un reporte visual simple
+                let reporteTexto = `REPORTE DE AUDITORÍA\n`;
+                reporteTexto += `Período: ${formularioReporte.fecha_inicio} a ${formularioReporte.fecha_fin}\n\n`;
+
+                if (result.data.resumen) {
+                    reporteTexto += `RESUMEN POR TABLA:\n`;
+                    Object.entries(result.data.resumen).forEach(([tabla, datos]) => {
+                        if (datos.total > 0) {
+                            reporteTexto += `${tabla}: ${datos.total} registros\n`;
+                            if (datos.por_accion) {
+                                Object.entries(datos.por_accion).forEach(([accion, count]) => {
+                                    reporteTexto += `  - ${accion}: ${count}\n`;
+                                });
+                            }
+                        }
+                    });
+                }
+
+                // Crear descarga
+                const blob = new Blob([reporteTexto], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `reporte-auditoria-${new Date().toISOString().split('T')[0]}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                Notifications.success('Reporte de texto generado exitosamente');
+            } else {
+                const errorData = await response.json();
+                Notifications.error(`Error al generar reporte: ${errorData.message}`);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            Notifications.error('Error de conexión');
+        } finally {
+            setLoadingAction(false);
+        }
+    };
+
+    // NUEVA FUNCIÓN: Generar reporte Excel
+    const generarReporteExcel = async () => {
+        if (!formularioReporte.fecha_inicio || !formularioReporte.fecha_fin) {
+            Notifications.error('Las fechas de inicio y fin son requeridas');
+            return;
+        }
+
+        setLoadingAction(true);
+        try {
+            const response = await fetch('/api/magic/auditorias/reporte-excel', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify(formularioReporte)
+            });
+
+            if (response.ok) {
+                // Crear descarga del archivo Excel
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `reporte-auditoria-${formularioReporte.tipo_reporte}-${new Date().toISOString().split('T')[0]}.xlsx`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+
+                Notifications.success('Reporte Excel generado exitosamente');
+                setModalReporte(false);
+            } else {
+                const errorData = await response.json();
+                Notifications.error(`Error al generar reporte Excel: ${errorData.message}`);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            Notifications.error('Error de conexión al generar Excel');
+        } finally {
+            setLoadingAction(false);
+        }
+    };
+
+    // Abrir confirmación de limpieza
+    const abrirModalLimpiar = () => {
+        setModalLimpiar(true);
+    };
+
+    // Ejecutar limpieza
+    const ejecutarLimpieza = async () => {
+        if (diasLimpiar < 30) {
+            Notifications.error('Mínimo 30 días para limpieza');
+            return;
+        }
+
+        setLoadingAction(true);
+        try {
+            const response = await fetch('/api/magic/auditorias/limpiar', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify({ dias: diasLimpiar })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                Notifications.success(result.message);
+                setModalLimpiar(false);
+                cargarDatos();
+                cargarEstadisticas();
+            } else {
+                const errorData = await response.json();
+                Notifications.error(`Error al limpiar: ${errorData.message}`);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            Notifications.error('Error de conexión');
+        } finally {
+            setLoadingAction(false);
+        }
+    };
+
+    // USAR DATOS DIRECTOS (sin sistema reutilizable para este caso específico)
+    const datosActuales = auditorias;
+    const totalDatos = auditorias.length;
 
     return e('div', {
         style: { padding: '1.5rem', maxWidth: '100%', minHeight: '100vh' }
     }, [
-        // Header
+        // Header - MODIFICADO TEXTO DEL BOTÓN
         e('div', {
             key: 'header',
             style: {
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: '2rem'
+                marginBottom: '2rem',
+                flexWrap: 'wrap',
+                gap: '1rem'
             }
         }, [
             e('div', { key: 'title-section' }, [
-                e('div', {
-                    key: 'title-content',
-                    style: { display: 'flex', alignItems: 'center', gap: '0.75rem' }
-                }, [
-                    e('div', {
-                        key: 'icon-container',
-                        style: {
-                            padding: '0.75rem',
-                            backgroundColor: '#dc2626',
-                            borderRadius: '12px',
-                            color: 'white'
-                        }
-                    }, Icons.shield()),
-                    e('div', { key: 'title-text' }, [
-                        e('h1', {
-                            key: 'main-title',
-                            style: {
-                                fontSize: '2rem',
-                                fontWeight: '700',
-                                color: '#111827',
-                                margin: '0',
-                                lineHeight: '1.2'
-                            }
-                        }, 'Gestión de Auditorías'),
-                        e('p', {
-                            key: 'description',
-                            style: {
-                                color: '#6b7280',
-                                margin: '0.25rem 0 0 0',
-                                fontSize: '1rem'
-                            }
-                        }, 'Log completo de cambios en el sistema Magic Travel')
-                    ])
-                ])
+                e('h1', {
+                    key: 'title',
+                    style: {
+                        fontSize: '2rem',
+                        fontWeight: '700',
+                        color: '#111827',
+                        margin: '0 0 0.5rem 0'
+                    }
+                }, 'Gestión de Auditorías'),
+                e('p', {
+                    key: 'subtitle',
+                    style: {
+                        color: '#6b7280',
+                        margin: 0
+                    }
+                }, 'Monitoreo y seguimiento de cambios en el sistema')
             ]),
+
             e('div', {
                 key: 'header-actions',
-                style: { display: 'flex', gap: '0.75rem' }
+                style: { display: 'flex', gap: '0.75rem', alignItems: 'center' }
             }, [
-                e('button', {
-                    key: 'btn-exportar',
-                    onClick: exportarAuditoria,
-                    style: {
-                        padding: '0.75rem 1.5rem',
-                        backgroundColor: '#22c55e',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        fontSize: '0.875rem',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                    }
-                }, [Icons.download(), 'Exportar']),
-                e('button', {
-                    key: 'btn-actualizar',
-                    onClick: cargarAuditorias,
-                    style: {
-                        padding: '0.75rem 1.5rem',
-                        backgroundColor: '#dc2626',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        fontSize: '0.875rem',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                    }
-                }, [Icons.refresh(), 'Actualizar'])
+                BotonesUniversal.secundario({
+                    onClick: abrirModalReporte,
+                    texto: 'Reportes', // CAMBIADO DE "Generar Reporte" A "Reportes"
+                    icono: Icons.download('#6b7280'),
+                    key: 'btn-reporte'
+                }),
+                BotonesUniversal.peligro({
+                    onClick: abrirModalLimpiar,
+                    texto: 'Limpiar Antiguos',
+                    icono: Icons.trash('#ffffff'),
+                    key: 'btn-limpiar'
+                })
             ])
         ]),
 
-        // Estadísticas de auditoría
-        e('div', {
-            key: 'stats',
+        // Panel de estadísticas
+        estadisticas && e('div', {
+            key: 'panel-estadisticas',
             style: {
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
                 gap: '1rem',
                 marginBottom: '2rem'
             }
         }, [
+            // Total de registros
             e('div', {
-                key: 'stat-eventos-total',
+                key: 'stat-total',
                 style: {
-                    backgroundColor: 'white',
-                    padding: '1.5rem',
+                    backgroundColor: '#f0f9ff',
+                    border: '1px solid #bae6fd',
                     borderRadius: '12px',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                    border: '1px solid #e5e7eb'
-                }
-            }, [
-                e('div', {
-                    style: {
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                    }
-                }, [
-                    e('div', {}, [
-                        e('p', {
-                            style: {
-                                fontSize: '0.875rem',
-                                color: '#6b7280',
-                                margin: '0 0 0.25rem 0'
-                            }
-                        }, 'Total Eventos'),
-                        e('p', {
-                            style: {
-                                fontSize: '1.875rem',
-                                fontWeight: '700',
-                                color: '#dc2626',
-                                margin: '0'
-                            }
-                        }, estadisticas.total_eventos.toString())
-                    ]),
-                    e('div', {
-                        style: {
-                            padding: '0.75rem',
-                            backgroundColor: '#fecaca',
-                            borderRadius: '8px',
-                            color: '#dc2626'
-                        }
-                    }, Icons.database())
-                ])
-            ]),
-
-            e('div', {
-                key: 'stat-eventos-hoy',
-                style: {
-                    backgroundColor: 'white',
                     padding: '1.5rem',
-                    borderRadius: '12px',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                    border: '1px solid #e5e7eb'
-                }
-            }, [
-                e('div', {
-                    style: {
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                    }
-                }, [
-                    e('div', {}, [
-                        e('p', {
-                            style: {
-                                fontSize: '0.875rem',
-                                color: '#6b7280',
-                                margin: '0 0 0.25rem 0'
-                            }
-                        }, 'Eventos Hoy'),
-                        e('p', {
-                            style: {
-                                fontSize: '1.875rem',
-                                fontWeight: '700',
-                                color: '#3b82f6',
-                                margin: '0'
-                            }
-                        }, estadisticas.eventos_hoy.toString())
-                    ]),
-                    e('div', {
-                        style: {
-                            padding: '0.75rem',
-                            backgroundColor: '#dbeafe',
-                            borderRadius: '8px',
-                            color: '#3b82f6'
-                        }
-                    }, Icons.clock())
-                ])
-            ]),
-
-            e('div', {
-                key: 'stat-usuarios-activos',
-                style: {
-                    backgroundColor: 'white',
-                    padding: '1.5rem',
-                    borderRadius: '12px',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                    border: '1px solid #e5e7eb'
-                }
-            }, [
-                e('div', {
-                    style: {
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                    }
-                }, [
-                    e('div', {}, [
-                        e('p', {
-                            style: {
-                                fontSize: '0.875rem',
-                                color: '#6b7280',
-                                margin: '0 0 0.25rem 0'
-                            }
-                        }, 'Usuarios Activos'),
-                        e('p', {
-                            style: {
-                                fontSize: '1.875rem',
-                                fontWeight: '700',
-                                color: '#22c55e',
-                                margin: '0'
-                            }
-                        }, estadisticas.usuarios_activos.toString())
-                    ]),
-                    e('div', {
-                        style: {
-                            padding: '0.75rem',
-                            backgroundColor: '#dcfce7',
-                            borderRadius: '8px',
-                            color: '#22c55e'
-                        }
-                    }, Icons.users())
-                ])
-            ]),
-
-            e('div', {
-                key: 'stat-tabla-top',
-                style: {
-                    backgroundColor: 'white',
-                    padding: '1rem',
-                    borderRadius: '8px',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                     textAlign: 'center'
                 }
             }, [
-                e('p', {
-                    style: { fontSize: '0.75rem', color: '#6b7280', margin: '0' }
-                }, 'Tabla Más Modificada'),
-                e('p', {
+                e('div', {
                     style: {
-                        fontSize: '1rem',
-                        fontWeight: '600',
-                        color: '#f59e0b',
-                        margin: '0',
-                        textTransform: 'capitalize'
+                        fontSize: '2rem',
+                        fontWeight: '700',
+                        color: '#0369a1',
+                        marginBottom: '0.5rem'
                     }
-                }, getTablaTexto(estadisticas.tabla_mas_modificada))
-            ])
-        ]),
-
-        // Alerta de último evento
-        estadisticas.ultimo_evento && e('div', {
-            key: 'last-event-alert',
-            style: {
-                backgroundColor: '#fef3c7',
-                border: '1px solid #fbbf24',
-                borderRadius: '8px',
-                padding: '1rem',
-                marginBottom: '1.5rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem'
-            }
-        }, [
-            e('div', {
-                style: { color: '#f59e0b' }
-            }, Icons.info()),
-            e('div', { style: { flex: 1 } }, [
-                e('p', {
+                }, estadisticas.total_registros?.toLocaleString() || '0'),
+                e('div', {
                     style: {
                         fontSize: '0.875rem',
-                        color: '#92400e',
-                        margin: '0',
+                        color: '#0369a1',
                         fontWeight: '500'
                     }
-                }, 'Último evento registrado:'),
-                e('p', {
+                }, 'Total de Registros de Auditoría')
+            ]),
+
+            // Acciones por tipo
+            Object.entries(estadisticas.acciones_por_tipo || {}).map(([accion, total]) => {
+                const colores = {
+                    'INSERT': { bg: '#dcfce7', border: '#bbf7d0', text: '#16a34a' },
+                    'UPDATE': { bg: '#fef3c7', border: '#fde68a', text: '#f59e0b' },
+                    'DELETE': { bg: '#fef2f2', border: '#fecaca', text: '#ef4444' }
+                };
+                const color = colores[accion] || colores.UPDATE;
+
+                return e('div', {
+                    key: `stat-${accion}`,
                     style: {
-                        fontSize: '0.75rem',
-                        color: '#a16207',
-                        margin: '0'
+                        backgroundColor: color.bg,
+                        border: `1px solid ${color.border}`,
+                        borderRadius: '12px',
+                        padding: '1.5rem',
+                        textAlign: 'center'
                     }
-                }, `${getAccionTexto(estadisticas.ultimo_evento.accion)} en ${getTablaTexto(estadisticas.ultimo_evento.tabla)} por ${estadisticas.ultimo_evento.usuario_nombre} - ${formatearFecha(estadisticas.ultimo_evento.fecha_modificacion)}`)
-            ])
+                }, [
+                    e('div', {
+                        style: {
+                            fontSize: '2rem',
+                            fontWeight: '700',
+                            color: color.text,
+                            marginBottom: '0.5rem'
+                        }
+                    }, total.toLocaleString()),
+                    e('div', {
+                        style: {
+                            fontSize: '0.875rem',
+                            color: color.text,
+                            fontWeight: '500'
+                        }
+                    }, `${accion}s`)
+                ]);
+            })
         ]),
 
-        // Filtros
+        // Panel de filtros MEJORADO
         e('div', {
-            key: 'filters',
+            key: 'panel-filtros',
             style: {
-                backgroundColor: 'white',
-                padding: '1.5rem',
+                backgroundColor: '#f9fafb',
+                border: '1px solid #e5e7eb',
                 borderRadius: '12px',
-                marginBottom: '1.5rem',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                padding: '1.5rem',
+                marginBottom: '2rem'
             }
         }, [
+            e('h3', {
+                style: {
+                    fontSize: '1.125rem',
+                    fontWeight: '600',
+                    color: '#111827',
+                    margin: '0 0 1rem 0'
+                }
+            }, 'Filtros de Búsqueda'),
+
+            // PRIMERA FILA: Búsqueda de texto y Usuario
             e('div', {
-                key: 'filters-row',
+                style: {
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                    gap: '1rem',
+                    marginBottom: '1rem'
+                }
+            }, [
+                // Campo de búsqueda de texto libre
+                e('div', {}, [
+                    e('label', {
+                        style: {
+                            display: 'block',
+                            fontSize: '0.875rem',
+                            fontWeight: '500',
+                            color: '#374151',
+                            marginBottom: '0.5rem'
+                        }
+                    }, 'Buscar en registros:'),
+                    e('input', {
+                        type: 'text',
+                        value: filtros.busqueda,
+                        onChange: (e) => manejarCambioFiltro('busqueda', e.target.value),
+                        placeholder: 'Código, nombre, teléfono, etc...',
+                        style: {
+                            width: '100%',
+                            padding: '0.5rem',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '6px',
+                            fontSize: '0.875rem'
+                        }
+                    })
+                ]),
+
+                // Usuario - Select normal mejorado
+                e('div', {}, [
+                    e('label', {
+                        style: {
+                            display: 'block',
+                            fontSize: '0.875rem',
+                            fontWeight: '500',
+                            color: '#374151',
+                            marginBottom: '0.5rem'
+                        }
+                    }, 'Usuario:'),
+                    e('select', {
+                        value: filtros.usuario_id || '',
+                        onChange: (e) => manejarCambioFiltro('usuario_id', e.target.value),
+                        style: {
+                            width: '100%',
+                            padding: '0.5rem',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '6px',
+                            fontSize: '0.875rem'
+                        }
+                    }, [
+                        e('option', { value: '' }, 'Todos los usuarios'),
+                        ...usuarios.map(usuario => {
+                            const nombre = usuario.nombre_completo ||
+                                (usuario.persona ? usuario.persona.nombre : '') ||
+                                `Usuario ${usuario.codigo}`;
+
+                            return e('option', {
+                                key: usuario.id,
+                                value: usuario.id.toString()
+                            }, `${nombre} (${usuario.codigo})`);
+                        })
+                    ])
+                ])
+            ]),
+
+            // SEGUNDA FILA: Filtros existentes
+            e('div', {
                 style: {
                     display: 'grid',
                     gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
                     gap: '1rem',
-                    alignItems: 'end'
+                    marginBottom: '1rem'
                 }
             }, [
-                // Búsqueda
-                e('div', { key: 'search-input' }, [
+                // Tabla - Select normal mejorado
+                e('div', {}, [
                     e('label', {
                         style: {
                             display: 'block',
@@ -639,67 +825,36 @@ function GestionAuditorias() {
                             color: '#374151',
                             marginBottom: '0.5rem'
                         }
-                    }, 'Buscar en auditoría'),
-                    e('div', { style: { position: 'relative' } }, [
-                        e('input', {
-                            type: 'text',
-                            placeholder: 'Usuario, tabla, ID, IP...',
-                            value: searchTerm,
-                            onChange: (e) => setSearchTerm(e.target.value),
-                            style: {
-                                width: '100%',
-                                padding: '0.75rem 1rem 0.75rem 2.5rem',
-                                border: '1px solid #d1d5db',
-                                borderRadius: '8px',
-                                fontSize: '0.875rem'
-                            }
-                        }),
-                        e('div', {
-                            style: {
-                                position: 'absolute',
-                                left: '0.75rem',
-                                top: '50%',
-                                transform: 'translateY(-50%)',
-                                color: '#9ca3af'
-                            }
-                        }, Icons.search())
-                    ])
-                ]),
-
-                // Filtro tabla
-                e('div', { key: 'filter-tabla' }, [
-                    e('label', {
-                        style: {
-                            display: 'block',
-                            fontSize: '0.875rem',
-                            fontWeight: '500',
-                            color: '#374151',
-                            marginBottom: '0.5rem'
-                        }
-                    }, 'Tabla'),
+                    }, 'Tabla:'),
                     e('select', {
-                        value: filtroTabla,
-                        onChange: (e) => setFiltroTabla(e.target.value),
+                        value: filtros.tabla || '',
+                        onChange: (e) => manejarCambioFiltro('tabla', e.target.value),
                         style: {
                             width: '100%',
-                            padding: '0.75rem',
+                            padding: '0.5rem',
                             border: '1px solid #d1d5db',
-                            borderRadius: '8px',
+                            borderRadius: '6px',
                             fontSize: '0.875rem'
                         }
                     }, [
-                        e('option', { value: 'todas' }, 'Todas las tablas'),
-                        ...catalogos.tablas.map(tabla =>
-                            e('option', {
-                                key: tabla.codigo,
-                                value: tabla.codigo
-                            }, tabla.nombre)
-                        )
+                        e('option', { value: '' }, 'Todas las tablas'),
+                        e('option', { value: 'tipo_persona' }, 'Tipos de Persona'),
+                        e('option', { value: 'rol' }, 'Roles'),
+                        e('option', { value: 'estado' }, 'Estados'),
+                        e('option', { value: 'servicio' }, 'Servicios'),
+                        e('option', { value: 'ruta' }, 'Rutas'),
+                        e('option', { value: 'agencia' }, 'Agencias'),
+                        e('option', { value: 'persona' }, 'Personas'),
+                        e('option', { value: 'vehiculo' }, 'Vehículos'),
+                        e('option', { value: 'contactos_agencia' }, 'Contactos Agencia'),
+                        e('option', { value: 'usuario' }, 'Usuarios'),
+                        e('option', { value: 'ruta_activada' }, 'Rutas Activadas'),
+                        e('option', { value: 'reserva' }, 'Reservas')
                     ])
                 ]),
 
-                // Filtro acción
-                e('div', { key: 'filter-accion' }, [
+                // Acción - Select normal
+                e('div', {}, [
                     e('label', {
                         style: {
                             display: 'block',
@@ -708,27 +863,27 @@ function GestionAuditorias() {
                             color: '#374151',
                             marginBottom: '0.5rem'
                         }
-                    }, 'Acción'),
+                    }, 'Acción:'),
                     e('select', {
-                        value: filtroAccion,
-                        onChange: (e) => setFiltroAccion(e.target.value),
+                        value: filtros.accion || '',
+                        onChange: (e) => manejarCambioFiltro('accion', e.target.value),
                         style: {
                             width: '100%',
-                            padding: '0.75rem',
+                            padding: '0.5rem',
                             border: '1px solid #d1d5db',
-                            borderRadius: '8px',
+                            borderRadius: '6px',
                             fontSize: '0.875rem'
                         }
                     }, [
-                        e('option', { value: 'todas' }, 'Todas'),
-                        e('option', { value: 'INSERT' }, 'Creaciones'),
-                        e('option', { value: 'UPDATE' }, 'Modificaciones'),
-                        e('option', { value: 'DELETE' }, 'Eliminaciones')
+                        e('option', { value: '' }, 'Todas las acciones'),
+                        e('option', { value: 'INSERT' }, 'Creaciones (INSERT)'),
+                        e('option', { value: 'UPDATE' }, 'Modificaciones (UPDATE)'),
+                        e('option', { value: 'DELETE' }, 'Eliminaciones (DELETE)')
                     ])
                 ]),
 
-                // Filtro fecha
-                e('div', { key: 'filter-fecha' }, [
+                // Fecha inicio
+                e('div', {}, [
                     e('label', {
                         style: {
                             display: 'block',
@@ -737,31 +892,72 @@ function GestionAuditorias() {
                             color: '#374151',
                             marginBottom: '0.5rem'
                         }
-                    }, 'Período'),
-                    e('select', {
-                        value: filtroFecha,
-                        onChange: (e) => setFiltroFecha(e.target.value),
+                    }, 'Fecha Inicio:'),
+                    e('input', {
+                        type: 'date',
+                        value: filtros.fecha_inicio,
+                        onChange: (e) => manejarCambioFiltro('fecha_inicio', e.target.value),
                         style: {
                             width: '100%',
-                            padding: '0.75rem',
+                            padding: '0.5rem',
                             border: '1px solid #d1d5db',
-                            borderRadius: '8px',
+                            borderRadius: '6px',
                             fontSize: '0.875rem'
                         }
-                    }, [
-                        e('option', { value: 'todas' }, 'Todas'),
-                        e('option', { value: 'hoy' }, 'Hoy'),
-                        e('option', { value: 'ayer' }, 'Ayer'),
-                        e('option', { value: 'semana' }, 'Esta semana'),
-                        e('option', { value: 'mes' }, 'Este mes')
-                    ])
+                    })
+                ]),
+
+                // Fecha fin
+                e('div', {}, [
+                    e('label', {
+                        style: {
+                            display: 'block',
+                            fontSize: '0.875rem',
+                            fontWeight: '500',
+                            color: '#374151',
+                            marginBottom: '0.5rem'
+                        }
+                    }, 'Fecha Fin:'),
+                    e('input', {
+                        type: 'date',
+                        value: filtros.fecha_fin,
+                        onChange: (e) => manejarCambioFiltro('fecha_fin', e.target.value),
+                        style: {
+                            width: '100%',
+                            padding: '0.5rem',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '6px',
+                            fontSize: '0.875rem'
+                        }
+                    })
                 ])
+            ]),
+
+            // Botones de filtros
+            e('div', {
+                style: {
+                    display: 'flex',
+                    gap: '0.5rem',
+                    justifyContent: 'flex-end'
+                }
+            }, [
+                BotonesUniversal.secundario({
+                    onClick: limpiarFiltros,
+                    texto: 'Limpiar',
+                    icono: Icons.refresh('#6b7280')
+                }),
+                BotonesUniversal.primario({
+                    onClick: cargarDatos,
+                    texto: 'Aplicar Filtros',
+                    icono: Icons.search('#ffffff'),
+                    loading: loading
+                })
             ])
         ]),
 
-        // Lista de auditorías
+        // Lista principal
         e('div', {
-            key: 'auditorias-list',
+            key: 'lista-principal',
             style: {
                 backgroundColor: 'white',
                 borderRadius: '12px',
@@ -771,203 +967,97 @@ function GestionAuditorias() {
         }, [
             loading ? e('div', {
                 key: 'loading',
-                style: {
-                    padding: '3rem',
-                    textAlign: 'center'
-                }
-            }, [
-                e('div', {
-                    style: {
-                        width: '32px',
-                        height: '32px',
-                        border: '3px solid #f3f4f6',
-                        borderTop: '3px solid #dc2626',
-                        borderRadius: '50%',
-                        animation: 'spin 1s linear infinite',
-                        margin: '0 auto 1rem'
-                    }
-                }),
-                e('p', { style: { color: '#6b7280' } }, 'Cargando eventos de auditoría...')
-            ]) : auditoriasFiltradas.length > 0 ? auditoriasFiltradas.map((auditoria, index) =>
-                e('div', {
-                    key: `auditoria-${auditoria.auditoria_id || index}`,
-                    style: {
-                        padding: '1.5rem',
-                        borderBottom: index < auditoriasFiltradas.length - 1 ? '1px solid #f3f4f6' : 'none'
-                    }
-                }, [
-                    e('div', {
-                        key: 'auditoria-content',
-                        style: {
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between'
-                        }
-                    }, [
-                        e('div', {
-                            key: 'auditoria-info',
-                            style: { flex: 1 }
+                style: { padding: '3rem', textAlign: 'center' }
+            }, 'Cargando auditorías...') :
+                datosActuales.length > 0 ?
+                    datosActuales.map((item, index) => {
+                        const itemId = obtenerIdItem(item) || index;
+
+                        return e('div', {
+                            key: `item-${itemId}`,
+                            style: {
+                                padding: '1.5rem',
+                                borderBottom: index < datosActuales.length - 1 ? '1px solid #f3f4f6' : 'none',
+                                transition: 'background-color 0.2s ease'
+                            },
+                            onMouseEnter: (e) => e.currentTarget.style.backgroundColor = '#f9fafb',
+                            onMouseLeave: (e) => e.currentTarget.style.backgroundColor = 'transparent'
                         }, [
                             e('div', {
-                                key: 'auditoria-header',
+                                key: `item-content-${itemId}`,
                                 style: {
                                     display: 'flex',
+                                    justifyContent: 'space-between',
                                     alignItems: 'center',
-                                    gap: '1rem',
-                                    marginBottom: '0.5rem'
+                                    gap: '1.5rem'
                                 }
                             }, [
+                                // Información del item
                                 e('div', {
-                                    key: 'tabla-icono',
-                                    style: {
-                                        padding: '0.5rem',
-                                        backgroundColor: '#f3f4f6',
-                                        borderRadius: '6px',
-                                        color: '#374151'
-                                    }
-                                }, getTablaIcono(auditoria.tabla)),
-
-                                e('h3', {
-                                    key: 'evento-titulo',
-                                    style: {
-                                        fontSize: '1.125rem',
-                                        fontWeight: '600',
-                                        color: '#111827',
-                                        margin: '0'
-                                    }
-                                }, `${getAccionTexto(auditoria.accion)} en ${getTablaTexto(auditoria.tabla)}`),
-
-                                e('span', {
-                                    key: 'registro-id',
-                                    style: {
-                                        padding: '0.25rem 0.5rem',
-                                        backgroundColor: '#f3f4f6',
-                                        color: '#374151',
-                                        borderRadius: '4px',
-                                        fontSize: '0.75rem',
-                                        fontFamily: 'monospace'
-                                    }
-                                }, `ID: ${auditoria.registro_id}`),
-
-                                e('span', {
-                                    key: 'accion-badge',
-                                    style: {
-                                        padding: '0.25rem 0.5rem',
-                                        backgroundColor: getAccionColor(auditoria.accion) + '20',
-                                        color: getAccionColor(auditoria.accion),
-                                        borderRadius: '4px',
-                                        fontSize: '0.75rem',
-                                        fontWeight: '500'
-                                    }
-                                }, getAccionTexto(auditoria.accion))
-                            ]),
-
-                            e('div', {
-                                key: 'auditoria-details',
-                                style: {
-                                    display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                                    gap: '1rem',
-                                    color: '#6b7280',
-                                    fontSize: '0.875rem'
-                                }
-                            }, [
-                                e('div', { key: 'usuario-info' }, [
-                                    e('p', { style: { margin: '0 0 0.25rem 0' } }, [
-                                        e('strong', {}, 'Usuario: '),
-                                        auditoria.usuario_nombre
-                                    ]),
-                                    e('p', { style: { margin: '0 0 0.25rem 0' } }, [
-                                        e('strong', {}, 'IP: '),
-                                        auditoria.ip_modificacion || 'N/A'
-                                    ]),
-                                    e('p', { style: { margin: '0' } }, [
-                                        e('strong', {}, 'Fecha: '),
-                                        formatearFecha(auditoria.fecha_modificacion)
-                                    ])
+                                    key: `item-info-${itemId}`,
+                                    style: { flex: '1' }
+                                }, [
+                                    renderizarItem(item)
                                 ]),
 
-                                e('div', { key: 'cambios-info' }, [
-                                    e('p', { style: { margin: '0 0 0.25rem 0' } }, [
-                                        e('strong', {}, 'Registro ID: '),
-                                        auditoria.registro_id
-                                    ]),
-                                    auditoria.campos_modificados && auditoria.campos_modificados.length > 0 && e('p', {
-                                        style: { margin: '0 0 0.25rem 0' }
-                                    }, [
-                                        e('strong', {}, 'Campos: '),
-                                        auditoria.campos_modificados.join(', ')
-                                    ]),
-                                    e('p', { style: { margin: '0' } }, [
-                                        e('strong', {}, 'Evento: '),
-                                        `#${auditoria.auditoria_id}`
-                                    ])
+                                // Acciones
+                                e('div', {
+                                    key: `item-actions-${itemId}`,
+                                    style: {
+                                        display: 'flex',
+                                        gap: '0.5rem',
+                                        flexShrink: 0
+                                    }
+                                }, [
+                                    BotonesUniversal.ver({ onClick: () => abrirModalDetalles(item) })
                                 ])
                             ])
-                        ]),
-
-                        e('div', {
-                            key: 'auditoria-actions',
-                            style: {
-                                display: 'flex',
-                                gap: '0.5rem',
-                                alignItems: 'center'
-                            }
-                        }, [
-                            e('button', {
-                                key: 'btn-detalles',
-                                onClick: () => abrirModalDetalles(auditoria),
-                                style: {
-                                    padding: '0.5rem',
-                                    border: '1px solid #d1d5db',
-                                    borderRadius: '6px',
-                                    backgroundColor: 'white',
-                                    color: '#374151',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center'
-                                }
-                            }, Icons.eye())
-                        ])
+                        ]);
+                    }) :
+                    e('div', {
+                        key: 'no-data',
+                        style: {
+                            padding: '4rem',
+                            textAlign: 'center',
+                            color: '#9ca3af'
+                        }
+                    }, [
+                        e('p', {
+                            key: 'no-data-text',
+                            style: { fontSize: '1.125rem', marginBottom: '0.5rem' }
+                        }, 'No hay registros de auditoría disponibles'),
+                        e('p', {
+                            key: 'no-data-hint',
+                            style: { fontSize: '0.875rem' }
+                        }, 'Ajusta los filtros para ver más resultados')
                     ])
-                ])
-            ) : e('div', {
-                key: 'no-auditorias',
-                style: {
-                    padding: '3rem',
-                    textAlign: 'center'
-                }
-            }, [
-                e('div', {
-                    key: 'no-auditorias-icon',
-                    style: {
-                        fontSize: '3rem',
-                        color: '#d1d5db',
-                        marginBottom: '1rem'
-                    }
-                }, Icons.shield()),
-                e('h3', {
-                    key: 'no-auditorias-title',
-                    style: {
-                        fontSize: '1.125rem',
-                        fontWeight: '600',
-                        color: '#374151',
-                        margin: '0 0 0.5rem 0'
-                    }
-                }, 'No hay eventos de auditoría'),
-                e('p', {
-                    key: 'no-auditorias-text',
-                    style: {
-                        color: '#6b7280',
-                        margin: '0'
-                    }
-                }, 'Los eventos aparecen automáticamente cuando se realizan cambios en el sistema')
-            ])
         ]),
 
-        // Modal de detalles
-        modalDetalles && auditoriaSeleccionada && e('div', {
-            key: 'modal-detalles',
+        // Información básica de paginación
+        totalDatos > 0 && e('div', {
+            key: 'info-paginacion',
+            style: {
+                padding: '1rem',
+                textAlign: 'center',
+                color: '#6b7280',
+                fontSize: '0.875rem',
+                backgroundColor: '#f9fafb'
+            }
+        }, `Mostrando ${datosActuales.length} de ${totalDatos} registros de auditoría`),
+
+        // Modal de detalles MEJORADO - con labels personalizados
+        ModalUniversal.detalles({
+            abierto: modalDetalles,
+            cerrar: () => setModalDetalles(false),
+            item: itemDetalles,
+            tipoItem: itemDetalles ? `Auditoría de ${itemDetalles.tabla_original?.replace('_', ' ') || 'registro'}` : 'auditoría',
+            camposExcluir: ['original_created_at', 'original_updated_at', 'original_created_by', 'original_updated_by', 'original_deleted_at'],
+            labelsPersonalizados: itemDetalles ? generarLabelsPersonalizados(itemDetalles) : {}
+        }),
+
+        // MODAL DE REPORTE COMPLETAMENTE NUEVO CON EXCEL
+        modalReporte && e('div', {
+            key: 'modal-reporte-overlay',
             style: {
                 position: 'fixed',
                 top: 0,
@@ -978,231 +1068,438 @@ function GestionAuditorias() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                zIndex: 1100,
-                padding: '1rem'
+                zIndex: 1200
             }
         }, [
             e('div', {
-                key: 'modal-detalles-content',
+                key: 'modal-reporte-content',
                 style: {
                     backgroundColor: 'white',
-                    borderRadius: '16px',
-                    maxWidth: '800px',
-                    width: '100%',
-                    maxHeight: '90vh',
-                    overflow: 'auto'
+                    borderRadius: '12px',
+                    maxWidth: '650px',
+                    width: '90%',
+                    padding: '2rem',
+                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
                 }
             }, [
+                // Header del modal
                 e('div', {
-                    key: 'modal-header',
                     style: {
-                        padding: '1.5rem',
-                        borderBottom: '1px solid #e5e7eb',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'space-between'
+                        gap: '0.75rem',
+                        marginBottom: '1.5rem'
                     }
                 }, [
                     e('div', {
-                        style: { display: 'flex', alignItems: 'center', gap: '0.75rem' }
-                    }, [
-                        e('div', {
-                            style: {
-                                padding: '0.5rem',
-                                backgroundColor: getAccionColor(auditoriaSeleccionada.accion) + '20',
-                                borderRadius: '6px',
-                                color: getAccionColor(auditoriaSeleccionada.accion)
-                            }
-                        }, getTablaIcono(auditoriaSeleccionada.tabla)),
-                        e('h3', {
-                            style: {
-                                fontSize: '1.25rem',
-                                fontWeight: '600',
-                                color: '#111827',
-                                margin: '0'
-                            }
-                        }, `Evento de Auditoría #${auditoriaSeleccionada.auditoria_id}`)
-                    ]),
-                    e('button', {
-                        onClick: cerrarModales,
                         style: {
-                            padding: '0.5rem',
-                            border: 'none',
-                            backgroundColor: 'transparent',
-                            cursor: 'pointer',
-                            fontSize: '1.5rem'
+                            padding: '0.75rem',
+                            backgroundColor: '#16a34a',
+                            borderRadius: '8px',
+                            color: 'white'
                         }
-                    }, Icons.x())
+                    }, Icons.download('#ffffff')),
+                    e('h3', {
+                        style: {
+                            fontSize: '1.25rem',
+                            fontWeight: '600',
+                            color: '#111827',
+                            margin: '0'
+                        }
+                    }, 'Generar Reporte de Auditoría')
                 ]),
 
                 e('div', {
-                    key: 'modal-body',
-                    style: { padding: '1.5rem' }
+                    style: { display: 'grid', gap: '1.5rem', marginBottom: '2rem' }
                 }, [
-                    // Información del evento
+                    // Tipo de reporte - NUEVO CAMPO
+                    e('div', {}, [
+                        e('label', {
+                            style: {
+                                display: 'block',
+                                fontSize: '0.875rem',
+                                fontWeight: '600',
+                                color: '#374151',
+                                marginBottom: '0.75rem'
+                            }
+                        }, 'Tipo de Reporte'),
+                        e('select', {
+                            value: formularioReporte.tipo_reporte,
+                            onChange: (e) => setFormularioReporte(prev => ({ ...prev, tipo_reporte: e.target.value })),
+                            style: {
+                                width: '100%',
+                                padding: '0.75rem',
+                                border: '2px solid #d1d5db',
+                                borderRadius: '8px',
+                                fontSize: '0.875rem',
+                                backgroundColor: 'white'
+                            }
+                        }, [
+                            e('option', { value: 'resumen' }, 'Resumen General - Vista consolidada por tabla'),
+                            e('option', { value: 'detallado' }, 'Reporte Detallado - Lista completa de registros'),
+                            e('option', { value: 'por_usuario' }, 'Agrupado por Usuario - Estadísticas de actividad'),
+                            e('option', { value: 'por_tabla' }, 'Agrupado por Tabla - Similar al resumen')
+                        ])
+                    ]),
+
+                    // Fechas en una fila
                     e('div', {
-                        key: 'evento-info',
                         style: {
-                            marginBottom: '2rem'
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr',
+                            gap: '1rem',
+                            padding: '1rem',
+                            backgroundColor: '#f8fafc',
+                            borderRadius: '8px',
+                            border: '1px solid #e2e8f0'
+                        }
+                    }, [
+                        e('div', {}, [
+                            e('label', {
+                                style: {
+                                    display: 'block',
+                                    fontSize: '0.875rem',
+                                    fontWeight: '600',
+                                    color: '#374151',
+                                    marginBottom: '0.5rem'
+                                }
+                            }, 'Fecha Inicio *'),
+                            e('input', {
+                                type: 'date',
+                                value: formularioReporte.fecha_inicio,
+                                onChange: (e) => setFormularioReporte(prev => ({ ...prev, fecha_inicio: e.target.value })),
+                                style: {
+                                    width: '100%',
+                                    padding: '0.75rem',
+                                    border: '2px solid #d1d5db',
+                                    borderRadius: '6px',
+                                    fontSize: '0.875rem'
+                                }
+                            })
+                        ]),
+
+                        e('div', {}, [
+                            e('label', {
+                                style: {
+                                    display: 'block',
+                                    fontSize: '0.875rem',
+                                    fontWeight: '600',
+                                    color: '#374151',
+                                    marginBottom: '0.5rem'
+                                }
+                            }, 'Fecha Fin *'),
+                            e('input', {
+                                type: 'date',
+                                value: formularioReporte.fecha_fin,
+                                onChange: (e) => setFormularioReporte(prev => ({ ...prev, fecha_fin: e.target.value })),
+                                style: {
+                                    width: '100%',
+                                    padding: '0.75rem',
+                                    border: '2px solid #d1d5db',
+                                    borderRadius: '6px',
+                                    fontSize: '0.875rem'
+                                }
+                            })
+                        ])
+                    ]),
+
+                    // Filtros opcionales
+                    e('div', {
+                        style: {
+                            padding: '1rem',
+                            backgroundColor: '#fefce8',
+                            borderRadius: '8px',
+                            border: '1px solid #facc15'
                         }
                     }, [
                         e('h4', {
                             style: {
-                                fontSize: '1rem',
+                                fontSize: '0.875rem',
                                 fontWeight: '600',
-                                color: '#111827',
-                                marginBottom: '1rem'
+                                color: '#a16207',
+                                margin: '0 0 1rem 0'
                             }
-                        }, 'Información del Evento'),
+                        }, 'Filtros Opcionales (dejar vacío para incluir todo)'),
+
                         e('div', {
-                            style: {
-                                display: 'grid',
-                                gridTemplateColumns: '1fr 1fr',
-                                gap: '1rem',
-                                fontSize: '0.875rem'
-                            }
+                            style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }
                         }, [
                             e('div', {}, [
-                                e('p', { style: { margin: '0 0 0.5rem 0' } }, [
-                                    e('strong', {}, 'Tabla: '),
-                                    getTablaTexto(auditoriaSeleccionada.tabla)
-                                ]),
-                                e('p', { style: { margin: '0 0 0.5rem 0' } }, [
-                                    e('strong', {}, 'Acción: '),
-                                    getAccionTexto(auditoriaSeleccionada.accion)
-                                ]),
-                                e('p', { style: { margin: '0' } }, [
-                                    e('strong', {}, 'Registro ID: '),
-                                    auditoriaSeleccionada.registro_id
+                                e('label', {
+                                    style: {
+                                        display: 'block',
+                                        fontSize: '0.875rem',
+                                        fontWeight: '500',
+                                        color: '#374151',
+                                        marginBottom: '0.5rem'
+                                    }
+                                }, 'Tabla Específica'),
+                                e('select', {
+                                    value: formularioReporte.tabla,
+                                    onChange: (e) => setFormularioReporte(prev => ({ ...prev, tabla: e.target.value })),
+                                    style: {
+                                        width: '100%',
+                                        padding: '0.75rem',
+                                        border: '1px solid #d1d5db',
+                                        borderRadius: '6px',
+                                        fontSize: '0.875rem'
+                                    }
+                                }, [
+                                    e('option', { value: '' }, 'Todas las tablas'),
+                                    e('option', { value: 'reserva' }, 'Reservas'),
+                                    e('option', { value: 'vehiculo' }, 'Vehículos'),
+                                    e('option', { value: 'persona' }, 'Personas'),
+                                    e('option', { value: 'agencia' }, 'Agencias'),
+                                    e('option', { value: 'usuario' }, 'Usuarios'),
+                                    e('option', { value: 'ruta_activada' }, 'Rutas Activadas'),
+                                    e('option', { value: 'servicio' }, 'Servicios'),
+                                    e('option', { value: 'ruta' }, 'Rutas'),
+                                    e('option', { value: 'contactos_agencia' }, 'Contactos Agencia')
                                 ])
                             ]),
+
                             e('div', {}, [
-                                e('p', { style: { margin: '0 0 0.5rem 0' } }, [
-                                    e('strong', {}, 'Usuario: '),
-                                    auditoriaSeleccionada.usuario_nombre
-                                ]),
-                                e('p', { style: { margin: '0 0 0.5rem 0' } }, [
-                                    e('strong', {}, 'Fecha: '),
-                                    formatearFecha(auditoriaSeleccionada.fecha_modificacion)
-                                ]),
-                                e('p', { style: { margin: '0' } }, [
-                                    e('strong', {}, 'IP: '),
-                                    auditoriaSeleccionada.ip_modificacion || 'N/A'
+                                e('label', {
+                                    style: {
+                                        display: 'block',
+                                        fontSize: '0.875rem',
+                                        fontWeight: '500',
+                                        color: '#374151',
+                                        marginBottom: '0.5rem'
+                                    }
+                                }, 'Tipo de Acción'),
+                                e('select', {
+                                    value: formularioReporte.accion,
+                                    onChange: (e) => setFormularioReporte(prev => ({ ...prev, accion: e.target.value })),
+                                    style: {
+                                        width: '100%',
+                                        padding: '0.75rem',
+                                        border: '1px solid #d1d5db',
+                                        borderRadius: '6px',
+                                        fontSize: '0.875rem'
+                                    }
+                                }, [
+                                    e('option', { value: '' }, 'Todas las acciones'),
+                                    e('option', { value: 'INSERT' }, 'Solo Creaciones (INSERT)'),
+                                    e('option', { value: 'UPDATE' }, 'Solo Modificaciones (UPDATE)'),
+                                    e('option', { value: 'DELETE' }, 'Solo Eliminaciones (DELETE)')
                                 ])
                             ])
-                        ])
-                    ]),
-
-                    // Cambios realizados (solo para UPDATE)
-                    auditoriaSeleccionada.accion === 'UPDATE' && auditoriaSeleccionada.datos_anteriores && e('div', {
-                        key: 'cambios-section',
-                        style: { marginBottom: '2rem' }
-                    }, [
-                        e('h4', {
-                            style: {
-                                fontSize: '1rem',
-                                fontWeight: '600',
-                                color: '#111827',
-                                marginBottom: '1rem'
-                            }
-                        }, 'Cambios Realizados'),
-                        e('div', {
-                            style: {
-                                display: 'grid',
-                                gridTemplateColumns: '1fr 1fr',
-                                gap: '1rem'
-                            }
-                        }, [
-                            e('div', {
-                                key: 'datos-anteriores',
-                                style: {
-                                    padding: '1rem',
-                                    backgroundColor: '#fef2f2',
-                                    borderRadius: '8px',
-                                    border: '1px solid #fecaca'
-                                }
-                            }, [
-                                e('h5', {
-                                    style: {
-                                        fontSize: '0.875rem',
-                                        fontWeight: '600',
-                                        color: '#dc2626',
-                                        margin: '0 0 0.5rem 0'
-                                    }
-                                }, 'Valores Anteriores'),
-                                e('pre', {
-                                    style: {
-                                        fontSize: '0.75rem',
-                                        color: '#374151',
-                                        margin: '0',
-                                        whiteSpace: 'pre-wrap',
-                                        fontFamily: 'monospace'
-                                    }
-                                }, JSON.stringify(auditoriaSeleccionada.datos_anteriores, null, 2))
-                            ]),
-
-                            e('div', {
-                                key: 'datos-nuevos',
-                                style: {
-                                    padding: '1rem',
-                                    backgroundColor: '#f0f9ff',
-                                    borderRadius: '8px',
-                                    border: '1px solid #bae6fd'
-                                }
-                            }, [
-                                e('h5', {
-                                    style: {
-                                        fontSize: '0.875rem',
-                                        fontWeight: '600',
-                                        color: '#0284c7',
-                                        margin: '0 0 0.5rem 0'
-                                    }
-                                }, 'Valores Nuevos'),
-                                e('pre', {
-                                    style: {
-                                        fontSize: '0.75rem',
-                                        color: '#374151',
-                                        margin: '0',
-                                        whiteSpace: 'pre-wrap',
-                                        fontFamily: 'monospace'
-                                    }
-                                }, JSON.stringify(auditoriaSeleccionada.datos_nuevos, null, 2))
-                            ])
-                        ])
-                    ]),
-
-                    // Datos del registro (para INSERT)
-                    auditoriaSeleccionada.accion === 'INSERT' && auditoriaSeleccionada.datos_nuevos && e('div', {
-                        key: 'datos-creados',
-                        style: { marginBottom: '2rem' }
-                    }, [
-                        e('h4', {
-                            style: {
-                                fontSize: '1rem',
-                                fontWeight: '600',
-                                color: '#111827',
-                                marginBottom: '1rem'
-                            }
-                        }, 'Datos del Nuevo Registro'),
-                        e('div', {
-                            style: {
-                                padding: '1rem',
-                                backgroundColor: '#f0fdf4',
-                                borderRadius: '8px',
-                                border: '1px solid #bbf7d0'
-                            }
-                        }, [
-                            e('pre', {
-                                style: {
-                                    fontSize: '0.75rem',
-                                    color: '#374151',
-                                    margin: '0',
-                                    whiteSpace: 'pre-wrap',
-                                    fontFamily: 'monospace'
-                                }
-                            }, JSON.stringify(auditoriaSeleccionada.datos_nuevos, null, 2))
                         ])
                     ])
+                ]),
+
+                // Información útil
+                e('div', {
+                    style: {
+                        padding: '1rem',
+                        backgroundColor: '#dbeafe',
+                        borderRadius: '8px',
+                        marginBottom: '1.5rem',
+                        border: '1px solid #93c5fd'
+                    }
+                }, [
+                    e('h4', {
+                        style: {
+                            fontSize: '0.875rem',
+                            fontWeight: '600',
+                            color: '#1d4ed8',
+                            margin: '0 0 0.5rem 0'
+                        }
+                    }, 'Información del Reporte Excel'),
+                    e('ul', {
+                        style: {
+                            fontSize: '0.75rem',
+                            color: '#1e40af',
+                            margin: '0',
+                            paddingLeft: '1rem',
+                            lineHeight: '1.4'
+                        }
+                    }, [
+                        e('li', {}, 'El archivo se descargará automáticamente en formato .xlsx'),
+                        e('li', {}, 'Incluye formato profesional con colores y estilos'),
+                        e('li', {}, 'Los reportes detallados están limitados a 3,000 registros por rendimiento'),
+                        e('li', {}, 'Compatible con Excel, Google Sheets y LibreOffice Calc')
+                    ])
+                ]),
+
+                // REEMPLAZAR la sección de botones del modal (al final del modal) con:
+
+                // Botones de acción - SOLO EXCEL
+                e('div', {
+                    style: {
+                        display: 'flex',
+                        gap: '1rem',
+                        justifyContent: 'flex-end'
+                    }
+                }, [
+                    e('button', {
+                        onClick: () => setModalReporte(false),
+                        disabled: loadingAction,
+                        style: {
+                            padding: '0.75rem 1.5rem',
+                            border: '2px solid #d1d5db',
+                            borderRadius: '8px',
+                            backgroundColor: 'white',
+                            color: '#374151',
+                            cursor: loadingAction ? 'not-allowed' : 'pointer',
+                            fontSize: '0.875rem',
+                            fontWeight: '500',
+                            opacity: loadingAction ? 0.7 : 1
+                        }
+                    }, 'Cancelar'),
+
+                    e('button', {
+                        onClick: generarReporteExcel,
+                        disabled: loadingAction || !formularioReporte.fecha_inicio || !formularioReporte.fecha_fin,
+                        style: {
+                            padding: '0.75rem 2rem',
+                            border: 'none',
+                            borderRadius: '8px',
+                            backgroundColor: loadingAction || !formularioReporte.fecha_inicio || !formularioReporte.fecha_fin ?
+                                '#9ca3af' : '#16a34a',
+                            color: 'white',
+                            cursor: (loadingAction || !formularioReporte.fecha_inicio || !formularioReporte.fecha_fin) ?
+                                'not-allowed' : 'pointer',
+                            fontSize: '0.875rem',
+                            fontWeight: '600',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem'
+                        }
+                    }, [
+                        loadingAction && e('div', {
+                            key: 'spinner',
+                            style: {
+                                width: '16px',
+                                height: '16px',
+                                border: '2px solid #ffffff40',
+                                borderTop: '2px solid #ffffff',
+                                borderRadius: '50%',
+                                animation: 'spin 1s linear infinite'
+                            }
+                        }),
+                        loadingAction ? 'Generando Excel...' : 'Generar Excel'
+                    ])
+                ])
+            ])
+        ]),
+
+        // Modal de limpieza
+        modalLimpiar && e('div', {
+            key: 'modal-limpiar-overlay',
+            style: {
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0,0,0,0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 1200
+            }
+        }, [
+            e('div', {
+                key: 'modal-limpiar-content',
+                style: {
+                    backgroundColor: 'white',
+                    borderRadius: '12px',
+                    maxWidth: '500px',
+                    width: '90%',
+                    padding: '2rem',
+                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
+                }
+            }, [
+                e('div', {
+                    style: {
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        marginBottom: '1.5rem'
+                    }
+                }, [
+                    e('div', {
+                        style: {
+                            padding: '0.75rem',
+                            borderRadius: '50%',
+                            backgroundColor: '#fef2f2'
+                        }
+                    }, Icons.alertTriangle('#ef4444')),
+                    e('h3', {
+                        style: {
+                            fontSize: '1.25rem',
+                            fontWeight: '600',
+                            color: '#111827',
+                            margin: '0'
+                        }
+                    }, 'Limpiar Auditorías Antiguas')
+                ]),
+
+                e('p', {
+                    style: {
+                        color: '#374151',
+                        marginBottom: '1.5rem',
+                        fontSize: '0.875rem'
+                    }
+                }, 'Esta acción eliminará permanentemente los registros de auditoría más antiguos. Mínimo 30 días.'),
+
+                e('div', {
+                    style: { marginBottom: '1.5rem' }
+                }, [
+                    e('label', {
+                        style: {
+                            display: 'block',
+                            fontSize: '0.875rem',
+                            fontWeight: '500',
+                            marginBottom: '0.5rem'
+                        }
+                    }, 'Eliminar registros anteriores a (días):'),
+                    e('input', {
+                        type: 'number',
+                        min: '30',
+                        value: diasLimpiar,
+                        onChange: (e) => setDiasLimpiar(parseInt(e.target.value) || 30),
+                        style: {
+                            width: '100%',
+                            padding: '0.75rem',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '6px'
+                        }
+                    })
+                ]),
+
+                e('div', {
+                    style: {
+                        display: 'flex',
+                        gap: '0.75rem',
+                        justifyContent: 'flex-end'
+                    }
+                }, [
+                    e('button', {
+                        onClick: () => setModalLimpiar(false),
+                        style: {
+                            padding: '0.75rem 1.5rem',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '8px',
+                            backgroundColor: 'white',
+                            cursor: 'pointer'
+                        }
+                    }, 'Cancelar'),
+
+                    e('button', {
+                        onClick: ejecutarLimpieza,
+                        disabled: loadingAction || diasLimpiar < 30,
+                        style: {
+                            padding: '0.75rem 1.5rem',
+                            border: 'none',
+                            borderRadius: '8px',
+                            backgroundColor: loadingAction || diasLimpiar < 30 ? '#9ca3af' : '#ef4444',
+                            color: 'white',
+                            cursor: loadingAction || diasLimpiar < 30 ? 'not-allowed' : 'pointer'
+                        }
+                    }, loadingAction ? 'Limpiando...' : 'Limpiar')
                 ])
             ])
         ])

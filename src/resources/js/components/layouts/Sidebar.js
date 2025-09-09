@@ -1,6 +1,7 @@
 // src/resources/js/components/layouts/Sidebar.js
 import React from 'react';
 import Icons from '../../utils/Icons';
+import AuthService from '../../services/auth';
 const { createElement: e, useState } = React;
 
 function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
@@ -11,6 +12,10 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
         personal: false,
         reportes: false
     });
+
+    // Obtener módulos permitidos para el usuario actual
+    const allowedModules = AuthService.getAllowedModules();
+    const currentUser = AuthService.getUser();
 
     const toggleSection = (section) => {
         if (collapsed) {
@@ -43,7 +48,13 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
         }
     };
 
-    const menuStructure = [
+    // Función para verificar si un módulo está permitido
+    const isModuleAllowed = (moduleId) => {
+        return allowedModules.includes(moduleId);
+    };
+
+    // Estructura completa del menú (se filtrará según roles)
+    const fullMenuStructure = [
         {
             id: 'dashboard',
             label: 'Dashboard',
@@ -106,6 +117,31 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
         }
     ];
 
+    // Filtrar estructura del menú según permisos - CORREGIDO
+    const menuStructure = fullMenuStructure.filter(item => {
+        if (item.type === 'single') {
+            return isModuleAllowed(item.id);
+        } else if (item.type === 'section') {
+            // Filtrar hijos sin modificar el objeto original
+            const allowedChildren = item.children.filter(child => isModuleAllowed(child.id));
+            if (allowedChildren.length > 0) {
+                // Crear una copia del item con solo los hijos permitidos
+                return true;
+            }
+            return false;
+        }
+        return true;
+    }).map(item => {
+        // Si es una sección, crear una copia con solo los hijos permitidos
+        if (item.type === 'section') {
+            return {
+                ...item,
+                children: item.children.filter(child => isModuleAllowed(child.id))
+            };
+        }
+        return item;
+    });
+
     return e('aside', {
         style: {
             position: 'fixed',
@@ -121,6 +157,62 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
             transition: 'width 0.3s ease'
         }
     }, [
+        // User Info Panel (solo si no está colapsado)
+        !collapsed && currentUser && e('div', {
+            key: 'user-info',
+            style: {
+                padding: '1rem',
+                borderBottom: '1px solid #e2e8f0',
+                backgroundColor: '#f8fafc'
+            }
+        }, [
+            e('div', {
+                key: 'user-container',
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px'
+                }
+            }, [
+                e('div', {
+                    key: 'user-avatar',
+                    style: {
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '50%',
+                        backgroundColor: '#667eea',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'white',
+                        fontSize: '16px',
+                        fontWeight: '600'
+                    }
+                }, currentUser.iniciales || 'US'),
+                e('div', {
+                    key: 'user-details',
+                    style: { flex: 1 }
+                }, [
+                    e('div', {
+                        key: 'user-name',
+                        style: {
+                            fontSize: '14px',
+                            fontWeight: '600',
+                            color: '#374151',
+                            marginBottom: '2px'
+                        }
+                    }, currentUser.nombre_completo || 'Usuario'),
+                    e('div', {
+                        key: 'user-role',
+                        style: {
+                            fontSize: '12px',
+                            color: '#6b7280'
+                        }
+                    }, currentUser.rol?.nombre || 'Sin rol')
+                ])
+            ])
+        ]),
+
         // Navigation Menu
         e('nav', {
             key: 'nav',

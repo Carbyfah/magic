@@ -1170,6 +1170,75 @@ const Icons = {
         React.createElement('line', { key: '4', x1: 1, y1: 1, x2: 23, y2: 23 })
     ]),
 
+    // Agregar estos iconos a tu archivo Icons.js
+
+    download: (color = '#000000') => React.createElement('svg', {
+        width: 20,
+        height: 20,
+        viewBox: '0 0 24 24',
+        fill: 'none',
+        stroke: color,
+        strokeWidth: 2,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round'
+    }, [
+        React.createElement('path', { key: '1', d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' }),
+        React.createElement('polyline', { key: '2', points: '7,10 12,15 17,10' }),
+        React.createElement('line', { key: '3', x1: 12, y1: 15, x2: 12, y2: 3 })
+    ]),
+
+    alertTriangle: (color = '#000000') => React.createElement('svg', {
+        width: 20,
+        height: 20,
+        viewBox: '0 0 24 24',
+        fill: 'none',
+        stroke: color,
+        strokeWidth: 2,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round'
+    }, [
+        React.createElement('path', { key: '1', d: 'm21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z' }),
+        React.createElement('path', { key: '2', d: 'M12 9v4' }),
+        React.createElement('path', { key: '3', d: 'M12 17h.01' })
+    ]),
+
+    layers: (color = '#000000') => React.createElement('svg', {
+        width: 20,
+        height: 20,
+        viewBox: '0 0 24 24',
+        fill: 'none',
+        stroke: color,
+        strokeWidth: 2,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round'
+    }, [
+        React.createElement('polygon', { key: '1', points: '12,2 2,7 12,12 22,7 12,2' }),
+        React.createElement('polyline', { key: '2', points: '2,17 12,22 22,17' }),
+        React.createElement('polyline', { key: '3', points: '2,12 12,17 22,12' })
+    ]),
+
+    // Agregar estos iconos faltantes a Icons.js:
+
+    percent: (color = '#8b5cf6') => e('svg', {
+        width: '24', height: '24', viewBox: '0 0 24 24', fill: 'none',
+        stroke: color, strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round'
+    }, [
+        e('line', { key: '1', x1: '19', y1: '5', x2: '5', y2: '19' }),
+        e('circle', { key: '2', cx: '6.5', cy: '6.5', r: '2.5' }),
+        e('circle', { key: '3', cx: '17.5', cy: '17.5', r: '2.5' })
+    ]),
+
+    // Iconos adicionales para autenticación
+    lock: () => e('svg', { width: '20', height: '20', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2' }, [
+        e('rect', { key: '1', x: '3', y: '11', width: '18', height: '11', rx: '2', ry: '2' }),
+        e('path', { key: '2', d: 'M7 11V7a5 5 0 0 1 10 0v4' })
+    ]),
+
+    alertTriangle: () => e('svg', { width: '16', height: '16', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2' }, [
+        e('path', { key: '1', d: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z' }),
+        e('line', { key: '2', x1: '12', y1: '9', x2: '12', y2: '13' }),
+        e('line', { key: '3', x1: '12', y1: '17', x2: '12.01', y2: '17' })
+    ])
 
 };
 

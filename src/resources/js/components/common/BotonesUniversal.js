@@ -571,7 +571,133 @@ const BotonesUniversal = {
                 display: 'flex',
                 alignItems: 'center'
             }
-        }, Icons.help('#6b7280'))
+        }, Icons.help('#6b7280')),
+
+
+    // Agregar estas funciones al final de tu BotonesUniversal.js, antes del export default
+
+    secundario: ({
+        onClick,
+        texto = 'Acción',
+        icono = null,
+        loading = false,
+        disabled = false,
+        key
+    }) => e('button', {
+        key,
+        onClick: disabled || loading ? undefined : onClick,
+        disabled: disabled || loading,
+        style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.75rem 1rem',
+            backgroundColor: loading ? '#f3f4f6' : '#ffffff',
+            border: '1px solid #d1d5db',
+            borderRadius: '8px',
+            color: loading ? '#9ca3af' : '#374151',
+            fontSize: '0.875rem',
+            fontWeight: '500',
+            cursor: disabled || loading ? 'not-allowed' : 'pointer',
+            transition: 'all 0.2s ease',
+            opacity: disabled ? 0.6 : 1
+        }
+    }, [
+        loading ? e('div', {
+            key: 'spinner',
+            style: {
+                width: '16px',
+                height: '16px',
+                border: '2px solid #d1d5db',
+                borderTop: '2px solid #374151',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+            }
+        }) : icono,
+        loading ? 'Procesando...' : texto
+    ]),
+
+    peligro: ({
+        onClick,
+        texto = 'Eliminar',
+        icono = null,
+        loading = false,
+        disabled = false,
+        key
+    }) => e('button', {
+        key,
+        onClick: disabled || loading ? undefined : onClick,
+        disabled: disabled || loading,
+        style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.75rem 1rem',
+            backgroundColor: loading ? '#f3f4f6' : '#ef4444',
+            border: 'none',
+            borderRadius: '8px',
+            color: loading ? '#9ca3af' : '#ffffff',
+            fontSize: '0.875rem',
+            fontWeight: '600',
+            cursor: disabled || loading ? 'not-allowed' : 'pointer',
+            transition: 'all 0.2s ease',
+            opacity: disabled ? 0.6 : 1
+        }
+    }, [
+        loading ? e('div', {
+            key: 'spinner',
+            style: {
+                width: '16px',
+                height: '16px',
+                border: '2px solid #ffffff40',
+                borderTop: '2px solid #ffffff',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+            }
+        }) : icono,
+        loading ? 'Procesando...' : texto
+    ]),
+
+    primario: ({
+        onClick,
+        texto = 'Guardar',
+        icono = null,
+        loading = false,
+        disabled = false,
+        key
+    }) => e('button', {
+        key,
+        onClick: disabled || loading ? undefined : onClick,
+        disabled: disabled || loading,
+        style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.75rem 1rem',
+            backgroundColor: loading ? '#9ca3af' : '#3b82f6',
+            border: 'none',
+            borderRadius: '8px',
+            color: '#ffffff',
+            fontSize: '0.875rem',
+            fontWeight: '600',
+            cursor: disabled || loading ? 'not-allowed' : 'pointer',
+            transition: 'all 0.2s ease',
+            opacity: disabled ? 0.6 : 1
+        }
+    }, [
+        loading ? e('div', {
+            key: 'spinner',
+            style: {
+                width: '16px',
+                height: '16px',
+                border: '2px solid #ffffff40',
+                borderTop: '2px solid #ffffff',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+            }
+        }) : icono,
+        loading ? 'Procesando...' : texto
+    ])
 };
 
 export default BotonesUniversal;

@@ -1,201 +1,374 @@
 // src/resources/js/components/layouts/Dashboard.js
 import React from 'react';
 import Icons from '../../utils/Icons';
-import Notifications from '../../utils/notifications';
-import api from '../../services/api';
-
 const { createElement: e, useState, useEffect } = React;
 
-function Dashboard() {
-    // Estados reales del sistema
-    const [stats, setStats] = useState({
-        reservasHoy: 0,
-        pasajeros: 0,
-        rutasActivas: 0,
-        ingresosHoy: 0,
-        ocupacion: 0,
-        vehiculosDisponibles: 0,
-        reservasPendientes: 0,
-        noShows: 0
+function Dashboard({ onNavigate }) {
+    const [dashboardData, setDashboardData] = useState({
+        kpis: {
+            reservas_activas: 0,
+            vehiculos_operativos: 0,
+            ingresos_totales: 0,
+            ocupacion_promedio: 0,
+            pasajeros_confirmados: 0,
+            rutas_programadas: 0,
+            agencias_activas: 0,
+            usuarios_sistema: 0,
+            reservas_hoy: 0,
+            reservas_semana: 0,
+            ingresos_semana: 0,
+            ticket_promedio: 0,
+            porcentaje_ventas_directas: 0
+        },
+        loading: true,
+        error: null
     });
 
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [ultimaActualizacion, setUltimaActualizacion] = useState(null);
-    const [alertas, setAlertas] = useState([]);
-
-    // Función para cargar estadísticas reales del backend
-    const loadDashboardStats = async () => {
-        try {
-            setLoading(true);
-            setError(null);
-
-            // Usar una sola llamada consolidada
-            const dashboardResponse = await api.getDashboardStats();
-
-            const statsCalculadas = {
-                reservasHoy: dashboardResponse.reservas_hoy || 0,
-                pasajeros: dashboardResponse.pasajeros_hoy || 0,
-                rutasActivas: dashboardResponse.rutas_activas || 0,
-                ingresosHoy: dashboardResponse.ingresos_hoy || 0,
-                ocupacion: dashboardResponse.ocupacion_promedio || 0,
-                vehiculosDisponibles: dashboardResponse.vehiculos_disponibles || 0,
-                reservasPendientes: 0,
-                noShows: 0
-            };
-
-            // Calcular estadísticas consolidadas
-            const hoy = new Date().toISOString().split('T')[0];
-
-            setStats(statsCalculadas);
-
-            // Verificar alertas del sistema
-            const alertasDetectadas = [];
-
-            if (statsCalculadas.ocupacion > 85) {
-                alertasDetectadas.push({
-                    tipo: 'warning',
-                    mensaje: `Ocupación alta: ${statsCalculadas.ocupacion}%`
-                });
-            }
-
-            if (statsCalculadas.vehiculosDisponibles < 3) {
-                alertasDetectadas.push({
-                    tipo: 'error',
-                    mensaje: `Pocos vehículos disponibles: ${statsCalculadas.vehiculosDisponibles}`
-                });
-            }
-
-            if (statsCalculadas.reservasPendientes > 10) {
-                alertasDetectadas.push({
-                    tipo: 'info',
-                    mensaje: `${statsCalculadas.reservasPendientes} reservas pendientes de confirmación`
-                });
-            }
-
-            setAlertas(alertasDetectadas);
-            setUltimaActualizacion(new Date());
-
-        } catch (error) {
-            console.error('Error cargando estadísticas:', error);
-            setError('No se pudieron cargar las estadísticas del sistema');
-            Notifications.error('Error conectando con el servidor', 'Error de Conexión');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Cargar datos iniciales
+    // Cargar datos del dashboard al montar el componente
     useEffect(() => {
-        loadDashboardStats();
+        loadDashboardData();
 
-        // Actualizar cada 30 segundos
-        const interval = setInterval(loadDashboardStats, 30000);
+        // Actualizar datos cada 5 minutos
+        const interval = setInterval(() => {
+            loadDashboardData();
+        }, 300000);
 
         return () => clearInterval(interval);
     }, []);
 
-    // Función para refrescar manualmente
-    const handleRefresh = async () => {
-        Notifications.loading('Actualizando estadísticas...', 'Cargando');
-        await loadDashboardStats();
-        Notifications.hideLoading();
-        Notifications.success('Estadísticas actualizadas correctamente', 'Actualización Completa');
-    };
-
-    // Función para generar reporte WhatsApp real
-    const handleWhatsAppReport = async () => {
+    const loadDashboardData = async () => {
         try {
-            Notifications.loading('Generando reporte WhatsApp...', 'Procesando');
+            setDashboardData(prev => ({ ...prev, loading: true, error: null }));
 
-            const response = await api.post('/api/magic/reservas/whatsapp-report', {
-                fecha: new Date().toISOString().split('T')[0],
-                incluir_estadisticas: true
-            });
+            const response = await fetch('/api/magic/estadisticas/dashboard');
+            if (!response.ok) {
+                throw new Error('Error al cargar datos del dashboard');
+            }
 
-            const mensaje = response.data.mensaje;
+            const data = await response.json();
 
-            // Copiar al portapapeles
-            await navigator.clipboard.writeText(mensaje);
-
-            Notifications.hideLoading();
-            Notifications.success('Reporte copiado al portapapeles', 'WhatsApp Listo');
+            setDashboardData(prev => ({
+                ...prev,
+                kpis: data.resumen_general || prev.kpis,
+                loading: false,
+                error: null
+            }));
 
         } catch (error) {
-            Notifications.hideLoading();
-            Notifications.error('Error generando el reporte', 'Error');
-            console.error('Error:', error);
+            console.error('Error cargando dashboard:', error);
+
+            // Fallback: intentar cargar stats generales
+            try {
+                const fallbackResponse = await fetch('/api/magic/stats-generales');
+                const fallbackData = await fallbackResponse.json();
+
+                setDashboardData(prev => ({
+                    ...prev,
+                    kpis: {
+                        ...prev.kpis,
+                        reservas_activas: fallbackData.reservas_hoy || 0,
+                        vehiculos_operativos: fallbackData.vehiculos_disponibles || 0,
+                        ingresos_totales: fallbackData.ingresos_mes || 0,
+                        ocupacion_promedio: fallbackData.ocupacion_promedio || 0
+                    },
+                    loading: false,
+                    error: 'Algunos datos pueden no estar actualizados'
+                }));
+            } catch (fallbackError) {
+                setDashboardData(prev => ({
+                    ...prev,
+                    loading: false,
+                    error: 'No se pudieron cargar los datos del dashboard'
+                }));
+            }
         }
     };
 
-    // Función para ejecutar respaldo real
-    const handleBackup = async () => {
-        try {
-            Notifications.loading('Ejecutando respaldo de la base de datos...', 'Respaldo en Proceso');
-
-            const response = await api.post('/api/magic/sistema/backup');
-
-            Notifications.hideLoading();
-            Notifications.success(
-                `Respaldo completado: ${response.data.archivo}`,
-                'Respaldo Exitoso'
-            );
-
-        } catch (error) {
-            Notifications.hideLoading();
-            Notifications.error('Error ejecutando el respaldo', 'Error de Respaldo');
-            console.error('Error:', error);
-        }
+    const formatCurrency = (value) => {
+        if (!value) return 'Q 0.00';
+        return `Q ${parseFloat(value).toLocaleString('es-GT', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        })}`;
     };
 
-    // Función para navegar a nueva reserva
-    const handleNuevaReserva = () => {
-        // Aquí iría la navegación real del router
-        window.location.hash = '#/reservas/nueva';
+    const formatNumber = (value) => {
+        if (!value) return '0';
+        return parseInt(value).toLocaleString('es-GT');
     };
 
-    // Función para navegar a reportes
-    const handleReportes = () => {
-        // Aquí iría la navegación real del router
-        window.location.hash = '#/reportes';
+    const formatPercentage = (value) => {
+        if (!value) return '0%';
+        return `${parseFloat(value).toFixed(1)}%`;
     };
 
-    if (loading && stats.reservasHoy === 0) {
+    const KPICard = ({ title, value, icon, color = 'blue', formatter = formatNumber, subtitle = null, onClick = null }) => {
+        const colorClasses = {
+            blue: { bg: '#eff6ff', border: '#dbeafe', text: '#1e40af', icon: '#3b82f6' },
+            green: { bg: '#f0fdf4', border: '#dcfce7', text: '#166534', icon: '#22c55e' },
+            yellow: { bg: '#fffbeb', border: '#fed7aa', text: '#92400e', icon: '#f59e0b' },
+            purple: { bg: '#faf5ff', border: '#e9d5ff', text: '#7c2d12', icon: '#8b5cf6' },
+            red: { bg: '#fef2f2', border: '#fecaca', text: '#991b1b', icon: '#ef4444' },
+            indigo: { bg: '#f0f9ff', border: '#e0e7ff', text: '#312e81', icon: '#6366f1' }
+        };
+
+        const colors = colorClasses[color] || colorClasses.blue;
+
+        return e('div', {
+            style: {
+                backgroundColor: colors.bg,
+                border: `1px solid ${colors.border}`,
+                borderRadius: '12px',
+                padding: '20px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                transition: 'all 0.2s ease',
+                cursor: onClick ? 'pointer' : 'default'
+            },
+            onClick: onClick,
+            onMouseEnter: (e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.1)';
+            },
+            onMouseLeave: (e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = 'none';
+            }
+        }, [
+            e('div', {
+                key: 'header',
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                }
+            }, [
+                e('div', {
+                    key: 'icon',
+                    style: {
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '10px',
+                        backgroundColor: colors.icon,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'white'
+                    }
+                }, icon),
+                e('div', {
+                    key: 'title',
+                    style: {
+                        fontSize: '13px',
+                        color: colors.text,
+                        fontWeight: '600',
+                        textAlign: 'right',
+                        opacity: 0.8,
+                        lineHeight: '1.2'
+                    }
+                }, title)
+            ]),
+            e('div', { key: 'content' }, [
+                e('div', {
+                    key: 'value',
+                    style: {
+                        fontSize: '28px',
+                        fontWeight: '700',
+                        color: colors.text,
+                        lineHeight: '1.1',
+                        marginBottom: subtitle ? '4px' : '0'
+                    }
+                }, dashboardData.loading ? '...' : formatter(value)),
+                subtitle && e('div', {
+                    key: 'subtitle',
+                    style: {
+                        fontSize: '12px',
+                        color: colors.text,
+                        opacity: 0.6
+                    }
+                }, subtitle)
+            ])
+        ]);
+    };
+
+    const QuickAccessCard = ({ title, description, icon, color, module, stats = null }) => {
+        const colorClasses = {
+            blue: { bg: '#eff6ff', border: '#dbeafe', text: '#1e40af', icon: '#3b82f6', button: '#3b82f6' },
+            green: { bg: '#f0fdf4', border: '#dcfce7', text: '#166534', icon: '#22c55e', button: '#22c55e' },
+            yellow: { bg: '#fffbeb', border: '#fed7aa', text: '#92400e', icon: '#f59e0b', button: '#f59e0b' },
+            purple: { bg: '#faf5ff', border: '#e9d5ff', text: '#7c2d12', icon: '#8b5cf6', button: '#8b5cf6' }
+        };
+
+        const colors = colorClasses[color] || colorClasses.blue;
+
+        return e('div', {
+            style: {
+                backgroundColor: colors.bg,
+                border: `1px solid ${colors.border}`,
+                borderRadius: '16px',
+                padding: '24px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px',
+                transition: 'all 0.2s ease',
+                cursor: 'pointer',
+                minHeight: '180px'
+            },
+            onClick: () => onNavigate && onNavigate(module),
+            onMouseEnter: (e) => {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.boxShadow = '0 12px 40px rgba(0,0,0,0.15)';
+            },
+            onMouseLeave: (e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = 'none';
+            }
+        }, [
+            // Header con icono y título
+            e('div', {
+                key: 'header',
+                style: {
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '16px'
+                }
+            }, [
+                e('div', {
+                    key: 'icon',
+                    style: {
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '12px',
+                        backgroundColor: colors.icon,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'white',
+                        flexShrink: 0
+                    }
+                }, icon),
+                e('div', {
+                    key: 'title-section',
+                    style: { flex: 1 }
+                }, [
+                    e('h3', {
+                        key: 'title',
+                        style: {
+                            fontSize: '18px',
+                            fontWeight: '700',
+                            color: colors.text,
+                            margin: '0 0 4px 0',
+                            lineHeight: '1.2'
+                        }
+                    }, title),
+                    e('p', {
+                        key: 'description',
+                        style: {
+                            fontSize: '14px',
+                            color: colors.text,
+                            opacity: 0.7,
+                            margin: 0,
+                            lineHeight: '1.4'
+                        }
+                    }, description)
+                ])
+            ]),
+
+            // Stats si existen
+            stats && e('div', {
+                key: 'stats',
+                style: {
+                    display: 'flex',
+                    gap: '16px',
+                    marginTop: 'auto'
+                }
+            }, stats.map((stat, index) =>
+                e('div', {
+                    key: index,
+                    style: {
+                        flex: 1,
+                        textAlign: 'center',
+                        padding: '8px',
+                        backgroundColor: 'rgba(255,255,255,0.6)',
+                        borderRadius: '8px'
+                    }
+                }, [
+                    e('div', {
+                        key: 'value',
+                        style: {
+                            fontSize: '16px',
+                            fontWeight: '700',
+                            color: colors.text,
+                            marginBottom: '2px'
+                        }
+                    }, stat.value),
+                    e('div', {
+                        key: 'label',
+                        style: {
+                            fontSize: '11px',
+                            color: colors.text,
+                            opacity: 0.6
+                        }
+                    }, stat.label)
+                ])
+            )),
+
+            // Botón de acción
+            e('div', {
+                key: 'action',
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginTop: 'auto',
+                    paddingTop: '8px'
+                }
+            }, [
+                e('span', {
+                    key: 'action-text',
+                    style: {
+                        fontSize: '14px',
+                        color: colors.text,
+                        fontWeight: '600',
+                        opacity: 0.8
+                    }
+                }, 'Ir al módulo'),
+                Icons.arrowRight(colors.button)
+            ])
+        ]);
+    };
+
+    if (dashboardData.loading) {
         return e('div', {
             style: {
                 padding: '2rem',
-                backgroundColor: '#f8fafc',
-                minHeight: 'calc(100vh - 64px)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                minHeight: '400px'
             }
         }, [
             e('div', {
                 key: 'loading',
                 style: {
-                    textAlign: 'center'
+                    textAlign: 'center',
+                    color: '#6b7280'
                 }
             }, [
                 e('div', {
                     key: 'spinner',
                     style: {
-                        width: '3rem',
-                        height: '3rem',
-                        border: '3px solid #e2e8f0',
+                        width: '40px',
+                        height: '40px',
+                        border: '3px solid #e5e7eb',
                         borderTop: '3px solid #3b82f6',
                         borderRadius: '50%',
                         animation: 'spin 1s linear infinite',
-                        margin: '0 auto 1rem'
+                        margin: '0 auto 16px'
                     }
                 }),
-                e('p', {
-                    key: 'text',
-                    style: {
-                        color: '#64748b',
-                        fontSize: '0.95rem'
-                    }
-                }, 'Cargando estadísticas del sistema...')
+                e('p', { key: 'text' }, 'Cargando Dashboard...')
             ])
         ]);
     }
@@ -204,124 +377,81 @@ function Dashboard() {
         style: {
             padding: '2rem',
             backgroundColor: '#f8fafc',
-            minHeight: 'calc(100vh - 64px)'
+            minHeight: '100vh'
         }
     }, [
-        // Header dinámico con estado de conexión
+        // Header
         e('div', {
             key: 'header',
             style: {
-                marginBottom: '2rem',
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'center'
+                alignItems: 'center',
+                marginBottom: '2rem'
             }
         }, [
-            e('div', { key: 'left' }, [
+            e('div', { key: 'title' }, [
                 e('h1', {
-                    key: 'title',
                     style: {
-                        fontSize: '2rem',
+                        fontSize: '28px',
                         fontWeight: '700',
-                        color: '#1e293b',
-                        marginBottom: '0.25rem'
+                        color: '#1f2937',
+                        margin: '0 0 4px 0'
                     }
                 }, 'Dashboard Magic Travel'),
-                e('div', {
-                    key: 'subtitle',
+                e('p', {
                     style: {
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        color: '#64748b',
-                        fontSize: '0.95rem'
+                        color: '#6b7280',
+                        margin: 0,
+                        fontSize: '14px'
                     }
-                }, [
-                    e('span', { key: 'date' }, `${new Date().toLocaleDateString('es-GT', {
-                        weekday: 'long',
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                    })}`),
-                    ultimaActualizacion && e('span', {
-                        key: 'update',
-                        style: {
-                            color: '#10b981',
-                            fontSize: '0.875rem'
-                        }
-                    }, `• Actualizado: ${ultimaActualizacion.toLocaleTimeString('es-GT', {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                    })}`)
-                ])
+                }, 'Sistema de gestión turística')
             ]),
             e('button', {
                 key: 'refresh',
-                onClick: handleRefresh,
-                disabled: loading,
+                onClick: () => loadDashboardData(),
                 style: {
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.5rem',
-                    padding: '0.75rem 1.5rem',
-                    backgroundColor: loading ? '#94a3b8' : '#3b82f6',
+                    gap: '8px',
+                    padding: '10px 16px',
+                    backgroundColor: '#3b82f6',
                     color: 'white',
                     border: 'none',
-                    borderRadius: '0.5rem',
-                    fontSize: '0.875rem',
-                    fontWeight: '500',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.2s'
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '500'
                 },
                 onMouseEnter: (e) => {
-                    if (!loading) {
-                        e.currentTarget.style.backgroundColor = '#2563eb';
-                    }
+                    e.currentTarget.style.backgroundColor = '#2563eb';
                 },
                 onMouseLeave: (e) => {
-                    if (!loading) {
-                        e.currentTarget.style.backgroundColor = '#3b82f6';
-                    }
+                    e.currentTarget.style.backgroundColor = '#3b82f6';
                 }
             }, [
-                e('span', {
-                    key: 'refresh-icon',
-                    style: {
-                        animation: loading ? 'spin 1s linear infinite' : 'none'
-                    }
-                }, Icons.refresh('#ffffff')),
-                e('span', { key: 'refresh-text' }, loading ? 'Actualizando...' : 'Actualizar')
+                Icons.refresh(),
+                'Actualizar'
             ])
         ]),
 
-        // Alertas del sistema
-        alertas.length > 0 && e('div', {
-            key: 'alertas',
+        // Error Alert
+        dashboardData.error && e('div', {
+            key: 'error',
             style: {
-                marginBottom: '2rem'
+                backgroundColor: '#fef3c7',
+                border: '1px solid #f59e0b',
+                borderRadius: '8px',
+                padding: '12px',
+                marginBottom: '1.5rem',
+                color: '#92400e',
+                fontSize: '14px'
             }
-        }, alertas.map((alerta, index) =>
-            e('div', {
-                key: index,
-                style: {
-                    backgroundColor: alerta.tipo === 'error' ? '#fef2f2' :
-                        alerta.tipo === 'warning' ? '#fef3c7' : '#eff6ff',
-                    border: `1px solid ${alerta.tipo === 'error' ? '#fecaca' :
-                        alerta.tipo === 'warning' ? '#fde68a' : '#dbeafe'}`,
-                    color: alerta.tipo === 'error' ? '#dc2626' :
-                        alerta.tipo === 'warning' ? '#d97706' : '#2563eb',
-                    borderRadius: '0.5rem',
-                    padding: '0.75rem 1rem',
-                    marginBottom: '0.5rem',
-                    fontSize: '0.875rem',
-                    fontWeight: '500'
-                }
-            }, alerta.mensaje)
-        )),
+        }, dashboardData.error),
 
-        // Grid de estadísticas reales
+        // KPI Cards Grid
         e('div', {
-            key: 'statsGrid',
+            key: 'kpis',
             style: {
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
@@ -329,605 +459,229 @@ function Dashboard() {
                 marginBottom: '2rem'
             }
         }, [
-            // Tarjeta 1: Reservas Hoy (REAL)
-            e('div', {
-                key: 'card1',
-                style: {
-                    backgroundColor: 'white',
-                    borderRadius: '1rem',
-                    padding: '1.5rem',
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-                    transition: 'all 0.2s'
-                }
-            }, [
-                e('div', {
-                    key: 'icon1',
-                    style: {
-                        width: '3rem',
-                        height: '3rem',
-                        backgroundColor: '#eff6ff',
-                        borderRadius: '0.5rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: '1rem'
-                    }
-                }, Icons.calendar('#3b82f6')),
-                e('div', {
-                    key: 'label1',
-                    style: {
-                        color: '#64748b',
-                        fontSize: '0.875rem',
-                        fontWeight: '500',
-                        marginBottom: '0.25rem'
-                    }
-                }, 'Reservas Hoy'),
-                e('div', {
-                    key: 'value1',
-                    style: {
-                        fontSize: '2rem',
-                        fontWeight: '700',
-                        color: '#1e293b'
-                    }
-                }, stats.reservasHoy)
-            ]),
-
-            // Tarjeta 2: Pasajeros (REAL)
-            e('div', {
-                key: 'card2',
-                style: {
-                    backgroundColor: 'white',
-                    borderRadius: '1rem',
-                    padding: '1.5rem',
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-                    transition: 'all 0.2s'
-                }
-            }, [
-                e('div', {
-                    key: 'icon2',
-                    style: {
-                        width: '3rem',
-                        height: '3rem',
-                        backgroundColor: '#f0fdf4',
-                        borderRadius: '0.5rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: '1rem'
-                    }
-                }, Icons.users('#10b981')),
-                e('div', {
-                    key: 'label2',
-                    style: {
-                        color: '#64748b',
-                        fontSize: '0.875rem',
-                        fontWeight: '500',
-                        marginBottom: '0.25rem'
-                    }
-                }, 'Total Pasajeros'),
-                e('div', {
-                    key: 'value2',
-                    style: {
-                        fontSize: '2rem',
-                        fontWeight: '700',
-                        color: '#1e293b'
-                    }
-                }, stats.pasajeros)
-            ]),
-
-            // Tarjeta 3: Rutas Activas (REAL)
-            e('div', {
-                key: 'card3',
-                style: {
-                    backgroundColor: 'white',
-                    borderRadius: '1rem',
-                    padding: '1.5rem',
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-                    transition: 'all 0.2s'
-                }
-            }, [
-                e('div', {
-                    key: 'icon3',
-                    style: {
-                        width: '3rem',
-                        height: '3rem',
-                        backgroundColor: '#fef3c7',
-                        borderRadius: '0.5rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: '1rem'
-                    }
-                }, Icons.truck('#f59e0b')),
-                e('div', {
-                    key: 'label3',
-                    style: {
-                        color: '#64748b',
-                        fontSize: '0.875rem',
-                        fontWeight: '500',
-                        marginBottom: '0.25rem'
-                    }
-                }, 'Rutas Activas'),
-                e('div', {
-                    key: 'value3',
-                    style: {
-                        fontSize: '2rem',
-                        fontWeight: '700',
-                        color: '#1e293b'
-                    }
-                }, stats.rutasActivas)
-            ]),
-
-            // Tarjeta 4: Ingresos Hoy (REAL)
-            e('div', {
-                key: 'card4',
-                style: {
-                    backgroundColor: 'white',
-                    borderRadius: '1rem',
-                    padding: '1.5rem',
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-                    transition: 'all 0.2s'
-                }
-            }, [
-                e('div', {
-                    key: 'icon4',
-                    style: {
-                        width: '3rem',
-                        height: '3rem',
-                        backgroundColor: '#f0f9ff',
-                        borderRadius: '0.5rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: '1rem'
-                    }
-                }, Icons.dollar('#06b6d4')),
-                e('div', {
-                    key: 'label4',
-                    style: {
-                        color: '#64748b',
-                        fontSize: '0.875rem',
-                        fontWeight: '500',
-                        marginBottom: '0.25rem'
-                    }
-                }, 'Ingresos Hoy'),
-                e('div', {
-                    key: 'value4',
-                    style: {
-                        fontSize: '2rem',
-                        fontWeight: '700',
-                        color: '#1e293b'
-                    }
-                }, `Q${stats.ingresosHoy.toLocaleString()}`)
-            ]),
-
-            // Tarjeta 5: Ocupación (REAL con color dinámico)
-            e('div', {
-                key: 'card5',
-                style: {
-                    backgroundColor: 'white',
-                    borderRadius: '1rem',
-                    padding: '1.5rem',
-                    border: `1px solid ${stats.ocupacion > 85 ? '#fecaca' : '#e2e8f0'}`,
-                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-                    transition: 'all 0.2s'
-                }
-            }, [
-                e('div', {
-                    key: 'icon5',
-                    style: {
-                        width: '3rem',
-                        height: '3rem',
-                        backgroundColor: stats.ocupacion > 85 ? '#fef2f2' : '#fef7ff',
-                        borderRadius: '0.5rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: '1rem'
-                    }
-                }, Icons.chartBar(stats.ocupacion > 85 ? '#ef4444' : '#8b5cf6')),
-                e('div', {
-                    key: 'label5',
-                    style: {
-                        color: '#64748b',
-                        fontSize: '0.875rem',
-                        fontWeight: '500',
-                        marginBottom: '0.25rem'
-                    }
-                }, 'Ocupación Promedio'),
-                e('div', {
-                    key: 'value5',
-                    style: {
-                        fontSize: '2rem',
-                        fontWeight: '700',
-                        color: stats.ocupacion > 85 ? '#ef4444' : '#1e293b'
-                    }
-                }, `${stats.ocupacion}%`)
-            ]),
-
-            // Tarjeta 6: Vehículos Disponibles (REAL con color dinámico)
-            e('div', {
-                key: 'card6',
-                style: {
-                    backgroundColor: 'white',
-                    borderRadius: '1rem',
-                    padding: '1.5rem',
-                    border: `1px solid ${stats.vehiculosDisponibles < 3 ? '#fecaca' : '#e2e8f0'}`,
-                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-                    transition: 'all 0.2s'
-                }
-            }, [
-                e('div', {
-                    key: 'icon6',
-                    style: {
-                        width: '3rem',
-                        height: '3rem',
-                        backgroundColor: stats.vehiculosDisponibles < 3 ? '#fef2f2' : '#f0fdf4',
-                        borderRadius: '0.5rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: '1rem'
-                    }
-                }, Icons.truck(stats.vehiculosDisponibles < 3 ? '#ef4444' : '#16a34a')),
-                e('div', {
-                    key: 'label6',
-                    style: {
-                        color: '#64748b',
-                        fontSize: '0.875rem',
-                        fontWeight: '500',
-                        marginBottom: '0.25rem'
-                    }
-                }, 'Vehículos Disponibles'),
-                e('div', {
-                    key: 'value6',
-                    style: {
-                        fontSize: '2rem',
-                        fontWeight: '700',
-                        color: stats.vehiculosDisponibles < 3 ? '#ef4444' : '#1e293b'
-                    }
-                }, stats.vehiculosDisponibles)
-            ]),
-
-            // Tarjeta 7: Reservas Pendientes (REAL)
-            e('div', {
-                key: 'card7',
-                style: {
-                    backgroundColor: 'white',
-                    borderRadius: '1rem',
-                    padding: '1.5rem',
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-                    transition: 'all 0.2s'
-                }
-            }, [
-                e('div', {
-                    key: 'icon7',
-                    style: {
-                        width: '3rem',
-                        height: '3rem',
-                        backgroundColor: '#fef3c7',
-                        borderRadius: '0.5rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: '1rem'
-                    }
-                }, Icons.clock('#f59e0b')),
-                e('div', {
-                    key: 'label7',
-                    style: {
-                        color: '#64748b',
-                        fontSize: '0.875rem',
-                        fontWeight: '500',
-                        marginBottom: '0.25rem'
-                    }
-                }, 'Reservas Pendientes'),
-                e('div', {
-                    key: 'value7',
-                    style: {
-                        fontSize: '2rem',
-                        fontWeight: '700',
-                        color: '#1e293b'
-                    }
-                }, stats.reservasPendientes)
-            ]),
-
-            // Tarjeta 8: No Shows (REAL)
-            e('div', {
-                key: 'card8',
-                style: {
-                    backgroundColor: 'white',
-                    borderRadius: '1rem',
-                    padding: '1.5rem',
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-                    transition: 'all 0.2s'
-                }
-            }, [
-                e('div', {
-                    key: 'icon8',
-                    style: {
-                        width: '3rem',
-                        height: '3rem',
-                        backgroundColor: '#fef2f2',
-                        borderRadius: '0.5rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: '1rem'
-                    }
-                }, Icons.x('#ef4444')),
-                e('div', {
-                    key: 'label8',
-                    style: {
-                        color: '#64748b',
-                        fontSize: '0.875rem',
-                        fontWeight: '500',
-                        marginBottom: '0.25rem'
-                    }
-                }, 'No Shows Hoy'),
-                e('div', {
-                    key: 'value8',
-                    style: {
-                        fontSize: '2rem',
-                        fontWeight: '700',
-                        color: '#1e293b'
-                    }
-                }, stats.noShows)
-            ])
+            KPICard({
+                title: 'Reservas Activas',
+                value: dashboardData.kpis.reservas_activas,
+                icon: Icons.calendar(),
+                color: 'blue',
+                onClick: () => onNavigate && onNavigate('reservaciones')
+            }),
+            KPICard({
+                title: 'Vehículos Operativos',
+                value: dashboardData.kpis.vehiculos_operativos,
+                icon: Icons.truck(),
+                color: 'green',
+                onClick: () => onNavigate && onNavigate('vehiculos')
+            }),
+            KPICard({
+                title: 'Ingresos Totales',
+                value: dashboardData.kpis.ingresos_totales,
+                icon: Icons.dollarSign(),
+                color: 'yellow',
+                formatter: formatCurrency
+            }),
+            KPICard({
+                title: 'Ocupación Promedio',
+                value: dashboardData.kpis.ocupacion_promedio,
+                icon: Icons.trendingUp(),
+                color: 'purple',
+                formatter: formatPercentage
+            }),
+            KPICard({
+                title: 'Pasajeros Confirmados',
+                value: dashboardData.kpis.pasajeros_confirmados,
+                icon: Icons.users(),
+                color: 'indigo'
+            }),
+            KPICard({
+                title: 'Rutas Programadas',
+                value: dashboardData.kpis.rutas_programadas,
+                icon: Icons.route(),
+                color: 'green',
+                onClick: () => onNavigate && onNavigate('rutas-activas')
+            })
         ]),
 
-        // Sección de Acciones Rápidas REALES
+        // Secondary KPIs
         e('div', {
-            key: 'quickActions',
+            key: 'secondary-kpis',
             style: {
-                marginTop: '2rem'
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '1rem',
+                marginBottom: '3rem'
+            }
+        }, [
+            KPICard({
+                title: 'Agencias Activas',
+                value: dashboardData.kpis.agencias_activas,
+                icon: Icons.building(),
+                color: 'blue'
+            }),
+            KPICard({
+                title: 'Usuarios Sistema',
+                value: dashboardData.kpis.usuarios_sistema,
+                icon: Icons.userCheck(),
+                color: 'green',
+                onClick: () => onNavigate && onNavigate('usuarios-sistema')
+            }),
+            KPICard({
+                title: 'Reservas Hoy',
+                value: dashboardData.kpis.reservas_hoy,
+                icon: Icons.clock(),
+                color: 'yellow'
+            }),
+            KPICard({
+                title: 'Ticket Promedio',
+                value: dashboardData.kpis.ticket_promedio,
+                icon: Icons.calculator(),
+                color: 'purple',
+                formatter: formatCurrency
+            }),
+            KPICard({
+                title: 'Ventas Directas',
+                value: dashboardData.kpis.porcentaje_ventas_directas,
+                icon: Icons.percent(),
+                color: 'indigo',
+                formatter: formatPercentage
+            }),
+            KPICard({
+                title: 'Ingresos Semana',
+                value: dashboardData.kpis.ingresos_semana,
+                icon: Icons.dollarSign(),
+                color: 'green',
+                formatter: formatCurrency
+            })
+        ]),
+
+        // Quick Access Cards
+        e('div', {
+            key: 'quick-access-section',
+            style: {
+                marginBottom: '2rem'
             }
         }, [
             e('h2', {
-                key: 'title',
+                key: 'section-title',
                 style: {
-                    fontSize: '1.25rem',
-                    fontWeight: '600',
-                    color: '#1e293b',
-                    marginBottom: '1rem'
+                    fontSize: '24px',
+                    fontWeight: '700',
+                    color: '#1f2937',
+                    margin: '0 0 1.5rem 0'
                 }
-            }, 'Acciones Rápidas'),
+            }, 'Acceso Rápido a Módulos'),
+
             e('div', {
-                key: 'grid',
+                key: 'quick-access-grid',
                 style: {
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-                    gap: '1rem'
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+                    gap: '1.5rem'
                 }
             }, [
-                // Botón WhatsApp - REAL
-                e('div', {
-                    key: 'whatsapp',
-                    onClick: handleWhatsAppReport,
-                    style: {
-                        backgroundColor: '#25d366',
-                        color: 'white',
-                        borderRadius: '1rem',
-                        padding: '1.5rem',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '1rem'
-                    },
-                    onMouseEnter: (e) => {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.backgroundColor = '#20ba5a';
-                    },
-                    onMouseLeave: (e) => {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.backgroundColor = '#25d366';
-                    }
-                }, [
-                    e('div', {
-                        key: 'icon',
-                        style: {
-                            width: '3rem',
-                            height: '3rem',
-                            backgroundColor: 'rgba(255,255,255,0.2)',
-                            borderRadius: '0.5rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                        }
-                    }, Icons.message('#ffffff')),
-                    e('div', { key: 'content' }, [
-                        e('h3', {
-                            key: 'title',
-                            style: {
-                                fontSize: '1rem',
-                                fontWeight: '600',
-                                marginBottom: '0.25rem'
-                            }
-                        }, 'Reporte WhatsApp'),
-                        e('p', {
-                            key: 'desc',
-                            style: {
-                                fontSize: '0.875rem',
-                                opacity: 0.9
-                            }
-                        }, 'Generar reporte del día para WhatsApp')
-                    ])
-                ]),
+                QuickAccessCard({
+                    title: 'Rutas Activas',
+                    description: 'Gestionar rutas del día y seguimiento en tiempo real',
+                    icon: Icons.route(),
+                    color: 'blue',
+                    module: 'rutas-activas',
+                    stats: [
+                        { value: formatNumber(dashboardData.kpis.rutas_programadas), label: 'Programadas' },
+                        { value: formatNumber(dashboardData.kpis.vehiculos_operativos), label: 'En ruta' }
+                    ]
+                }),
 
-                // Botón Respaldos - REAL
-                e('div', {
-                    key: 'backup',
-                    onClick: handleBackup,
-                    style: {
-                        backgroundColor: '#6366f1',
-                        color: 'white',
-                        borderRadius: '1rem',
-                        padding: '1.5rem',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '1rem'
-                    },
-                    onMouseEnter: (e) => {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.backgroundColor = '#4f46e5';
-                    },
-                    onMouseLeave: (e) => {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.backgroundColor = '#6366f1';
-                    }
-                }, [
-                    e('div', {
-                        key: 'icon',
-                        style: {
-                            width: '3rem',
-                            height: '3rem',
-                            backgroundColor: 'rgba(255,255,255,0.2)',
-                            borderRadius: '0.5rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                        }
-                    }, Icons.database('#ffffff')),
-                    e('div', { key: 'content' }, [
-                        e('h3', {
-                            key: 'title',
-                            style: {
-                                fontSize: '1rem',
-                                fontWeight: '600',
-                                marginBottom: '0.25rem'
-                            }
-                        }, 'Respaldo de BD'),
-                        e('p', {
-                            key: 'desc',
-                            style: {
-                                fontSize: '0.875rem',
-                                opacity: 0.9
-                            }
-                        }, 'Ejecutar respaldo manual del sistema')
-                    ])
-                ]),
+                QuickAccessCard({
+                    title: 'Reservaciones',
+                    description: 'Crear y administrar reservas de clientes',
+                    icon: Icons.calendar(),
+                    color: 'green',
+                    module: 'reservaciones',
+                    stats: [
+                        { value: formatNumber(dashboardData.kpis.reservas_activas), label: 'Activas' },
+                        { value: formatNumber(dashboardData.kpis.reservas_hoy), label: 'Hoy' }
+                    ]
+                }),
 
-                // Botón Nueva Reserva - NAVEGACIÓN REAL
-                e('div', {
-                    key: 'newReservation',
-                    onClick: handleNuevaReserva,
-                    style: {
-                        backgroundColor: '#059669',
-                        color: 'white',
-                        borderRadius: '1rem',
-                        padding: '1.5rem',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '1rem'
-                    },
-                    onMouseEnter: (e) => {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.backgroundColor = '#047857';
-                    },
-                    onMouseLeave: (e) => {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.backgroundColor = '#059669';
-                    }
-                }, [
-                    e('div', {
-                        key: 'icon',
-                        style: {
-                            width: '3rem',
-                            height: '3rem',
-                            backgroundColor: 'rgba(255,255,255,0.2)',
-                            borderRadius: '0.5rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                        }
-                    }, Icons.plus('#ffffff')),
-                    e('div', { key: 'content' }, [
-                        e('h3', {
-                            key: 'title',
-                            style: {
-                                fontSize: '1rem',
-                                fontWeight: '600',
-                                marginBottom: '0.25rem'
-                            }
-                        }, 'Nueva Reserva'),
-                        e('p', {
-                            key: 'desc',
-                            style: {
-                                fontSize: '0.875rem',
-                                opacity: 0.9
-                            }
-                        }, 'Crear reserva nueva rápidamente')
-                    ])
-                ]),
+                QuickAccessCard({
+                    title: 'Control Flota',
+                    description: 'Administrar vehículos y mantenimientos',
+                    icon: Icons.truck(),
+                    color: 'yellow',
+                    module: 'vehiculos',
+                    stats: [
+                        { value: formatNumber(dashboardData.kpis.vehiculos_operativos), label: 'Operativos' },
+                        { value: formatPercentage(dashboardData.kpis.ocupacion_promedio), label: 'Ocupación' }
+                    ]
+                }),
 
-                // Botón Reportes - NAVEGACIÓN REAL
-                e('div', {
-                    key: 'reports',
-                    onClick: handleReportes,
-                    style: {
-                        backgroundColor: '#dc2626',
-                        color: 'white',
-                        borderRadius: '1rem',
-                        padding: '1.5rem',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '1rem'
-                    },
-                    onMouseEnter: (e) => {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.backgroundColor = '#b91c1c';
-                    },
-                    onMouseLeave: (e) => {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.backgroundColor = '#dc2626';
-                    }
-                }, [
-                    e('div', {
-                        key: 'icon',
-                        style: {
-                            width: '3rem',
-                            height: '3rem',
-                            backgroundColor: 'rgba(255,255,255,0.2)',
-                            borderRadius: '0.5rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                        }
-                    }, Icons.chartBar('#ffffff')),
-                    e('div', { key: 'content' }, [
-                        e('h3', {
-                            key: 'title',
-                            style: {
-                                fontSize: '1rem',
-                                fontWeight: '600',
-                                marginBottom: '0.25rem'
-                            }
-                        }, 'Ver Reportes'),
-                        e('p', {
-                            key: 'desc',
-                            style: {
-                                fontSize: '0.875rem',
-                                opacity: 0.9
-                            }
-                        }, 'Generar informes y estadísticas')
-                    ])
-                ])
+                QuickAccessCard({
+                    title: 'Usuarios Sistema',
+                    description: 'Gestionar usuarios y permisos del sistema',
+                    icon: Icons.userCheck(),
+                    color: 'purple',
+                    module: 'usuarios-sistema',
+                    stats: [
+                        { value: formatNumber(dashboardData.kpis.usuarios_sistema), label: 'Total' },
+                        { value: formatNumber(dashboardData.kpis.agencias_activas), label: 'Agencias' }
+                    ]
+                }),
+
+                QuickAccessCard({
+                    title: 'Rutas y Servicios',
+                    description: 'Configurar rutas, servicios y tarifas del sistema',
+                    icon: Icons.map(),
+                    color: 'blue',
+                    module: 'rutas-servicios',
+                    stats: [
+                        { value: 'Catálogo', label: 'Base' },
+                        { value: 'Config', label: 'Sistema' }
+                    ]
+                }),
+
+                QuickAccessCard({
+                    title: 'Empleados',
+                    description: 'Gestionar personal y información laboral',
+                    icon: Icons.users(),
+                    color: 'green',
+                    module: 'empleados',
+                    stats: [
+                        { value: 'Personal', label: 'Activo' },
+                        { value: 'Gestión', label: 'RH' }
+                    ]
+                })
             ])
+        ]),
+
+        // Footer Info
+        e('div', {
+            key: 'footer',
+            style: {
+                marginTop: '2rem',
+                padding: '1rem',
+                backgroundColor: 'white',
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0',
+                textAlign: 'center',
+                color: '#6b7280',
+                fontSize: '12px'
+            }
+        }, [
+            'Última actualización: ',
+            new Date().toLocaleString('es-GT'),
+            ' | Magic Travel Guatemala - Sistema de Gestión Turística'
         ])
     ]);
 }
+
+// CSS Animation for loading spinner
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+`;
+document.head.appendChild(style);
 
 export default Dashboard;

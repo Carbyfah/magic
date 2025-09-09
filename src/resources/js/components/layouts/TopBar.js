@@ -1,19 +1,29 @@
 // src/resources/js/components/layouts/TopBar.js
 import React from 'react';
 import Icons from '../../utils/Icons';
+import Notifications from '../../utils/notifications';
 const { createElement: e, useState } = React;
 
-function TopBar({ onMenuClick, sidebarCollapsed }) {
-    const [showNotifications, setShowNotifications] = useState(false);
+function TopBar({ onMenuClick, sidebarCollapsed, currentUser, onLogout }) {
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [searchFocused, setSearchFocused] = useState(false);
 
-    // Simular notificaciones (cuando tengamos API, esto vendrá del backend)
-    const notifications = [
-        { id: 1, type: 'warning', message: 'Ruta GT-001 al 95% de capacidad', time: '5 min' },
-        { id: 2, type: 'success', message: 'Nueva reserva confirmada #R-2024', time: '15 min' },
-        { id: 3, type: 'info', message: '3 pagos pendientes de procesar', time: '1 hora' }
-    ];
+    // Manejar logout
+    const handleLogout = async () => {
+        try {
+            setShowUserMenu(false);
+            await onLogout();
+        } catch (error) {
+            console.error('Error en logout desde TopBar:', error);
+            Notifications.error('Error al cerrar sesión', 'Intente nuevamente');
+        }
+    };
+
+    // Obtener datos del usuario con valores por defecto
+    const userName = currentUser?.nombre_completo || 'Usuario';
+    const userRole = currentUser?.rol?.nombre || 'Sin rol';
+    const userInitials = currentUser?.iniciales || 'US';
+    const userCode = currentUser?.codigo || '';
 
     return e('header', {
         style: {
@@ -112,7 +122,7 @@ function TopBar({ onMenuClick, sidebarCollapsed }) {
             e('input', {
                 key: 'search-input-field',
                 type: 'text',
-                placeholder: 'Buscar reservas, clientes, rutas... (Ctrl + K)',
+                placeholder: 'Buscar reservas, clientes, rutas...',
                 onFocus: () => setSearchFocused(true),
                 onBlur: () => setSearchFocused(false),
                 style: {
@@ -126,50 +136,7 @@ function TopBar({ onMenuClick, sidebarCollapsed }) {
                     transition: 'all 0.2s',
                     color: '#1e293b'
                 }
-            }),
-
-            // Shortcut hint
-            !searchFocused && e('div', {
-                key: 'shortcut-hint',
-                style: {
-                    position: 'absolute',
-                    right: '12px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    display: 'flex',
-                    gap: '4px',
-                    pointerEvents: 'none'
-                }
-            }, [
-                e('kbd', {
-                    key: 'ctrl-key',
-                    style: {
-                        padding: '2px 6px',
-                        backgroundColor: '#f1f5f9',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '4px',
-                        fontSize: '0.75rem',
-                        fontWeight: '500',
-                        color: '#64748b'
-                    }
-                }, 'Ctrl'),
-                e('span', {
-                    key: 'plus-separator',
-                    style: { color: '#cbd5e1' }
-                }, '+'),
-                e('kbd', {
-                    key: 'k-key',
-                    style: {
-                        padding: '2px 8px',
-                        backgroundColor: '#f1f5f9',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '4px',
-                        fontSize: '0.75rem',
-                        fontWeight: '500',
-                        color: '#64748b'
-                    }
-                }, 'K')
-            ])
+            })
         ]),
 
         // Sección Derecha - Acciones y usuario
@@ -208,172 +175,6 @@ function TopBar({ onMenuClick, sidebarCollapsed }) {
                 }
             }, Icons.help()),
 
-            // Botón de notificaciones con badge
-            e('div', {
-                key: 'notifications-container',
-                style: { position: 'relative' }
-            }, [
-                e('button', {
-                    key: 'notifications-button',
-                    onClick: () => setShowNotifications(!showNotifications),
-                    title: 'Notificaciones',
-                    style: {
-                        width: '38px',
-                        height: '38px',
-                        borderRadius: '10px',
-                        border: 'none',
-                        backgroundColor: showNotifications ? '#eff6ff' : 'transparent',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        color: showNotifications ? '#3b82f6' : '#64748b',
-                        position: 'relative'
-                    },
-                    onMouseEnter: (e) => {
-                        if (!showNotifications) {
-                            e.currentTarget.style.backgroundColor = '#f1f5f9';
-                            e.currentTarget.style.color = '#475569';
-                        }
-                    },
-                    onMouseLeave: (e) => {
-                        if (!showNotifications) {
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                            e.currentTarget.style.color = '#64748b';
-                        }
-                    }
-                }, [
-                    e('span', { key: 'bell-icon' }, Icons.bell(showNotifications ? '#3b82f6' : undefined)),
-                    // Badge de notificaciones
-                    e('span', {
-                        key: 'notification-badge',
-                        style: {
-                            position: 'absolute',
-                            top: '6px',
-                            right: '6px',
-                            width: '8px',
-                            height: '8px',
-                            backgroundColor: '#ef4444',
-                            borderRadius: '50%',
-                            border: '2px solid white'
-                        }
-                    })
-                ]),
-
-                // Dropdown de notificaciones
-                showNotifications && e('div', {
-                    key: 'notifications-dropdown',
-                    style: {
-                        position: 'absolute',
-                        top: 'calc(100% + 8px)',
-                        right: 0,
-                        width: '320px',
-                        backgroundColor: 'white',
-                        borderRadius: '12px',
-                        boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
-                        border: '1px solid #e2e8f0',
-                        zIndex: 1001,
-                        overflow: 'hidden'
-                    }
-                }, [
-                    e('div', {
-                        key: 'dropdown-header',
-                        style: {
-                            padding: '1rem',
-                            borderBottom: '1px solid #f1f5f9',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                        }
-                    }, [
-                        e('h3', {
-                            key: 'header-title',
-                            style: {
-                                fontSize: '0.875rem',
-                                fontWeight: '600',
-                                color: '#1e293b'
-                            }
-                        }, 'Notificaciones'),
-                        e('span', {
-                            key: 'count-badge',
-                            style: {
-                                fontSize: '0.75rem',
-                                color: '#3b82f6',
-                                fontWeight: '500'
-                            }
-                        }, '3 nuevas')
-                    ]),
-                    e('div', {
-                        key: 'notifications-list',
-                        style: {
-                            maxHeight: '280px',
-                            overflowY: 'auto'
-                        }
-                    }, notifications.map(notif =>
-                        e('div', {
-                            key: `notification-${notif.id}`,
-                            style: {
-                                padding: '0.875rem 1rem',
-                                borderBottom: '1px solid #f8fafc',
-                                cursor: 'pointer',
-                                transition: 'background-color 0.2s'
-                            },
-                            onMouseEnter: (e) => {
-                                e.currentTarget.style.backgroundColor = '#f8fafc';
-                            },
-                            onMouseLeave: (e) => {
-                                e.currentTarget.style.backgroundColor = 'white';
-                            }
-                        }, [
-                            e('div', {
-                                key: 'notification-content',
-                                style: {
-                                    display: 'flex',
-                                    gap: '0.75rem',
-                                    alignItems: 'flex-start'
-                                }
-                            }, [
-                                e('div', {
-                                    key: 'status-indicator',
-                                    style: {
-                                        width: '8px',
-                                        height: '8px',
-                                        borderRadius: '50%',
-                                        backgroundColor: notif.type === 'warning' ? '#f59e0b' :
-                                            notif.type === 'success' ? '#10b981' : '#06b6d4',
-                                        marginTop: '6px',
-                                        flexShrink: 0
-                                    }
-                                }),
-                                e('div', {
-                                    key: 'notification-text',
-                                    style: { flex: 1 }
-                                }, [
-                                    e('p', {
-                                        key: 'message-text',
-                                        style: {
-                                            fontSize: '0.875rem',
-                                            color: '#334155',
-                                            lineHeight: '1.4'
-                                        }
-                                    }, notif.message),
-                                    e('span', {
-                                        key: 'time-stamp',
-                                        style: {
-                                            fontSize: '0.75rem',
-                                            color: '#94a3b8',
-                                            marginTop: '2px',
-                                            display: 'block'
-                                        }
-                                    }, `Hace ${notif.time}`)
-                                ])
-                            ])
-                        ])
-                    ))
-                ])
-            ]),
-
             // Separador
             e('div', {
                 key: 'separator-line',
@@ -385,7 +186,7 @@ function TopBar({ onMenuClick, sidebarCollapsed }) {
                 }
             }),
 
-            // Perfil de usuario mejorado
+            // Perfil de usuario mejorado con datos reales
             e('div', {
                 key: 'profile-container',
                 style: { position: 'relative' }
@@ -415,7 +216,7 @@ function TopBar({ onMenuClick, sidebarCollapsed }) {
                         }
                     }
                 }, [
-                    // Avatar con iniciales
+                    // Avatar con iniciales reales del usuario
                     e('div', {
                         key: 'user-avatar',
                         style: {
@@ -430,9 +231,9 @@ function TopBar({ onMenuClick, sidebarCollapsed }) {
                             fontSize: '0.875rem',
                             fontWeight: '600'
                         }
-                    }, 'JD'),
+                    }, userInitials),
 
-                    // Nombre y rol
+                    // Nombre y rol reales del usuario
                     e('div', {
                         key: 'user-info',
                         style: {
@@ -450,7 +251,7 @@ function TopBar({ onMenuClick, sidebarCollapsed }) {
                                 color: '#1e293b',
                                 lineHeight: '1.2'
                             }
-                        }, 'Juan Pérez'),
+                        }, userName),
                         e('span', {
                             key: 'user-role',
                             style: {
@@ -458,7 +259,7 @@ function TopBar({ onMenuClick, sidebarCollapsed }) {
                                 color: '#64748b',
                                 lineHeight: '1.2'
                             }
-                        }, 'Administrador')
+                        }, userRole)
                     ]),
 
                     // Chevron
@@ -496,12 +297,20 @@ function TopBar({ onMenuClick, sidebarCollapsed }) {
                         }
                     }, [
                         e('div', {
+                            key: 'user-code',
+                            style: {
+                                fontSize: '0.75rem',
+                                color: '#64748b',
+                                marginBottom: '4px'
+                            }
+                        }, `Código: ${userCode}`),
+                        e('div', {
                             key: 'user-email',
                             style: {
                                 fontSize: '0.75rem',
                                 color: '#64748b'
                             }
-                        }, 'juan.perez@magictravel.gt')
+                        }, `${userName.toLowerCase().replace(' ', '.')}@magictravel.gt`)
                     ]),
 
                     // Opciones del menú
@@ -527,6 +336,10 @@ function TopBar({ onMenuClick, sidebarCollapsed }) {
                                 fontSize: '0.875rem',
                                 color: '#334155',
                                 textAlign: 'left'
+                            },
+                            onClick: () => {
+                                setShowUserMenu(false);
+                                Notifications.info('Próximamente disponible', 'Mi Perfil');
                             },
                             onMouseEnter: (e) => {
                                 e.currentTarget.style.backgroundColor = '#f8fafc';
@@ -556,6 +369,10 @@ function TopBar({ onMenuClick, sidebarCollapsed }) {
                                 color: '#334155',
                                 textAlign: 'left'
                             },
+                            onClick: () => {
+                                setShowUserMenu(false);
+                                Notifications.info('Próximamente disponible', 'Configuración');
+                            },
                             onMouseEnter: (e) => {
                                 e.currentTarget.style.backgroundColor = '#f8fafc';
                             },
@@ -568,7 +385,7 @@ function TopBar({ onMenuClick, sidebarCollapsed }) {
                         ])
                     ]),
 
-                    // Separador y logout
+                    // Separador y logout funcional
                     e('div', {
                         key: 'logout-section',
                         style: {
@@ -578,6 +395,7 @@ function TopBar({ onMenuClick, sidebarCollapsed }) {
                     }, [
                         e('button', {
                             key: 'logout-button',
+                            onClick: handleLogout,
                             style: {
                                 width: '100%',
                                 padding: '0.625rem 0.75rem',

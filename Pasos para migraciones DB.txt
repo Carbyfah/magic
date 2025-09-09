@@ -46,3 +46,55 @@ php artisan migrate:status
 
 # Salir del contenedor
 exit
+
+
+
+
+
+
+PASO 1: Generar el hash de la contraseña
+# Dentro del contenedor PHP (/var/www/html)
+php artisan tinker
+Dentro de tinker:
+phpecho Hash::make('admin123');
+
+Copia el hash resultante (algo como $2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi)
+Salir de tinker:
+exit
+
+PASO 2: Insertar datos iniciales en la DB
+# Salir del contenedor PHP
+exit
+
+# Conectar nuevamente a MySQL
+docker exec -it magictravel_mysql mysql -u root -p
+# Password: root_secure_2025
+
+# Usar la base de datos
+USE magictravel_v_2;
+
+PASO 3: Ejecutar los INSERT
+-- Insertar rol administrador
+INSERT INTO rol (rol_nombre, rol_codigo, rol_situacion, created_at, updated_at) 
+VALUES ('Administrador', 'ADMIN', 1, NOW(), NOW());
+
+-- Insertar persona
+INSERT INTO persona (nombre_completo, iniciales, created_at, updated_at) 
+VALUES ('Super Administrador', 'SA', NOW(), NOW());
+
+-- Insertar usuario (REEMPLAZA 'HASH_AQUI' con el hash generado en el paso 1)
+INSERT INTO usuario (usuario_codigo, usuario_password, persona_id, rol_id, usuario_situacion, created_at, updated_at) 
+VALUES ('ADMIN', 'HASH_AQUI', 1, 1, 1, NOW(), NOW());
+
+-- Verificar que se crearon
+SELECT u.usuario_codigo, p.nombre_completo, r.rol_nombre 
+FROM usuario u 
+JOIN persona p ON u.persona_id = p.persona_id 
+JOIN rol r ON u.rol_id = r.rol_id;
+
+-- Salir de MySQL
+exit
+Ya puedes hacer login con:
+
+Usuario: ADMIN
+Contraseña: admin123

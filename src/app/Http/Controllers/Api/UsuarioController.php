@@ -223,4 +223,73 @@ class UsuarioController extends Controller
 
         return UsuarioResource::collection($usuarios);
     }
+
+    /**
+     * LOGIN DE USUARIO
+     */
+    public function login(Request $request)
+    {
+        $validated = $request->validate([
+            'usuario_codigo' => 'required|string',
+            'password' => 'required|string'
+        ]);
+
+        $usuario = Usuario::with(['persona', 'rol'])
+            ->where('usuario_codigo', $validated['usuario_codigo'])
+            ->where('usuario_situacion', 1)
+            ->first();
+
+        if (!$usuario || !$usuario->verificarPassword($validated['password'])) {
+            return response()->json([
+                'message' => 'Credenciales incorrectas'
+            ], 401);
+        }
+
+        // Generar token simple (puedes cambiar por JWT después)
+        $token = base64_encode($usuario->usuario_id . '|' . time() . '|' . rand(1000, 9999));
+
+        return response()->json([
+            'message' => 'Login exitoso',
+            'user' => new UsuarioResource($usuario),
+            'token' => $token
+        ]);
+    }
+
+    /**
+     * LOGOUT DE USUARIO
+     */
+    public function logout(Request $request)
+    {
+        return response()->json([
+            'message' => 'Logout exitoso'
+        ]);
+    }
+
+    /**
+     * OBTENER USUARIO AUTENTICADO
+     */
+    public function me(Request $request)
+    {
+        // Por ahora simulamos obtener el usuario del token
+        $token = $request->bearerToken();
+        if (!$token) {
+            return response()->json(['message' => 'No autenticado'], 401);
+        }
+
+        try {
+            $decoded = base64_decode($token);
+            $parts = explode('|', $decoded);
+            $usuarioId = $parts[0];
+
+            $usuario = Usuario::with(['persona', 'rol'])->find($usuarioId);
+
+            if (!$usuario || !$usuario->usuario_situacion) {
+                return response()->json(['message' => 'Usuario inactivo'], 401);
+            }
+
+            return new UsuarioResource($usuario);
+        } catch (Exception $e) {
+            return response()->json(['message' => 'Token inválido'], 401);
+        }
+    }
 }

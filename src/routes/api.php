@@ -17,7 +17,6 @@ use App\Http\Controllers\Api\UsuarioController;
 use App\Http\Controllers\Api\RutaActivadaController;
 use App\Http\Controllers\Api\ReservaController;
 use App\Http\Controllers\Api\AuditoriaController;
-use App\Http\Controllers\Api\SistemaController;
 use App\Http\Controllers\Api\DashboardVentasController;
 use App\Http\Controllers\Api\EstadisticaController;
 
@@ -275,57 +274,50 @@ Route::prefix('magic')->middleware(['api'])->group(function () {
         Route::get('/usuario/{usuarioId}', [AuditoriaController::class, 'porUsuario']);
         Route::get('/tabla/{tabla}/{auditoriaId}', [AuditoriaController::class, 'show']);
         Route::post('/reporte', [AuditoriaController::class, 'reporte']);
+        Route::post('/reporte-excel', [AuditoriaController::class, 'reporteExcel']); // NUEVA LÍNEA
         Route::delete('/limpiar', [AuditoriaController::class, 'limpiar']);
     });
 
-    // SISTEMA ROUTES
-    Route::prefix('sistema')->group(function () {
-        Route::post('/backup', [App\Http\Controllers\Api\SistemaController::class, 'backup']);
-        Route::get('/health', [App\Http\Controllers\Api\SistemaController::class, 'health']);
-        Route::get('/info', [App\Http\Controllers\Api\SistemaController::class, 'info']);
-        Route::post('/cleanup', [App\Http\Controllers\Api\SistemaController::class, 'cleanup']);
-        Route::post('/optimize', [App\Http\Controllers\Api\SistemaController::class, 'optimize']);
-    });
-
     // DASHBOARD & GENERAL ROUTES
-    Route::prefix('dashboard')->group(function () {
-        Route::get('/stats-generales', function () {
-            return response()->json([
-                'usuarios_activos' => \App\Models\Usuario::activo()->count(),
-                'reservas_hoy' => \App\Models\Reserva::hoy()->count(),
-                'pasajeros_hoy' => \App\Models\Reserva::hoy()
-                    ->sum(\DB::raw('reserva_cantidad_adultos + IFNULL(reserva_cantidad_ninos, 0)')),
-                'rutas_activas' => \App\Models\RutaActivada::programadas()->count() + \App\Models\RutaActivada::iniciadas()->count(),
-                'vehiculos_disponibles' => \App\Models\Vehiculo::disponibles()->count(),
-                'ingresos_hoy' => \App\Models\Reserva::hoy()->sum('reserva_monto'),
-                'ingresos_mes' => \App\Models\Reserva::whereMonth('created_at', now()->month)
-                    ->whereYear('created_at', now()->year)
-                    ->sum('reserva_monto'),
-                'ocupacion_promedio' => \App\Models\RutaActivada::activo()
-                    ->get()
-                    ->avg(function ($ruta) {
-                        return $ruta->porcentaje_ocupacion ?? 0;
-                    }) ?? 0
-            ]);
-        });
+    Route::get('/stats-generales', function (Request $request) {
+        try {
+            $dashboardController = new \App\Http\Controllers\Api\DashboardVentasController();
 
-        Route::get('/alertas', function () {
+            // Obtener métricas principales (pasando el request)
+            $metricas = $dashboardController->metricas($request)->getData();
+
+            // Obtener resumen general para datos complementarios
+            $resumen = $dashboardController->resumenGeneral($request)->getData();
+
             return response()->json([
-                'reservas_pendientes' => \App\Models\Reserva::pendientes()->count(),
-                'vehiculos_mantenimiento' => \App\Models\Vehiculo::enMantenimiento()->count(),
-                'rutas_casi_llenas' => \App\Models\RutaActivada::activo()
-                    ->get()
-                    ->filter(function ($ruta) {
-                        return $ruta->estaCasiLlena();
-                    })
-                    ->count(),
-                'agencias_inactivas' => \App\Models\Agencia::activo()
-                    ->whereDoesntHave('reservas', function ($q) {
-                        $q->where('created_at', '>=', now()->subMonths(2));
-                    })
-                    ->count()
+                // Métricas operativas críticas
+                'usuarios_activos' => $metricas->usuarios_activos ?? 0,
+                'reservas_hoy' => $metricas->reservas_hoy ?? 0,
+                'pasajeros_hoy' => $metricas->total_pasajeros_hoy ?? 0,
+                'rutas_activas' => $metricas->rutas_activas ?? 0,
+                'vehiculos_disponibles' => $metricas->vehiculos_disponibles ?? 0,
+
+                // Métricas financieras críticas
+                'ingresos_hoy' => $metricas->ingresos_hoy ?? 0,
+                'ingresos_mes' => $metricas->ingresos_mes ?? 0,
+
+                // Métrica de eficiencia operativa
+                'ocupacion_promedio' => $metricas->ocupacion_promedio ?? 0
             ]);
-        });
+        } catch (\Exception $e) {
+            // Fallback con valores por defecto
+            return response()->json([
+                'usuarios_activos' => 0,
+                'reservas_hoy' => 0,
+                'pasajeros_hoy' => 0,
+                'rutas_activas' => 0,
+                'vehiculos_disponibles' => 0,
+                'ingresos_hoy' => 0,
+                'ingresos_mes' => 0,
+                'ocupacion_promedio' => 0,
+                'error' => 'Datos no disponibles temporalmente'
+            ]);
+        }
     });
 
     // HEALTH CHECK
@@ -337,6 +329,13 @@ Route::prefix('magic')->middleware(['api'])->group(function () {
             'database' => 'connected'
         ]);
     });
+});
+
+// RUTAS DE AUTENTICACIÓN
+Route::prefix('auth')->group(function () {
+    Route::post('/login', [UsuarioController::class, 'login']);
+    Route::post('/logout', [UsuarioController::class, 'logout']);
+    Route::get('/me', [UsuarioController::class, 'me']);
 });
 
 // User Authentication Route

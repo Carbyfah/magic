@@ -4,7 +4,11 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import '../css/app.css';
 
-// CRITICO: IMPORTAR NOTIFICATIONS PARA IZITOAST
+// IMPORTAR SISTEMA DE AUTENTICACIÓN
+import AuthService from './services/auth';
+import Login from './components/Login';
+
+// IMPORTAR NOTIFICATIONS PARA IZITOAST
 import Notifications from './utils/notifications';
 
 // Importar componentes de layouts
@@ -40,7 +44,7 @@ import GestionEstadisticas from './components/reportes/estadisticas/GestionEstad
 // Importar iconos
 import Icons from './utils/Icons';
 
-const { createElement: e, useState } = React;
+const { createElement: e, useState, useEffect } = React;
 
 // VARIABLE GLOBAL PARA EVITAR DOBLE CREATEROOT
 let appRoot = null;
@@ -151,10 +155,10 @@ function ModuleHeader({ title, description, icon, status = 'En desarrollo' }) {
                     // Verificar iziToast
                     if (checkiziToast()) {
                         // Probar todas las notificaciones
-                        setTimeout(() => Notifications.success('iziToast funciona perfectamente', '✅ Test Exitoso'), 100);
-                        setTimeout(() => Notifications.info('Información mostrada correctamente', '📢 Info'), 1500);
-                        setTimeout(() => Notifications.warning('Advertencia mostrada correctamente', '⚠️ Warning'), 3000);
-                        setTimeout(() => Notifications.magicTravel('Magic Travel está listo para usar', '🚀 Sistema Listo'), 4500);
+                        setTimeout(() => Notifications.success('iziToast funciona perfectamente', 'Sistema Listo'), 100);
+                        setTimeout(() => Notifications.info('Información mostrada correctamente', 'Info'), 1500);
+                        setTimeout(() => Notifications.warning('Advertencia mostrada correctamente', 'Warning'), 3000);
+                        setTimeout(() => Notifications.magicTravel('Magic Travel está listo para usar', 'Sistema Listo'), 4500);
                     } else {
                         alert('❌ iziToast no está disponible. Verifica la configuración.');
                     }
@@ -179,17 +183,17 @@ function ModuleHeader({ title, description, icon, status = 'En desarrollo' }) {
                     e.currentTarget.style.backgroundColor = '#3b82f6';
                     e.currentTarget.style.transform = 'translateY(0)';
                 }
-            }, '🧪 Probar Notificaciones iziToast')
+            }, 'Probar Notificaciones iziToast')
         ])
     ]);
 }
 
 // Module Content Component - CONECTADO A TODOS LOS COMPONENTES REALES
-function ModuleContent({ module }) {
+function ModuleContent({ module, onNavigate }) {
     switch (module) {
-        // DASHBOARD
+        // DASHBOARD - AHORA CON NAVEGACIÓN
         case 'dashboard':
-            return e(Dashboard, { key: 'dashboard-component' });
+            return e(Dashboard, { key: 'dashboard-component', onNavigate });
 
         // OPERACIÓN DIARIA
         case 'reservaciones':
@@ -255,13 +259,13 @@ function ModuleContent({ module }) {
     }
 }
 
-// Main App Component
-function App() {
+// Authenticated App Component (la aplicación principal una vez logueado)
+function AuthenticatedApp({ currentUser, onLogout }) {
     const [activeModule, setActiveModule] = useState('dashboard');
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     return e('div', {
-        key: 'app-root',
+        key: 'authenticated-app',
         style: {
             minHeight: '100vh',
             backgroundColor: '#f8fafc'
@@ -270,7 +274,9 @@ function App() {
         e(TopBar, {
             key: 'app-topbar',
             onMenuClick: () => setSidebarCollapsed(!sidebarCollapsed),
-            sidebarCollapsed
+            sidebarCollapsed,
+            currentUser,
+            onLogout
         }),
         e(Sidebar, {
             key: 'app-sidebar',
@@ -290,10 +296,120 @@ function App() {
         }, [
             e(ModuleContent, {
                 key: 'app-content',
-                module: activeModule
+                module: activeModule,
+                onNavigate: setActiveModule
             })
         ])
     ]);
+}
+
+// Main App Component with Authentication
+function App() {
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [currentUser, setCurrentUser] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    // Verificar autenticación al cargar la aplicación
+    useEffect(() => {
+        checkAuthenticationStatus();
+    }, []);
+
+    const checkAuthenticationStatus = async () => {
+        try {
+            setIsLoading(true);
+
+            if (AuthService.isAuthenticated()) {
+                // Verificar que el token siga siendo válido
+                const user = await AuthService.getCurrentUser();
+                if (user) {
+                    setCurrentUser(user);
+                    setIsAuthenticated(true);
+                    Notifications.success('Sesión restaurada correctamente', 'Bienvenido de vuelta');
+                } else {
+                    // Token inválido o expirado
+                    handleLogout();
+                }
+            } else {
+                setIsAuthenticated(false);
+                setCurrentUser(null);
+            }
+        } catch (error) {
+            console.error('Error verificando autenticación:', error);
+            handleLogout();
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleLoginSuccess = (user) => {
+        setCurrentUser(user);
+        setIsAuthenticated(true);
+        Notifications.success(`Bienvenido ${user.nombre_completo}`, 'Login Exitoso');
+    };
+
+    const handleLogout = async () => {
+        try {
+            await AuthService.logout();
+            setCurrentUser(null);
+            setIsAuthenticated(false);
+            Notifications.info('Sesión cerrada correctamente', 'Hasta pronto');
+        } catch (error) {
+            console.error('Error en logout:', error);
+            // Limpiar sesión de todos modos
+            setCurrentUser(null);
+            setIsAuthenticated(false);
+        }
+    };
+
+    // Pantalla de carga
+    if (isLoading) {
+        return e('div', {
+            style: {
+                minHeight: '100vh',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#f8fafc'
+            }
+        }, [
+            e('div', {
+                key: 'loading-content',
+                style: {
+                    textAlign: 'center',
+                    color: '#6b7280'
+                }
+            }, [
+                e('div', {
+                    key: 'spinner',
+                    style: {
+                        width: '40px',
+                        height: '40px',
+                        border: '3px solid #e5e7eb',
+                        borderTop: '3px solid #667eea',
+                        borderRadius: '50%',
+                        animation: 'spin 1s linear infinite',
+                        margin: '0 auto 16px'
+                    }
+                }),
+                e('p', { key: 'loading-text' }, 'Cargando Magic Travel...')
+            ])
+        ]);
+    }
+
+    // Mostrar login si no está autenticado
+    if (!isAuthenticated) {
+        return e(Login, {
+            key: 'login-screen',
+            onLoginSuccess: handleLoginSuccess
+        });
+    }
+
+    // Mostrar aplicación principal si está autenticado
+    return e(AuthenticatedApp, {
+        key: 'main-app',
+        currentUser,
+        onLogout: handleLogout
+    });
 }
 
 // INICIALIZACIÓN MEJORADA SIN DOBLE CREATEROOT
@@ -344,3 +460,13 @@ if (document.readyState === 'loading') {
     // DOM ya está listo
     handleDOMReady();
 }
+
+// CSS Animation for loading spinner
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+`;
+document.head.appendChild(style);

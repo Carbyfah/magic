@@ -820,7 +820,8 @@ const ModalUniversal = {
         cerrar,
         item,
         tipoItem,
-        camposExcluir = ['id', 'created_at', 'updated_at', 'deleted_at']
+        camposExcluir = ['id', 'created_at', 'updated_at', 'deleted_at'],
+        labelsPersonalizados = {}
     }) => {
         if (!abierto || !item) return null;
 
@@ -905,9 +906,14 @@ const ModalUniversal = {
             return String(valor);
         };
 
-        // FUNCIÓN PARA FORMATEAR NOMBRES DE CAMPOS
+        // FUNCIÓN PARA FORMATEAR NOMBRES DE CAMPOS - MEJORADA
         const formatearNombreCampo = (campo) => {
-            // Diccionario de traducciones específicas
+            // PRIORIDAD 1: Usar labels personalizados si existen
+            if (labelsPersonalizados[campo]) {
+                return labelsPersonalizados[campo];
+            }
+
+            // PRIORIDAD 2: Diccionario de traducciones específicas
             const traducciones = {
                 'tipo_persona_id': 'Tipo de Empleado',
                 'persona_id': 'Persona',
@@ -931,7 +937,7 @@ const ModalUniversal = {
                 return traducciones[campo];
             }
 
-            // Formateo automático inteligente
+            // PRIORIDAD 3: Formateo automático inteligente
             return campo
                 .replace(/_/g, ' ')
                 .replace(/([A-Z])/g, ' $1')
