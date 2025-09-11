@@ -599,6 +599,160 @@ export const estadisticasConfig = {
         reservasPorEstado: 'Distribución circular de las reservas según su estado actual',
         ventasPorAgencia: 'Comparación entre ventas directas y ventas por agencia',
         topRutas: 'Ranking de las rutas más rentables ordenadas por ingresos generados'
+    },
+
+    // VALIDACIÓN DE ESTADOS - No aplica para estadísticas
+    validateStates: async () => {
+        return {
+            valido: true,
+            mensaje: 'Las estadísticas no requieren validación de estados específicos'
+        };
+    },
+
+    // VALIDADORES DE INTEGRIDAD PARA ESTADÍSTICAS
+    integrityValidators: {
+        // Validar parámetros de gráficos
+        validateGraphParameters: (parametros) => {
+            const errores = {};
+
+            Object.entries(parametros).forEach(([key, value]) => {
+                if (key === 'limite') {
+                    const num = parseInt(value);
+                    if (isNaN(num) || num < 1 || num > 50) {
+                        errores[key] = 'El límite debe estar entre 1 y 50';
+                    }
+                }
+
+                if (key === 'dias') {
+                    const num = parseInt(value);
+                    if (isNaN(num) || num < 1 || num > 365) {
+                        errores[key] = 'Los días deben estar entre 1 y 365';
+                    }
+                }
+
+                if (key.includes('fecha')) {
+                    if (value && value !== 'hoy' && !value.startsWith('-')) {
+                        const fecha = new Date(value);
+                        if (isNaN(fecha.getTime())) {
+                            errores[key] = 'Formato de fecha inválido';
+                        }
+                    }
+                }
+            });
+
+            return Object.keys(errores).length === 0 ? { valido: true } : { valido: false, errores };
+        },
+
+        // Validar datos de respuesta de gráficos
+        validateGraphData: (datos) => {
+            if (!datos) {
+                return { valido: false, mensaje: 'Datos vacíos' };
+            }
+
+            if (!datos.data) {
+                return { valido: false, mensaje: 'Estructura de datos inválida' };
+            }
+
+            return { valido: true };
+        }
+    },
+
+    // HELPERS ESPECÍFICOS PARA ESTADÍSTICAS
+    helpers: {
+        // Procesar fechas relativas
+        procesarFechaRelativa: (valor) => {
+            if (valor === 'hoy') {
+                return new Date().toISOString().split('T')[0];
+            } else if (typeof valor === 'string' && valor.startsWith('-')) {
+                const dias = parseInt(valor.replace(/[^\d]/g, ''));
+                const fecha = new Date();
+                fecha.setDate(fecha.getDate() - dias);
+                return fecha.toISOString().split('T')[0];
+            }
+            return valor;
+        },
+
+        // Construir URL con parámetros procesados
+        construirURL: (endpoint, parametros) => {
+            const params = new URLSearchParams();
+
+            Object.entries(parametros).forEach(([key, value]) => {
+                const valorProcesado = estadisticasConfig.helpers.procesarFechaRelativa(value);
+                if (valorProcesado) {
+                    params.append(key, valorProcesado);
+                }
+            });
+
+            return params.toString() ? `${endpoint}?${params.toString()}` : endpoint;
+        },
+
+        // Formatear datos para Chart.js
+        formatearDatosChart: (datos) => {
+            if (!datos || !datos.data) return null;
+            return datos;
+        },
+
+        // Validar disponibilidad de Chart.js
+        validarChartJS: () => {
+            return typeof Chart !== 'undefined';
+        },
+
+        // Obtener configuración de color por tipo
+        obtenerColoresPorTipo: (tipo) => {
+            const colores = {
+                'bar': [estadisticasConfig.colores.primario, estadisticasConfig.colores.secundario],
+                'line': [estadisticasConfig.colores.primario],
+                'doughnut': [
+                    estadisticasConfig.colores.primario,
+                    estadisticasConfig.colores.secundario,
+                    estadisticasConfig.colores.terciario,
+                    estadisticasConfig.colores.info,
+                    estadisticasConfig.colores.advertencia
+                ]
+            };
+            return colores[tipo] || [estadisticasConfig.colores.primario];
+        }
+    },
+
+    // VALIDACIÓN COMPLETA PARA ESTADÍSTICAS
+    validateForm: (parametros) => {
+        return estadisticasConfig.integrityValidators.validateGraphParameters(parametros);
+    },
+
+    // PROCESAMIENTO ANTES DE ENVIAR PARÁMETROS
+    processBeforeRequest: (parametros) => {
+        const parametrosProcesados = {};
+
+        Object.entries(parametros).forEach(([key, value]) => {
+            parametrosProcesados[key] = estadisticasConfig.helpers.procesarFechaRelativa(value);
+        });
+
+        return parametrosProcesados;
+    },
+
+    // ACCIONES ESPECÍFICAS PARA ESTADÍSTICAS
+    actions: {
+        refresh: {
+            label: 'Actualizar Gráfico',
+            icon: 'refresh-cw',
+            color: 'blue',
+            condition: () => true,
+            requiresConfirmation: false
+        },
+        download: {
+            label: 'Descargar PNG',
+            icon: 'download',
+            color: 'green',
+            condition: (grafico) => grafico && grafico.canvas,
+            requiresConfirmation: false
+        },
+        configure: {
+            label: 'Configurar Parámetros',
+            icon: 'settings',
+            color: 'gray',
+            condition: (config) => config && config.parametros,
+            requiresConfirmation: false
+        }
     }
 };
 

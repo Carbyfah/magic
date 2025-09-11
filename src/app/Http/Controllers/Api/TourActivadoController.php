@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\TourActivado;
 use App\Models\Persona;
-use App\Models\Estado;
 use App\Http\Resources\TourActivadoResource;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -19,16 +18,11 @@ class TourActivadoController extends Controller
      */
     public function index(Request $request)
     {
-        $query = TourActivado::with(['persona', 'estado', 'servicio']);
+        $query = TourActivado::with(['persona', 'servicio']);
 
         // Filtro básico por situación
         if ($request->filled('activo')) {
             $query->where('tour_activado_situacion', $request->boolean('activo'));
-        }
-
-        // Filtro por estado
-        if ($request->filled('estado_id')) {
-            $query->porEstado($request->estado_id);
         }
 
         // Filtro por guía
@@ -80,7 +74,6 @@ class TourActivadoController extends Controller
             'tour_activado_punto_encuentro' => 'nullable|string|max:255',
             'tour_activado_duracion_horas' => 'nullable|numeric|min:0|max:24',
             'persona_id' => 'nullable|exists:persona,persona_id', // Guía opcional
-            'estado_id' => 'required|exists:estado,estado_id',
             'servicio_id' => 'required|exists:servicio,servicio_id',
             'tour_activado_situacion' => 'sometimes|boolean'
         ]);
@@ -98,6 +91,11 @@ class TourActivadoController extends Controller
             }
         }
 
+        // Establecer valor por defecto para duración
+        if (!isset($validated['tour_activado_duracion_horas'])) {
+            $validated['tour_activado_duracion_horas'] = 2.0; // 2 horas por defecto
+        }
+
         // Generar código automáticamente si no viene
         $validated['tour_activado_codigo'] = $validated['tour_activado_codigo'] ?? TourActivado::generarCodigo();
         $validated['tour_activado_situacion'] = $validated['tour_activado_situacion'] ?? true;
@@ -105,7 +103,7 @@ class TourActivadoController extends Controller
         // Crear el tour activado
         $tourActivado = TourActivado::create($validated);
 
-        $tourActivado->load(['persona', 'estado', 'servicio']);
+        $tourActivado->load(['persona', 'servicio']);
 
         return new TourActivadoResource($tourActivado);
     }
@@ -115,13 +113,12 @@ class TourActivadoController extends Controller
      */
     public function show(TourActivado $tourActivado)
     {
-        $tourActivado->load(['persona', 'estado', 'servicio', 'reservas']);
+        $tourActivado->load(['persona', 'servicio', 'reservas']);
 
         $detallesDisponibilidad = $tourActivado->verificarDisponibilidadTour();
 
         $response = new TourActivadoResource($tourActivado);
         $response->additional([
-            'estado_actual' => $tourActivado->estado_nombre,
             'disponibilidad_detallada' => [
                 'tipo' => 'tour',
                 'total_reservas' => $tourActivado->total_reservas_activas,
@@ -163,7 +160,6 @@ class TourActivadoController extends Controller
             'tour_activado_punto_encuentro' => 'nullable|string|max:255',
             'tour_activado_duracion_horas' => 'nullable|numeric|min:0|max:24',
             'persona_id' => 'nullable|exists:persona,persona_id',
-            'estado_id' => 'required|exists:estado,estado_id',
             'servicio_id' => 'required|exists:servicio,servicio_id',
             'tour_activado_situacion' => 'sometimes|boolean'
         ]);
@@ -187,7 +183,7 @@ class TourActivadoController extends Controller
         }
 
         $tourActivado->update($validated);
-        $tourActivado->load(['persona', 'estado', 'servicio']);
+        $tourActivado->load(['persona', 'servicio']);
 
         return new TourActivadoResource($tourActivado);
     }
@@ -209,63 +205,13 @@ class TourActivadoController extends Controller
     }
 
     /**
-     * ACTIVAR TOUR ACTIVADO
-     */
-    public function activate(TourActivado $tourActivado)
-    {
-        $tourActivado->update(['tour_activado_situacion' => 1]);
-        $tourActivado->load(['persona', 'estado', 'servicio']);
-
-        return new TourActivadoResource($tourActivado);
-    }
-
-    /**
-     * DESACTIVAR TOUR ACTIVADO - CON VALIDACIÓN DE RESERVAS
-     */
-    public function deactivate(TourActivado $tourActivado)
-    {
-        // Validar si tiene reservas activas
-        if ($tourActivado->tieneReservasActivas()) {
-            return response()->json([
-                'message' => 'No se puede desactivar un tour que tiene reservas activas.'
-            ], 409);
-        }
-
-        $tourActivado->update(['tour_activado_situacion' => 0]);
-        $tourActivado->load(['persona', 'estado', 'servicio']);
-
-        return new TourActivadoResource($tourActivado);
-    }
-
-    /**
      * CERRAR TOUR - PROCESO SIMPLIFICADO (SIN VEHÍCULO)
      */
     public function cerrarTour(TourActivado $tourActivado)
     {
-        // Buscar estado "Cerrado" para tours
-        $estadoCerrado = Estado::where('estado_codigo', 'LIKE', 'TOU-%')
-            ->where(function ($query) {
-                $query->where('estado_estado', 'LIKE', '%cerrado%')
-                    ->orWhere('estado_estado', 'LIKE', '%completado%')
-                    ->orWhere('estado_estado', 'LIKE', '%finalizado%');
-            })
-            ->first();
-
-        if (!$estadoCerrado) {
-            // Buscar estado genérico si no hay específico para tours
-            $estadoCerrado = Estado::where(function ($query) {
-                $query->where('estado_estado', 'LIKE', '%cerrado%')
-                    ->orWhere('estado_estado', 'LIKE', '%completado%')
-                    ->orWhere('estado_estado', 'LIKE', '%finalizado%');
-            })
-                ->first();
-        }
-
-        if ($estadoCerrado) {
-            $tourActivado->update(['estado_id' => $estadoCerrado->estado_id]);
-        }
-
-        $tourActivado->load(['persona', 'estado', 'servicio']);
+        // Simplemente marcar como inactivo
+        $tourActivado->update(['tour_activado_situacion' => 0]);
+        $tourActivado->load(['persona', 'servicio']);
 
         return response()->json([
             'message' => 'Tour cerrado exitosamente',
@@ -278,7 +224,6 @@ class TourActivadoController extends Controller
      */
     public function verificarDisponibilidad(TourActivado $tourActivado)
     {
-        $tourActivado->load(['estado']);
 
         $totalPasajeros = $tourActivado->total_pasajeros;
         $totalReservas = $tourActivado->total_reservas_activas;
@@ -320,26 +265,8 @@ class TourActivadoController extends Controller
      */
     public function porPersona(Request $request, $personaId)
     {
-        $query = TourActivado::with(['persona', 'estado', 'servicio'])
+        $query = TourActivado::with(['persona', 'servicio'])
             ->porPersona($personaId)
-            ->activa();
-
-        if ($request->filled('search')) {
-            $query->buscar($request->search);
-        }
-
-        $toursActivados = $query->orderBy('tour_activado_fecha_hora', 'desc')->get();
-
-        return TourActivadoResource::collection($toursActivados);
-    }
-
-    /**
-     * OBTENER TOURS POR ESTADO
-     */
-    public function porEstado(Request $request, $estadoId)
-    {
-        $query = TourActivado::with(['persona', 'estado', 'servicio'])
-            ->porEstado($estadoId)
             ->activa();
 
         if ($request->filled('search')) {
@@ -356,7 +283,7 @@ class TourActivadoController extends Controller
      */
     public function porServicio(Request $request, $servicioId)
     {
-        $query = TourActivado::with(['persona', 'estado', 'servicio'])
+        $query = TourActivado::with(['persona', 'servicio'])
             ->porServicio($servicioId)
             ->activa();
 
@@ -374,7 +301,7 @@ class TourActivadoController extends Controller
      */
     public function porFecha(Request $request, $fecha)
     {
-        $query = TourActivado::with(['persona', 'estado', 'servicio'])
+        $query = TourActivado::with(['persona', 'servicio'])
             ->porFecha($fecha)
             ->activa();
 
@@ -392,7 +319,7 @@ class TourActivadoController extends Controller
      */
     public function conGuiaInterno(Request $request)
     {
-        $query = TourActivado::with(['persona', 'estado', 'servicio'])
+        $query = TourActivado::with(['persona', 'servicio'])
             ->conGuia()
             ->activa();
 
@@ -410,7 +337,7 @@ class TourActivadoController extends Controller
      */
     public function conGuiaExterno(Request $request)
     {
-        $query = TourActivado::with(['estado', 'servicio'])
+        $query = TourActivado::with(['servicio'])
             ->sinGuia()
             ->activa();
 
@@ -465,13 +392,12 @@ class TourActivadoController extends Controller
      */
     public function obtenerNotificaciones(TourActivado $tourActivado)
     {
-        $tourActivado->load(['estado', 'persona']);
+        $tourActivado->load(['persona']);
         $notificaciones = $tourActivado->obtenerNotificacionesInteligentes();
 
         return response()->json([
             'tour_id' => $tourActivado->tour_activado_id,
             'codigo' => $tourActivado->tour_activado_codigo,
-            'estado_actual' => $tourActivado->estado_nombre,
             'tiene_guia' => $tourActivado->tieneGuiaAsignado(),
             'notificaciones' => $notificaciones
         ]);
@@ -487,7 +413,6 @@ class TourActivadoController extends Controller
             'ninos' => 'nullable|integer|min:0'
         ]);
 
-        $tourActivado->load(['estado']);
         $validacion = $tourActivado->validarAntesDeAgregarReserva(
             $request->adultos,
             $request->ninos ?? 0
@@ -501,7 +426,6 @@ class TourActivadoController extends Controller
      */
     public function procesarDespuesReserva(TourActivado $tourActivado)
     {
-        $tourActivado->load(['estado']);
         $notificaciones = $tourActivado->procesarDespuesDeAgregarReserva();
 
         return response()->json([
@@ -516,7 +440,7 @@ class TourActivadoController extends Controller
      */
     public function obtenerResumen(TourActivado $tourActivado)
     {
-        $tourActivado->load(['persona', 'estado', 'servicio']);
+        $tourActivado->load(['persona', 'servicio']);
         $resumen = $tourActivado->obtenerResumenTour();
 
         return response()->json([
@@ -562,7 +486,7 @@ class TourActivadoController extends Controller
         ]);
 
         $tourActivado->update($validated);
-        $tourActivado->load(['persona', 'estado', 'servicio']);
+        $tourActivado->load(['persona', 'servicio']);
 
         return response()->json([
             'message' => 'Información del tour actualizada exitosamente',
@@ -594,7 +518,7 @@ class TourActivadoController extends Controller
         }
 
         $tourActivado->update(['persona_id' => $validated['persona_id']]);
-        $tourActivado->load(['persona', 'estado', 'servicio']);
+        $tourActivado->load(['persona', 'servicio']);
 
         $mensaje = empty($validated['persona_id'])
             ? 'Guía removido del tour (ahora es guía externo)'

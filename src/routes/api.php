@@ -163,14 +163,11 @@ Route::prefix('magic')->group(function () {
         Route::post('/buscar-disponible', [TourActivadoController::class, 'buscarDisponible']);
         Route::get('/con-guia-interno', [TourActivadoController::class, 'conGuiaInterno']);
         Route::get('/con-guia-externo', [TourActivadoController::class, 'conGuiaExterno']);
-        Route::get('/estado/{estadoId}', [TourActivadoController::class, 'porEstado']);
         Route::get('/persona/{personaId}', [TourActivadoController::class, 'porPersona']);
         Route::get('/servicio/{servicioId}', [TourActivadoController::class, 'porServicio']);
         Route::get('/fecha/{fecha}', [TourActivadoController::class, 'porFecha']);
         Route::get('/{tourActivado}', [TourActivadoController::class, 'show']);
         Route::put('/{tourActivado}', [TourActivadoController::class, 'update']);
-        Route::patch('/{tourActivado}/activate', [TourActivadoController::class, 'activate']);
-        Route::patch('/{tourActivado}/deactivate', [TourActivadoController::class, 'deactivate']);
         Route::get('/{tourActivado}/lista-guia-pdf', [TourActivadoController::class, 'generarListaGuia']);
         Route::post('/{tourActivado}/cerrar', [TourActivadoController::class, 'cerrarTour']);
 

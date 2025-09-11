@@ -19,7 +19,6 @@ function GestionToursActivados() {
     // Estados principales
     const [toursActivados, setToursActivados] = useState([]);
     const [personas, setPersonas] = useState([]);
-    const [estados, setEstados] = useState([]);
     const [servicios, setServicios] = useState([]);
     const [loading, setLoading] = useState(false);
     const [loadingAction, setLoadingAction] = useState(false);
@@ -52,7 +51,6 @@ function GestionToursActivados() {
     // Efectos principales
     useEffect(() => {
         cargarDatos();
-        validarEstados(); // NUEVO: Validar estados al cargar
     }, []);
 
     // NUEVO: Cargar notificaciones automáticamente después de cargar tours
@@ -62,35 +60,6 @@ function GestionToursActivados() {
         }
     }, [toursActivados]);
 
-    // NUEVO: SISTEMA DE VALIDACIÓN DE ESTADOS
-    const validarEstados = async () => {
-        try {
-            const validacion = await currentConfig.validateStates();
-            if (!validacion.valido) {
-                // Mostrar notificación warning con mensaje específico
-                Notifications.warning(
-                    `${validacion.mensaje} - El sistema necesita estos estados para funcionar correctamente`,
-                    'Estados Faltantes'
-                );
-
-                console.warn('Validación de estados falló:', validacion);
-
-                // Opcional: Mostrar botón para crear estados automáticamente
-                setTimeout(() => {
-                    Notifications.info(
-                        'Puede crear los estados faltantes desde el módulo de Estados del Sistema',
-                        'Sugerencia'
-                    );
-                }, 3000);
-            } else {
-                console.log('Validación de estados exitosa:', validacion.mensaje);
-            }
-        } catch (error) {
-            console.error('Error validando estados:', error);
-            Notifications.error('Error al validar estados del sistema');
-        }
-    };
-
     // NUEVO: Función para cargar notificaciones inteligentes
     const cargarNotificacionesInteligentes = async () => {
         try {
@@ -98,14 +67,11 @@ function GestionToursActivados() {
             const notificaciones = {};
 
             // Cargar notificaciones para cada tour activo
-            const toursActivos = toursActivados.filter(tour =>
-                tour.activo && tour.estado &&
-                !currentConfig.stateDetection?.cerrado(tour.estado)
-            );
+            const toursActivos = toursActivados.filter(tour => tour.activo);
 
             const promesasNotificaciones = toursActivos.map(async (tour) => {
                 try {
-                    const response = await fetch(`/api/magic/tours-activados/${tour.id}/notificaciones`);
+                    const response = await apiHelper.get(`/tours-activados/${tour.id}/notificaciones`);
                     if (response.ok) {
                         const data = await response.json();
                         return { id: tour.id, notificaciones: data.notificaciones || [] };
@@ -187,31 +153,13 @@ function GestionToursActivados() {
         ]);
     };
 
-    // NUEVO: Función para obtener el color del estado según la lógica de negocio
-    const obtenerColorEstado = (tour) => {
-        if (!tour.estado || !tour.estado.estado_estado) return 'gris';
-
-        if (currentConfig.stateDetection?.activado && currentConfig.stateDetection.activado(tour.estado)) return 'azul';
-        if (currentConfig.stateDetection?.ejecucion && currentConfig.stateDetection.ejecucion(tour.estado)) return 'verde';
-        if (currentConfig.stateDetection?.cerrado && currentConfig.stateDetection.cerrado(tour.estado)) return 'gris';
-
-        return 'gris';
-    };
-
-    // NUEVO: Función para obtener texto del estado
-    const obtenerTextoEstado = (tour) => {
-        if (!tour.estado || !tour.estado.estado_estado) return 'Sin estado';
-        return tour.estado.estado_estado;
-    };
-
     // Función para cargar datos desde API
     const cargarDatos = async () => {
         try {
             setLoading(true);
-            const [toursRes, personasRes, estadosRes, serviciosRes] = await Promise.all([
+            const [toursRes, personasRes, serviciosRes] = await Promise.all([
                 apiHelper.toursActivados.getAll(),
                 apiHelper.get('/personas'),
-                apiHelper.get('/estados/contexto/ruta-activada'),
                 apiHelper.servicios.getAll()
             ]);
 
@@ -235,16 +183,6 @@ function GestionToursActivados() {
                 Notifications.error(`Error al cargar personas: ${error.message}`);
             }
 
-            // Procesar estados
-            try {
-                const estadosData = await apiHelper.handleResponse(estadosRes);
-                setEstados(estadosData.data || estadosData);
-                console.log('Estados contextuales cargados:', (estadosData.data || estadosData).length, 'items');
-            } catch (error) {
-                console.error('Error al cargar estados:', error);
-                Notifications.error(`Error al cargar estados: ${error.message}`);
-            }
-
             // Procesar servicios
             try {
                 const serviciosData = await apiHelper.handleResponse(serviciosRes);
@@ -261,14 +199,6 @@ function GestionToursActivados() {
         } finally {
             setLoading(false);
         }
-    };
-
-    // Obtener estado por tipo usando la configuración
-    const obtenerEstadoPorTipo = (tipo) => {
-        return estados.find(estado => {
-            const detector = currentConfig.stateDetection?.[tipo];
-            return detector && detector(estado);
-        });
     };
 
     // Generar campos de formulario
@@ -339,20 +269,6 @@ function GestionToursActivados() {
             label: 'Punto de Encuentro'
         });
 
-        campos.push({
-            nombre: 'duracion_horas',
-            tipo: 'number',
-            requerido: false,
-            opciones: [],
-            placeholder: '2.5',
-            soloLectura: false,
-            ancho: 'medio',
-            label: 'Duración (Horas)',
-            min: 0,
-            max: 24,
-            step: 0.5
-        });
-
         // ASIGNACIONES
         campos.push({
             nombre: 'persona_id',
@@ -364,29 +280,14 @@ function GestionToursActivados() {
                 ...personas
                     .filter(persona => persona.activo === true)
                     .map(persona => ({
-                        value: persona.persona_id,
-                        label: persona.persona_nombres + ' ' + persona.persona_apellidos
+                        value: persona.id,  // Cambiar aquí
+                        label: persona.nombres + ' ' + persona.apellidos  // Y aquí
                     }))
             ],
             placeholder: 'Opcional - Dejar vacío para guía externo',
             soloLectura: false,
             ancho: 'medio',
             label: 'Guía Interno (Opcional)'
-        });
-
-        campos.push({
-            nombre: 'estado_id',
-            tipo: 'select',
-            searchable: true,
-            requerido: true,
-            opciones: estados.map(estado => ({
-                value: estado.estado_id,
-                label: estado.estado_estado
-            })),
-            placeholder: 'Seleccione el estado',
-            soloLectura: false,
-            ancho: 'medio',
-            label: 'Estado'
         });
 
         return campos;
@@ -400,9 +301,7 @@ function GestionToursActivados() {
             { campo: 'servicio', label: 'Servicio', tipo: 'objeto' },
             { campo: 'descripcion', label: 'Descripción', tipo: 'texto' },
             { campo: 'punto_encuentro', label: 'Punto de Encuentro', tipo: 'texto' },
-            { campo: 'duracion_horas', label: 'Duración', tipo: 'duracion' },
-            { campo: 'guia', label: 'Guía', tipo: 'guia' },
-            { campo: 'estado', label: 'Estado', tipo: 'estado' }
+            { campo: 'guia', label: 'Guía', tipo: 'guia' }
         ];
 
         return e('div', {
@@ -431,15 +330,6 @@ function GestionToursActivados() {
                     contenidoFormateado = valor ?
                         `${valor.persona_nombres} ${valor.persona_apellidos}` :
                         'Guía Externo';
-                } else if (tipo === 'estado' && valor) {
-                    // NUEVO: Renderizado especial para estados
-                    const colorEstado = obtenerColorEstado(item);
-                    const textoEstado = obtenerTextoEstado(item);
-
-                    contenidoFormateado = BotonesUniversal.badge({
-                        texto: textoEstado,
-                        color: colorEstado
-                    });
                 } else if (tipo === 'objeto' && valor) {
                     contenidoFormateado = valor.servicio_servicio || valor.nombre || String(valor);
                 } else if (tipo !== 'estado') {
@@ -448,7 +338,7 @@ function GestionToursActivados() {
 
                 return e('div', { key: campo }, [
                     e('strong', { key: `label-${campo}` }, `${label}: `),
-                    tipo === 'estado' ? contenidoFormateado : contenidoFormateado
+                    contenidoFormateado
                 ]);
             })),
 
@@ -480,18 +370,11 @@ function GestionToursActivados() {
                 fecha_hora: item.fecha_hora ? item.fecha_hora.slice(0, 16) : '',
                 descripcion: item.descripcion,
                 punto_encuentro: item.punto_encuentro,
-                duracion_horas: item.duracion_horas,
                 persona_id: item.persona_id || '',
                 servicio_id: item.servicio_id,
-                estado_id: item.estado_id
             });
         } else {
-            // Buscar estado activado dinámicamente
-            const estadoActivado = obtenerEstadoPorTipo('activado');
-
             setFormulario({
-                duracion_horas: 2.0,
-                estado_id: estadoActivado?.estado_id || estados[0]?.estado_id || 1,
                 persona_id: ''
             });
         }
@@ -505,22 +388,6 @@ function GestionToursActivados() {
         setFormulario(prev => ({ ...prev, [campo]: valor }));
         if (errores[campo]) {
             setErrores(prev => ({ ...prev, [campo]: '' }));
-        }
-
-        // NUEVO: Validaciones inteligentes para cambios de estado
-        if (campo === 'estado_id' && valor && itemEditando) {
-            const estadoSeleccionado = estados.find(e => e.estado_id == valor);
-            if (estadoSeleccionado && itemEditando.estado) {
-                console.log('Cambio de estado detectado para tour');
-            }
-        }
-
-        // Validar duración
-        if (campo === 'duracion_horas' && valor) {
-            const duracion = parseFloat(valor);
-            if (isNaN(duracion) || duracion < 0 || duracion > 24) {
-                setErrores(prev => ({ ...prev, [campo]: 'La duración debe estar entre 0 y 24 horas' }));
-            }
         }
     };
 
@@ -573,25 +440,13 @@ function GestionToursActivados() {
 
             console.log('Datos a enviar:', datosParaEnviar);
 
-            const url = itemEditando
-                ? `/api/magic/tours-activados/${obtenerIdItem(itemEditando)}`
-                : `/api/magic/tours-activados`;
+            const response = itemEditando
+                ? await apiHelper.put(`/tours-activados/${obtenerIdItem(itemEditando)}`, datosParaEnviar)
+                : await apiHelper.post('/tours-activados', datosParaEnviar);
 
-            const method = itemEditando ? 'PUT' : 'POST';
-
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                },
-                body: JSON.stringify(datosParaEnviar)
-            });
+            const data = await apiHelper.handleResponse(response);
 
             if (response.ok) {
-                const data = await response.json();
                 console.log('Respuesta del servidor:', data);
 
                 Notifications.success(
@@ -600,12 +455,11 @@ function GestionToursActivados() {
                 setModalFormulario(false);
                 cargarDatos(); // Esto recargará las notificaciones automáticamente
             } else {
-                const errorData = await response.json();
-                if (errorData.errors) {
-                    setErrores(errorData.errors);
+                if (data.errors) {
+                    setErrores(data.errors);
                     Notifications.error('Por favor corrige los errores en el formulario');
                 } else {
-                    Notifications.error(`Error al guardar: ${errorData.message || response.status}`);
+                    Notifications.error(`Error al guardar: ${data.message || 'Error desconocido'}`);
                 }
             }
         } catch (error) {
@@ -631,33 +485,17 @@ function GestionToursActivados() {
             const itemId = obtenerIdItem(itemConfirmacion);
 
             let response;
-            let url;
 
             switch (accionConfirmacion) {
                 case 'activar':
-                    url = `/api/magic/tours-activados/${itemId}/activate`;
-                    response = await fetch(url, {
-                        method: 'PATCH',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        }
-                    });
+                    response = await apiHelper.patch(`/tours-activados/${itemId}/activate`);
                     break;
 
                 case 'desactivar':
-                    url = `/api/magic/tours-activados/${itemId}/deactivate`;
-                    response = await fetch(url, {
-                        method: 'PATCH',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        }
-                    });
+                    response = await apiHelper.patch(`/tours-activados/${itemId}/deactivate`);
                     break;
 
                 case 'duplicar':
-                    const estadoActivado = obtenerEstadoPorTipo('activado');
                     const itemDuplicado = {
                         tour_activado_fecha_hora: itemConfirmacion.fecha_hora,
                         tour_activado_descripcion: itemConfirmacion.descripcion ? `Duplicado: ${itemConfirmacion.descripcion}` : 'Tour duplicado',
@@ -665,28 +503,19 @@ function GestionToursActivados() {
                         tour_activado_duracion_horas: itemConfirmacion.duracion_horas,
                         persona_id: itemConfirmacion.persona_id,
                         servicio_id: itemConfirmacion.servicio_id,
-                        estado_id: estadoActivado?.estado_id || estados[0]?.estado_id,
                         tour_activado_situacion: 1
                     };
 
-                    url = `/api/magic/tours-activados`;
-                    response = await fetch(url, {
-                        method: 'POST',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        },
-                        body: JSON.stringify(itemDuplicado)
-                    });
+                    response = await apiHelper.post('/tours-activados', itemDuplicado);
                     break;
 
                 default:
                     return;
             }
 
-            if (response && response.ok) {
+            const data = await apiHelper.handleResponse(response);
+
+            if (response.ok) {
                 const mensajes = {
                     duplicar: 'Tour duplicado exitosamente',
                     activar: 'Tour activado exitosamente',
@@ -697,8 +526,7 @@ function GestionToursActivados() {
                 setModalConfirmacion(false);
                 cargarDatos();
             } else {
-                const errorData = await response.json();
-                Notifications.error(`Error al ${accionConfirmacion}: ${errorData.message || 'Error desconocido'}`);
+                Notifications.error(`Error al ${accionConfirmacion}: ${data.message || 'Error desconocido'}`);
             }
         } catch (error) {
             console.error('Error:', error);

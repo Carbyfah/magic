@@ -7,6 +7,7 @@
  */
 
 import AuthService from '../../../services/auth';
+import apiHelper from '../../../utils/apiHelper';
 
 // CONFIGURACIÓN BASE COMPARTIDA
 const baseConfig = {
@@ -248,47 +249,31 @@ export const configReservas = {
     // VALIDACIÓN DE ESTADOS NECESARIOS - LÓGICA DE NEGOCIO
     validateStates: async () => {
         try {
-            const token = AuthService.getToken();
-            const response = await fetch('/api/magic/estados/contexto/reserva', {
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+            const response = await apiHelper.get('/estados/contexto/reserva');
+            const estados = await apiHelper.handleResponse(response);
 
-            if (response.ok) {
-                const estados = await response.json();
+            // Estados necesarios para el flujo de negocio Magic Travel
+            const estadosNecesarios = ['Pendiente', 'Confirmada', 'Cancelada'];
 
-                // Estados necesarios para el flujo de negocio Magic Travel
-                const estadosNecesarios = ['Pendiente', 'Confirmada', 'Cancelada'];
+            const estadosFaltantes = estadosNecesarios.filter(necesario =>
+                !estados.some(estado =>
+                    estado.estado_estado.toLowerCase() === necesario.toLowerCase()
+                )
+            );
 
-                const estadosFaltantes = estadosNecesarios.filter(necesario =>
-                    !estados.some(estado =>
-                        estado.estado_estado.toLowerCase() === necesario.toLowerCase()
-                    )
-                );
-
-                if (estadosFaltantes.length > 0) {
-                    return {
-                        valido: false,
-                        faltantes: estadosFaltantes,
-                        mensaje: `Estados faltantes para reservas: ${estadosFaltantes.join(', ')}`,
-                        contexto: 'reserva'
-                    };
-                }
-
+            if (estadosFaltantes.length > 0) {
                 return {
-                    valido: true,
-                    estados,
-                    mensaje: 'Todos los estados necesarios están disponibles'
+                    valido: false,
+                    faltantes: estadosFaltantes,
+                    mensaje: `Estados faltantes para reservas: ${estadosFaltantes.join(', ')}`,
+                    contexto: 'reserva'
                 };
             }
+
             return {
-                valido: false,
-                mensaje: 'Error al cargar estados de reservas desde el servidor',
-                contexto: 'reserva'
+                valido: true,
+                estados,
+                mensaje: 'Todos los estados necesarios están disponibles'
             };
         } catch (error) {
             console.error('Error validando estados de reservas:', error);
@@ -426,7 +411,7 @@ export const configReservas = {
         // NUEVO: Obtener notificaciones inteligentes
         obtenerNotificaciones: async (reserva) => {
             try {
-                const response = await fetch(`/api/magic/reservas/${reserva.id}/notificaciones`);
+                const response = await apiHelper.get(`/reservas/${reserva.id}/notificaciones`);
                 if (response.ok) {
                     return await response.json();
                 }
@@ -440,14 +425,7 @@ export const configReservas = {
         // NUEVO: Validar antes de cambiar estado
         validarCambioEstado: async (reserva, nuevoEstado) => {
             try {
-                const response = await fetch(`/api/magic/reservas/${reserva.id}/validar-estado`, {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ nuevo_estado: nuevoEstado })
-                });
+                const response = await apiHelper.post(`/reservas/${reserva.id}/validar-estado`, { nuevo_estado: nuevoEstado });
                 if (response.ok) {
                     return await response.json();
                 }
@@ -504,14 +482,10 @@ export const configReservas = {
             const totalPasajeros = parseInt(formData.cantidad_adultos) + parseInt(formData.cantidad_ninos || 0);
 
             try {
-                const response = await fetch('/api/magic/reservas/buscar-disponibilidad', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        servicio_id: formData.servicio_id,
-                        fecha: formData.fecha,
-                        pasajeros: totalPasajeros
-                    })
+                const response = await apiHelper.post('/reservas/buscar-disponibilidad', {
+                    servicio_id: formData.servicio_id,
+                    fecha: formData.fecha,
+                    pasajeros: totalPasajeros
                 });
 
                 const result = await response.json();
@@ -532,7 +506,8 @@ export const configReservas = {
             }
 
             try {
-                const response = await fetch('/api/magic/estados/contexto/reserva');
+                // const response = await fetch('/api/magic/estados/contexto/reserva');
+                const response = await apiHelper.get('/estados/contexto/reserva');
                 if (response.ok) {
                     const estadosReserva = await response.json();
                     const estadoValido = estadosReserva.some(estado =>

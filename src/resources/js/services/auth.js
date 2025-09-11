@@ -250,40 +250,32 @@ const AuthService = {
             return [];
         }
 
-        console.log('=== DEBUG COMPLETO ===');
-        console.log('currentUser completo:', this.currentUser);
-        console.log('currentUser.rol:', this.currentUser.rol);
-        console.log('Tipo de rol:', typeof this.currentUser.rol);
-        console.log('Keys del usuario:', Object.keys(this.currentUser));
-        console.log('======================');
-
-        // ADMINISTRADOR: Acceso total a todos los módulos del sistema
+        // ADMINISTRADOR: Todos los 15 módulos
         if (this.isAdmin()) {
             return [
                 'dashboard',
-                'catalogos', 'rutas-servicios', 'estados-sistema', 'tipos-persona', 'agencias',
-                'operacion', 'control-flota', 'rutas-activas', 'reservaciones', 'tours-activados',
-                'comercial', 'contactos-agencia', 'dashboard-ventas',
-                'personal', 'empleados', 'roles-permisos', 'usuarios-sistema',
-                'reportes', 'auditoria', 'estadisticas'
+                'rutas-servicios', 'estados-sistema', 'tipos-persona', 'agencias',
+                'control-flota', 'rutas-activas', 'tours-activados', 'reservaciones',
+                'contactos-agencia', 'dashboard-ventas',
+                'empleados', 'roles-permisos', 'usuarios-sistema',
+                'auditoria', 'estadisticas'
             ];
         }
 
-        // OPERADOR: módulos operacionales
+        // OPERADOR: Solo OPERACIÓN DIARIA (4 módulos)
         if (this.isOperator()) {
             return [
                 'dashboard',
-                'operacion', 'control-flota', 'rutas-activas', 'reservaciones', 'tours-activados',
-                'comercial', 'contactos-agencia', 'agencias'
+                'control-flota', 'rutas-activas', 'tours-activados', 'reservaciones'
             ];
         }
 
-        // VENDEDOR: módulos comerciales
+        // VENDEDOR: OPERACIÓN DIARIA + COMERCIAL (6 módulos)
         if (this.isSeller()) {
             return [
                 'dashboard',
-                'operacion', 'reservaciones',
-                'comercial', 'contactos-agencia', 'dashboard-ventas', 'agencias'
+                'rutas-activas', 'tours-activados', 'reservaciones',
+                'contactos-agencia', 'dashboard-ventas'
             ];
         }
 

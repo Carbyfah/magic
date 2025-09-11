@@ -27,7 +27,6 @@ return new class extends Migration
         DB::statement('CREATE INDEX idx_reserva_fecha_viaje_ruta ON reserva(ruta_activada_id, created_at)');
         DB::statement('CREATE INDEX idx_reserva_fecha_viaje_tour ON reserva(tour_activado_id, created_at)');
         DB::statement('CREATE INDEX idx_dashboard_ocupacion_ruta ON ruta_activada(ruta_activada_fecha_hora, estado_id, ruta_activada_situacion)');
-        DB::statement('CREATE INDEX idx_dashboard_ocupacion_tour ON tour_activado(tour_activado_fecha_hora, estado_id, tour_activado_situacion)');
         DB::statement('CREATE INDEX idx_reserva_servicio_ruta ON reserva(ruta_activada_id, reserva_situacion, created_at)');
         DB::statement('CREATE INDEX idx_reserva_servicio_tour ON reserva(tour_activado_id, reserva_situacion, created_at)');
 
@@ -55,11 +54,9 @@ return new class extends Migration
         DB::statement('CREATE INDEX idx_tour_activado_codigo ON tour_activado(tour_activado_codigo)');
         DB::statement('CREATE INDEX idx_tour_activado_descripcion ON tour_activado(tour_activado_descripcion)');
         DB::statement('CREATE INDEX idx_tour_activado_punto_encuentro ON tour_activado(tour_activado_punto_encuentro)');
-        DB::statement('CREATE INDEX idx_tour_activado_estado ON tour_activado(estado_id, tour_activado_situacion)');
 
         // ÍNDICES DE RELACIONES FK (tours)
         DB::statement('CREATE INDEX idx_tour_activado_servicio_fk ON tour_activado(servicio_id)');
-        DB::statement('CREATE INDEX idx_tour_activado_estado_fk ON tour_activado(estado_id)');
         DB::statement('CREATE INDEX idx_tour_activado_persona_fk ON tour_activado(persona_id)');
         DB::statement('CREATE INDEX idx_reserva_tour_fk ON reserva(tour_activado_id)');
 
@@ -76,7 +73,6 @@ return new class extends Migration
 
         // ÍNDICES COMPUESTOS ESPECÍFICOS PARA TOURS
         DB::statement('CREATE INDEX idx_tour_fecha_servicio ON tour_activado(tour_activado_fecha_hora, servicio_id, tour_activado_situacion)');
-        DB::statement('CREATE INDEX idx_tour_estado_fecha ON tour_activado(estado_id, tour_activado_fecha_hora, tour_activado_situacion)');
         DB::statement('CREATE INDEX idx_reserva_tour_fecha ON reserva(tour_activado_id, created_at, reserva_situacion)');
 
         // ÍNDICES PARA REPORTES UNIFICADOS (rutas y tours)
@@ -86,7 +82,6 @@ return new class extends Migration
 
         // ÍNDICES PARA OPTIMIZAR VISTAS
         DB::statement('CREATE INDEX idx_ruta_activada_completo ON ruta_activada(ruta_activada_situacion, estado_id, ruta_activada_fecha_hora)');
-        DB::statement('CREATE INDEX idx_tour_activado_completo ON tour_activado(tour_activado_situacion, estado_id, tour_activado_fecha_hora)');
         DB::statement('CREATE INDEX idx_reserva_activas ON reserva(reserva_situacion, created_at)');
     }
 
@@ -97,7 +92,6 @@ return new class extends Migration
     {
         // Índices para optimizar vistas
         DB::statement('DROP INDEX idx_reserva_activas ON reserva');
-        DB::statement('DROP INDEX idx_tour_activado_completo ON tour_activado');
         DB::statement('DROP INDEX idx_ruta_activada_completo ON ruta_activada');
 
         // Índices para reportes unificados
@@ -107,7 +101,6 @@ return new class extends Migration
 
         // Índices compuestos específicos para tours
         DB::statement('DROP INDEX idx_reserva_tour_fecha ON reserva');
-        DB::statement('DROP INDEX idx_tour_estado_fecha ON tour_activado');
         DB::statement('DROP INDEX idx_tour_fecha_servicio ON tour_activado');
 
         // Índices de soft deletes
@@ -124,11 +117,9 @@ return new class extends Migration
         // Índices de relaciones FK (tours)
         DB::statement('DROP INDEX idx_reserva_tour_fk ON reserva');
         DB::statement('DROP INDEX idx_tour_activado_persona_fk ON tour_activado');
-        DB::statement('DROP INDEX idx_tour_activado_estado_fk ON tour_activado');
         DB::statement('DROP INDEX idx_tour_activado_servicio_fk ON tour_activado');
 
         // Índices de búsqueda y filtrado (tours)
-        DB::statement('DROP INDEX idx_tour_activado_estado ON tour_activado');
         DB::statement('DROP INDEX idx_tour_activado_punto_encuentro ON tour_activado');
         DB::statement('DROP INDEX idx_tour_activado_descripcion ON tour_activado');
         DB::statement('DROP INDEX idx_tour_activado_codigo ON tour_activado');
@@ -156,7 +147,6 @@ return new class extends Migration
         // Índices de reportes
         DB::statement('DROP INDEX idx_reserva_servicio_tour ON reserva');
         DB::statement('DROP INDEX idx_reserva_servicio_ruta ON reserva');
-        DB::statement('DROP INDEX idx_dashboard_ocupacion_tour ON tour_activado');
         DB::statement('DROP INDEX idx_dashboard_ocupacion_ruta ON ruta_activada');
         DB::statement('DROP INDEX idx_reserva_fecha_viaje_tour ON reserva');
         DB::statement('DROP INDEX idx_reserva_fecha_viaje_ruta ON reserva');

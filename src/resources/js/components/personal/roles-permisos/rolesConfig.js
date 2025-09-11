@@ -5,6 +5,8 @@
  * Plantillas reutilizables para los 13 módulos principales
  */
 
+import apiHelper from '../../../utils/apiHelper';
+
 // CONFIGURACIÓN BASE COMPARTIDA
 const baseConfig = {
     defaultItemsPerPage: 10,
@@ -67,7 +69,139 @@ export const configRoles = {
     // Campos específicos para funcionalidades
     searchableFields: ['rol_codigo', 'rol_rol', 'rol_descripcion'],
     sortableFields: ['rol_codigo', 'rol_rol', 'rol_descripcion'],
-    filterableFields: [] // SIN FILTROS ESPECÍFICOS
+    filterableFields: [], // SIN FILTROS ESPECÍFICOS
+
+    // VALIDACIÓN DE ESTADOS - No aplica para roles
+    validateStates: async () => {
+        return {
+            valido: true,
+            mensaje: 'Los roles no requieren validación de estados específicos'
+        };
+    },
+
+    // VALIDADORES DE INTEGRIDAD
+    integrityValidators: {
+        // Validar nombre de rol único
+        validateRoleName: async (formData, rolId = null) => {
+            if (!formData.rol_rol) {
+                return { valido: true };
+            }
+
+            try {
+                // Simular validación (el backend debería manejar esto)
+                return { valido: true };
+            } catch (error) {
+                console.warn('Error validando nombre de rol:', error);
+                return { valido: true };
+            }
+        }
+    },
+
+    // HELPERS DE FORMATEO
+    helpers: {
+        // Formatear nombre de rol
+        formatRoleName: (rol) => {
+            if (!rol.rol_rol) return 'Sin nombre';
+            return rol.rol_rol.charAt(0).toUpperCase() + rol.rol_rol.slice(1).toLowerCase();
+        },
+
+        // Obtener roles activos
+        getActiveRoles: (roles) => {
+            return roles.filter(rol => rol.rol_situacion === 1 || rol.rol_situacion === true);
+        },
+
+        // Obtener roles por tipo (si aplicara)
+        getRolesByType: (roles, tipo) => {
+            return roles.filter(rol =>
+                rol.rol_situacion &&
+                rol.rol_rol?.toLowerCase().includes(tipo.toLowerCase())
+            );
+        },
+
+        // Verificar si es rol crítico del sistema
+        isCriticalRole: (rol) => {
+            const rolesCriticos = ['administrador', 'admin', 'super', 'root'];
+            return rolesCriticos.some(critico =>
+                rol.rol_rol?.toLowerCase().includes(critico)
+            );
+        }
+    },
+
+    // VALIDACIÓN COMPLETA DEL FORMULARIO
+    validateForm: async (formulario, rolId = null) => {
+        const errores = {};
+
+        // Validar campos requeridos
+        if (!formulario.rol_rol?.trim()) {
+            errores.rol_rol = 'El nombre del rol es requerido';
+        }
+
+        // Validar longitud mínima
+        if (formulario.rol_rol && formulario.rol_rol.trim().length < 3) {
+            errores.rol_rol = 'El nombre del rol debe tener al menos 3 caracteres';
+        }
+
+        // Validar caracteres permitidos
+        if (formulario.rol_rol && !/^[a-zA-ZÀ-ÿ\s\-\_]+$/.test(formulario.rol_rol)) {
+            errores.rol_rol = 'El nombre del rol solo puede contener letras, espacios, guiones y guiones bajos';
+        }
+
+        return errores;
+    },
+
+    // PROCESAMIENTO ANTES DE GUARDAR
+    processBeforeSave: (datos) => {
+        // Limpiar espacios en el nombre del rol
+        if (datos.rol_rol) {
+            datos.rol_rol = datos.rol_rol.trim();
+        }
+
+        // Limpiar descripción
+        if (datos.rol_descripcion) {
+            datos.rol_descripcion = datos.rol_descripcion.trim();
+        }
+
+        return datos;
+    },
+
+    // ACCIONES ESPECÍFICAS PARA ROLES
+    actions: {
+        activate: {
+            label: 'Activar Rol',
+            icon: 'check-circle',
+            color: 'green',
+            condition: (rol) => !rol.rol_situacion,
+            requiresConfirmation: true,
+            confirmMessage: '¿Activar este rol?'
+        },
+        deactivate: {
+            label: 'Desactivar Rol',
+            icon: 'x-circle',
+            color: 'red',
+            condition: (rol) => rol.rol_situacion,
+            requiresConfirmation: true,
+            confirmMessage: '¿Desactivar este rol? Los usuarios con este rol podrían perder acceso.',
+            validation: (rol) => {
+                // No permitir desactivar roles críticos
+                if (configRoles.helpers.isCriticalRole(rol)) {
+                    return {
+                        valido: false,
+                        mensaje: 'No se pueden desactivar roles críticos del sistema'
+                    };
+                }
+                return { valido: true };
+            }
+        },
+        duplicate: {
+            label: 'Duplicar Rol',
+            icon: 'copy',
+            color: 'blue',
+            condition: () => true,
+            requiresConfirmation: true,
+            confirmMessage: '¿Duplicar este rol?'
+        }
+    }
+
 };
 
 export const configTipoPersona = {

@@ -173,21 +173,11 @@ function GestionTipoPersona() {
                 datosParaEnviar.tipo_persona_situacion = true;
             }
 
-            const url = itemEditando
-                ? `/api/magic/tipo-personas/${itemEditando.tipo_persona_id}`
-                : `/api/magic/tipo-personas`;
+            const response = itemEditando
+                ? await apiHelper.put(`/tipo-personas/${itemEditando.tipo_persona_id}`, datosParaEnviar)
+                : await apiHelper.post('/tipo-personas', datosParaEnviar);
 
-            const method = itemEditando ? 'PUT' : 'POST';
-
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: JSON.stringify(datosParaEnviar)
-            });
+            const data = await apiHelper.handleResponse(response);
 
             if (response.ok) {
                 Notifications.success(
@@ -227,45 +217,14 @@ function GestionTipoPersona() {
             const itemId = itemConfirmacion.tipo_persona_id;
 
             let response;
-            let url;
 
             switch (accionConfirmacion) {
                 case 'activar':
-                case 'desactivar':
-                    // Actualizar el estado directamente
-                    const nuevoEstado = accionConfirmacion === 'activar';
-
-                    url = `/api/magic/tipo-personas/${itemId}`;
-                    response = await fetch(url, {
-                        method: 'PUT',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest'
-                        },
-                        body: JSON.stringify({
-                            ...itemConfirmacion,
-                            tipo_persona_situacion: nuevoEstado
-                        })
-                    });
+                    response = await apiHelper.patch(`/tipo-personas/${itemId}/activate`);
                     break;
 
-                case 'duplicar':
-                    const itemDuplicado = { ...itemConfirmacion };
-                    delete itemDuplicado.tipo_persona_id;
-                    delete itemDuplicado.tipo_persona_codigo;
-                    itemDuplicado.tipo_persona_tipo = `${itemDuplicado.tipo_persona_tipo} (Copia)`;
-
-                    url = `/api/magic/tipo-personas`;
-                    response = await fetch(url, {
-                        method: 'POST',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest'
-                        },
-                        body: JSON.stringify(itemDuplicado)
-                    });
+                case 'desactivar':
+                    response = await apiHelper.patch(`/tipo-personas/${itemId}/deactivate`);
                     break;
 
                 default:
@@ -275,8 +234,7 @@ function GestionTipoPersona() {
             if (response && response.ok) {
                 const mensajes = {
                     activar: 'Tipo de persona activado exitosamente',
-                    desactivar: 'Tipo de persona desactivado exitosamente',
-                    duplicar: 'Tipo de persona duplicado exitosamente'
+                    desactivar: 'Tipo de persona desactivado exitosamente'
                 };
 
                 Notifications.success(mensajes[accionConfirmacion]);
@@ -436,7 +394,8 @@ function GestionTipoPersona() {
                                         item: item,
                                         onVer: () => abrirModalDetalles(item),
                                         onEditar: () => abrirModalFormulario(item),
-                                        onDuplicar: () => abrirModalConfirmacion(item, 'duplicar'),
+                                        // onDuplicar: () => abrirModalConfirmacion(item, 'duplicar'),
+                                        mostrarDuplicar: false,
                                         onActivar: () => abrirModalConfirmacion(
                                             item,
                                             esActivo ? 'desactivar' : 'activar'

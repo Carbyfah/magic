@@ -38,13 +38,6 @@ class TourActivadoResource extends JsonResource
                 'es_externo' => $this->esGuiaExterno(),
             ],
 
-            'estado_id' => $this->estado_id,
-            'estado' => [
-                'id' => $this->estado?->estado_id,
-                'nombre' => $this->estado_nombre,
-                'codigo' => $this->estado?->estado_codigo,
-            ],
-
             'servicio_id' => $this->servicio_id,
             'servicio' => [
                 'id' => $this->servicio?->servicio_id,
@@ -156,13 +149,7 @@ class TourActivadoResource extends JsonResource
                     'validaciones' => [
                         'puede_recibir_reservas' => $this->puedeRecibirReservas(),
                         'puede_cerrarse' => $this->puedeCerrarse(),
-                    ],
-                    'estado_actual' => [
-                        'esta_activado' => $this->estaActivado(),
-                        'esta_ejecucion' => $this->estaEnEjecucion(),
-                        'esta_cerrado' => $this->estaCerrado(),
-                        'esta_cancelado' => $this->estaCancelado(),
-                    ],
+                    ]
                 ]
             ),
 
@@ -243,7 +230,7 @@ class TourActivadoResource extends JsonResource
      */
     private function estaDisponible()
     {
-        return $this->tour_activado_situacion && $this->estaActivado();
+        return $this->tour_activado_situacion;
     }
 
     /**

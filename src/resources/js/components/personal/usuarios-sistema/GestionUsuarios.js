@@ -228,33 +228,17 @@ function GestionUsuarios() {
         }
     };
 
-    // Validación del formulario
-    const validarFormulario = () => {
-        const nuevosErrores = {};
-
-        if (!formulario.persona_id) {
-            nuevosErrores.persona_id = 'El empleado es requerido';
-        }
-
-        if (!formulario.rol_id) {
-            nuevosErrores.rol_id = 'El rol es requerido';
-        }
-
-        if (!itemEditando && !formulario.usuario_password?.trim()) {
-            nuevosErrores.usuario_password = 'La contraseña es requerida';
-        }
-
-        if (formulario.usuario_password && formulario.usuario_password.length < 8) {
-            nuevosErrores.usuario_password = 'La contraseña debe tener al menos 8 caracteres';
-        }
-
+    // Validación del formulario - USAR CONFIG
+    const validarFormulario = async () => {
+        const nuevosErrores = await currentConfig.validateForm(formulario, itemEditando?.usuario_id);
         setErrores(nuevosErrores);
         return Object.keys(nuevosErrores).length === 0;
     };
 
     // Guardar item
     const guardarItem = async () => {
-        if (!validarFormulario()) return;
+        const formularioValido = await validarFormulario();
+        if (!formularioValido) return;
 
         try {
             setLoadingAction(true);
@@ -276,22 +260,11 @@ function GestionUsuarios() {
 
             console.log('Datos a enviar:', datosParaEnviar);
 
-            const url = itemEditando
-                ? `/api/magic/usuarios/${obtenerIdItem(itemEditando)}`
-                : `/api/magic/usuarios`;
+            const response = itemEditando
+                ? await apiHelper.put(`/usuarios/${obtenerIdItem(itemEditando)}`, datosParaEnviar)
+                : await apiHelper.post('/usuarios', datosParaEnviar);
 
-            const method = itemEditando ? 'PUT' : 'POST';
-
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                },
-                body: JSON.stringify(datosParaEnviar)
-            });
+            const data = await apiHelper.handleResponse(response);
 
             if (response.ok) {
                 Notifications.success(
@@ -300,12 +273,11 @@ function GestionUsuarios() {
                 setModalFormulario(false);
                 cargarDatos();
             } else {
-                const errorData = await response.json();
-                if (errorData.errors) {
-                    setErrores(errorData.errors);
+                if (data.errors) {
+                    setErrores(data.errors);
                     Notifications.error('Por favor corrige los errores en el formulario');
                 } else {
-                    Notifications.error(`Error al guardar: ${response.status}`);
+                    Notifications.error(`Error al guardar: ${data.message || 'Error desconocido'}`);
                 }
             }
         } catch (error) {
@@ -331,29 +303,14 @@ function GestionUsuarios() {
             const itemId = obtenerIdItem(itemConfirmacion);
 
             let response;
-            let url;
 
             switch (accionConfirmacion) {
                 case 'activar':
-                    url = `/api/magic/usuarios/${itemId}/activate`;
-                    response = await fetch(url, {
-                        method: 'PATCH',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        }
-                    });
+                    response = await apiHelper.patch(`/usuarios/${itemId}/activate`);
                     break;
 
                 case 'desactivar':
-                    url = `/api/magic/usuarios/${itemId}/deactivate`;
-                    response = await fetch(url, {
-                        method: 'PATCH',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        }
-                    });
+                    response = await apiHelper.patch(`/usuarios/${itemId}/deactivate`);
                     break;
 
                 case 'duplicar':
@@ -364,24 +321,16 @@ function GestionUsuarios() {
                         usuario_situacion: 1
                     };
 
-                    url = `/api/magic/usuarios`;
-                    response = await fetch(url, {
-                        method: 'POST',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        },
-                        body: JSON.stringify(itemDuplicado)
-                    });
+                    response = await apiHelper.post('/usuarios', itemDuplicado);
                     break;
 
                 default:
                     return;
             }
 
-            if (response && response.ok) {
+            const data = await apiHelper.handleResponse(response);
+
+            if (response.ok) {
                 const mensajes = {
                     activar: 'Usuario activado exitosamente',
                     desactivar: 'Usuario desactivado exitosamente',
@@ -392,8 +341,7 @@ function GestionUsuarios() {
                 setModalConfirmacion(false);
                 cargarDatos();
             } else {
-                const errorData = await response.json();
-                Notifications.error(`Error al ${accionConfirmacion}: ${errorData.message || 'Error desconocido'}`);
+                Notifications.error(`Error al ${accionConfirmacion}: ${data.message || 'Error desconocido'}`);
             }
         } catch (error) {
             console.error('Error:', error);

@@ -20,7 +20,6 @@ class TourActivado extends Model
         'tour_activado_duracion_horas',
         'tour_activado_situacion',
         'persona_id',
-        'estado_id',
         'servicio_id'
     ];
 
@@ -44,11 +43,6 @@ class TourActivado extends Model
     public function persona()
     {
         return $this->belongsTo(Persona::class, 'persona_id', 'persona_id');
-    }
-
-    public function estado()
-    {
-        return $this->belongsTo(Estado::class, 'estado_id', 'estado_id');
     }
 
     public function servicio()
@@ -86,11 +80,6 @@ class TourActivado extends Model
     public function scopePorPersona($query, $personaId)
     {
         return $query->where('persona_id', $personaId);
-    }
-
-    public function scopePorEstado($query, $estadoId)
-    {
-        return $query->where('estado_id', $estadoId);
     }
 
     public function scopePorServicio($query, $servicioId)
@@ -143,11 +132,6 @@ class TourActivado extends Model
             : 'Guía externo';
     }
 
-    public function getEstadoNombreAttribute()
-    {
-        return $this->estado ? $this->estado->estado_estado : 'Sin estado';
-    }
-
     public function getPuntoEncuentroInfoAttribute()
     {
         return $this->tour_activado_punto_encuentro ?: 'Punto de encuentro por definir';
@@ -179,13 +163,6 @@ class TourActivado extends Model
     {
         return $this->reservas()
             ->where('reserva_situacion', 1)
-            ->whereHas('estado', function ($query) {
-                $query->where('estado_estado', 'NOT LIKE', '%cancelada%')
-                    ->where('estado_estado', 'NOT LIKE', '%cancel%')
-                    ->where('estado_estado', 'NOT LIKE', '%anulada%')
-                    ->where('estado_estado', 'NOT LIKE', '%rechazada%')
-                    ->where('estado_estado', 'NOT LIKE', '%eliminada%');
-            })
             ->sum(\DB::raw('COALESCE(reserva_cantidad_adultos, 0) + COALESCE(reserva_cantidad_ninos, 0)'));
     }
 
@@ -193,13 +170,6 @@ class TourActivado extends Model
     {
         return $this->reservas()
             ->where('reserva_situacion', 1)
-            ->whereHas('estado', function ($query) {
-                $query->where('estado_estado', 'NOT LIKE', '%cancelada%')
-                    ->where('estado_estado', 'NOT LIKE', '%cancel%')
-                    ->where('estado_estado', 'NOT LIKE', '%anulada%')
-                    ->where('estado_estado', 'NOT LIKE', '%rechazada%')
-                    ->where('estado_estado', 'NOT LIKE', '%eliminada%');
-            })
             ->count();
     }
 
@@ -344,50 +314,20 @@ class TourActivado extends Model
         return !$query->exists();
     }
 
-    /**
-     * MÉTODOS DE GESTIÓN DE ESTADOS DE TOUR
-     */
-    public function estaActivado()
-    {
-        return $this->estado && strtolower($this->estado->estado_estado) === 'activado';
-    }
-
-    public function estaEnEjecucion()
-    {
-        return $this->estado && strtolower($this->estado->estado_estado) === 'ejecucion';
-    }
-
-    public function estaCerrado()
-    {
-        return $this->estado && strtolower($this->estado->estado_estado) === 'cerrado';
-    }
-
-    public function estaCancelado()
-    {
-        return $this->estado && strtolower($this->estado->estado_estado) === 'cancelado';
-    }
 
     /**
      * VALIDACIONES DE TRANSICIÓN DE ESTADOS
      */
     public function puedeRecibirReservas($nuevos_pasajeros = 1)
     {
+        // Tours siempre pueden recibir pasajeros si están activos
         $validacion = [
-            'puede_recibir' => false,
-            'mensaje' => '',
-            'tipo_notificacion' => 'error'
+            'puede_recibir' => $this->tour_activado_situacion ? true : false,
+            'mensaje' => $this->tour_activado_situacion
+                ? "Tour puede recibir {$nuevos_pasajeros} pasajeros más. Sin límite de capacidad."
+                : "Tour inactivo. No se pueden agregar reservas.",
+            'tipo_notificacion' => $this->tour_activado_situacion ? 'success' : 'error'
         ];
-
-        if (!$this->estaActivado()) {
-            $estadoActual = $this->estado_nombre;
-            $validacion['mensaje'] = "No se pueden agregar reservas. Estado del tour: {$estadoActual}. Solo se aceptan reservas en tours activados.";
-            return $validacion;
-        }
-
-        // Tours siempre pueden recibir pasajeros
-        $validacion['puede_recibir'] = true;
-        $validacion['mensaje'] = "Tour puede recibir {$nuevos_pasajeros} pasajeros más. Sin límite de capacidad.";
-        $validacion['tipo_notificacion'] = 'success';
 
         return $validacion;
     }
@@ -395,24 +335,10 @@ class TourActivado extends Model
     public function puedeCerrarse()
     {
         $validacion = [
-            'puede_cerrar' => false,
-            'mensaje' => '',
-            'tipo_notificacion' => 'error'
+            'puede_cerrar' => $this->tour_activado_situacion ? true : false,
+            'mensaje' => $this->tour_activado_situacion ? "El tour puede cerrarse." : "Tour inactivo.",
+            'tipo_notificacion' => $this->tour_activado_situacion ? 'success' : 'error'
         ];
-
-        if ($this->estaCerrado()) {
-            $validacion['mensaje'] = "El tour ya está cerrado.";
-            return $validacion;
-        }
-
-        if ($this->estaCancelado()) {
-            $validacion['mensaje'] = "El tour está cancelado, no se puede cerrar.";
-            return $validacion;
-        }
-
-        $validacion['puede_cerrar'] = true;
-        $validacion['mensaje'] = "El tour puede cerrarse.";
-        $validacion['tipo_notificacion'] = 'success';
 
         return $validacion;
     }
@@ -540,7 +466,7 @@ class TourActivado extends Model
             'tipo_guia' => $this->tieneGuiaAsignado() ? 'interno' : 'externo',
             'total_reservas' => $this->total_reservas_activas,
             'total_pasajeros' => $this->total_pasajeros,
-            'estado' => $this->estado_nombre,
+            'estado' => $this->tour_activado_situacion ? 'Activo' : 'Inactivo',
             'servicio' => $this->formatearServicio()
         ];
     }

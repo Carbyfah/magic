@@ -117,7 +117,8 @@ function GestionReservas() {
 
             const promesasNotificaciones = reservasActivas.map(async (reserva) => {
                 try {
-                    const response = await fetch(`/api/magic/reservas/${reserva.id}/notificaciones`);
+                    // const response = await fetch(`/api/magic/reservas/${reserva.id}/notificaciones`);
+                    const response = await apiHelper.get(`/reservas/${reserva.id}/notificaciones`);
                     if (response.ok) {
                         const data = await response.json();
                         return { id: reserva.id, notificaciones: data.notificaciones || [] };
@@ -789,16 +790,11 @@ function GestionReservas() {
 
             const method = itemEditando ? 'PUT' : 'POST';
 
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                },
-                body: JSON.stringify(datosParaEnviar)
-            });
+            const response = itemEditando
+                ? await apiHelper.put(`/reservas/${obtenerIdItem(itemEditando)}`, datosParaEnviar)
+                : await apiHelper.post('/reservas', datosParaEnviar);
+
+            const data = await apiHelper.handleResponse(response);
 
             if (response.ok) {
                 const data = await response.json();
@@ -876,15 +872,23 @@ function GestionReservas() {
                     return;
             }
 
-            const response = await fetch(url, {
-                method: 'PATCH',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                },
-                body: body
-            });
+            let response;
+            switch (accionMasiva) {
+                case 'confirmar_todas':
+                    response = await apiHelper.patch(`/reservas/ruta/${rutaSeleccionada}/confirm-all`);
+                    break;
+
+                case 'cancelar_todas':
+                    if (!motivoCancelacion.trim()) {
+                        Notifications.error('El motivo de cancelación es requerido');
+                        return;
+                    }
+                    response = await apiHelper.patch(`/reservas/ruta/${rutaSeleccionada}/cancel-all`, { motivo: motivoCancelacion.trim() });
+                    break;
+
+                default:
+                    return;
+            }
 
             if (response.ok) {
                 const data = await response.json();
@@ -926,29 +930,11 @@ function GestionReservas() {
 
             switch (accionConfirmacion) {
                 case 'confirmar':
-                    url = `/api/magic/reservas/${itemId}/confirm`;
-                    response = await fetch(url, {
-                        method: 'PATCH',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        }
-                    });
+                    response = await apiHelper.patch(`/reservas/${itemId}/confirm`);
                     break;
 
                 case 'cancelar':
-                    url = `/api/magic/reservas/${itemId}/cancel`;
-                    response = await fetch(url, {
-                        method: 'PATCH',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        },
-                        body: JSON.stringify({
-                            motivo: 'Cancelación desde gestión'
-                        })
-                    });
+                    response = await apiHelper.patch(`/reservas/${itemId}/cancel`, { motivo: 'Cancelación desde gestión' });
                     break;
 
                 case 'factura_pdf':
@@ -958,36 +944,15 @@ function GestionReservas() {
                     return; // No hacer fetch, ya se hizo en descargarFacturaPDF
 
                 case 'facturar':
-                    url = `/api/magic/reservas/${itemId}/facturar`;
-                    response = await fetch(url, {
-                        method: 'PATCH',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        }
-                    });
+                    response = await apiHelper.patch(`/reservas/${itemId}/facturar`);
                     break;
 
                 case 'activar':
-                    url = `/api/magic/reservas/${itemId}/activate`;
-                    response = await fetch(url, {
-                        method: 'PATCH',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        }
-                    });
+                    response = await apiHelper.patch(`/reservas/${itemId}/activate`);
                     break;
 
                 case 'desactivar':
-                    url = `/api/magic/reservas/${itemId}/deactivate`;
-                    response = await fetch(url, {
-                        method: 'PATCH',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        }
-                    });
+                    response = await apiHelper.patch(`/reservas/${itemId}/deactivate`);
                     break;
 
                 case 'duplicar':
@@ -1010,19 +975,8 @@ function GestionReservas() {
                         reserva_situacion: 1
                     };
 
-                    url = `/api/magic/reservas`;
-                    response = await fetch(url, {
-                        method: 'POST',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        },
-                        body: JSON.stringify(itemDuplicado)
-                    });
+                    response = await apiHelper.post('/reservas', itemDuplicado);
                     break;
-
                 default:
                     return;
             }
@@ -1071,12 +1025,7 @@ function GestionReservas() {
             setLoadingAction(true);
             const itemId = obtenerIdItem(itemWhatsApp);
 
-            const response = await fetch(`/api/magic/reservas/${itemId}/whatsapp?tipo=${tipoMensajeWhatsApp}`, {
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
+            const response = await apiHelper.get(`/reservas/${itemId}/whatsapp?tipo=${tipoMensajeWhatsApp}`);
 
             if (response.ok) {
                 const data = await response.json();
@@ -1139,7 +1088,7 @@ function GestionReservas() {
             Notifications.info('Generando voucher PDF...');
 
             const itemId = obtenerIdItem(reserva);
-            const response = await fetch(`/api/magic/reservas/${itemId}/voucher-pdf`);
+            const response = await apiHelper.get(`/reservas/${itemId}/voucher-pdf`);
 
             if (response.ok) {
                 const blob = await response.blob();
@@ -1171,7 +1120,8 @@ function GestionReservas() {
             Notifications.info('Generando factura PDF...');
 
             const itemId = obtenerIdItem(reserva);
-            const response = await fetch(`/api/magic/reservas/${itemId}/factura-pdf`);
+            // const response = await fetch(`/api/magic/reservas/${itemId}/factura-pdf`);
+            const response = await apiHelper.get(`/reservas/${itemId}/factura-pdf`);
 
             if (response.ok) {
                 const blob = await response.blob();

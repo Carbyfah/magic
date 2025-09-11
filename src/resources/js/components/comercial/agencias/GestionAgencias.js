@@ -210,21 +210,14 @@ function GestionAgencias() {
     const guardarItem = async () => {
         if (!validarFormulario()) return;
 
-        setLoadingAction(true);
         try {
-            const url = itemEditando
-                ? `/api/magic/agencias/${obtenerIdItem(itemEditando)}`
-                : '/api/magic/agencias';
-            const method = itemEditando ? 'PUT' : 'POST';
+            setLoadingAction(true);
 
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                },
-                body: JSON.stringify(formulario)
-            });
+            const response = itemEditando
+                ? await apiHelper.put(`/agencias/${obtenerIdItem(itemEditando)}`, formulario)
+                : await apiHelper.post('/agencias', formulario);
+
+            const data = await apiHelper.handleResponse(response);
 
             if (response.ok) {
                 Notifications.success(itemEditando ? 'Agencia actualizada exitosamente' : 'Agencia creada exitosamente');
@@ -234,12 +227,13 @@ function GestionAgencias() {
                 const errorData = await response.json();
                 if (errorData.errors) {
                     setErrores(errorData.errors);
+                    Notifications.error('Por favor corrige los errores en el formulario');
                 } else {
-                    Notifications.error(errorData.message || 'Error al guardar');
+                    Notifications.error(`Error al guardar: ${response.status}`);
                 }
             }
         } catch (error) {
-            console.error('Error:', error);
+            console.error('Error de conexión:', error);
             Notifications.error('Error de conexión');
         } finally {
             setLoadingAction(false);
@@ -253,46 +247,21 @@ function GestionAgencias() {
     };
 
     const ejecutarAccion = async () => {
-        if (!itemConfirmacion || !accionConfirmacion) return;
+        if (!itemConfirmacion) return;
 
-        setLoadingAction(true);
         try {
-            let response;
+            setLoadingAction(true);
             const itemId = obtenerIdItem(itemConfirmacion);
+
+            let response;
 
             switch (accionConfirmacion) {
                 case 'activar':
-                    response = await fetch(`/api/magic/agencias/${itemId}/activate`, {
-                        method: 'PATCH',
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                        }
-                    });
+                    response = await apiHelper.patch(`/agencias/${itemId}/activate`);
                     break;
 
                 case 'desactivar':
-                    response = await fetch(`/api/magic/agencias/${itemId}/deactivate`, {
-                        method: 'PATCH',
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                        }
-                    });
-                    break;
-
-                case 'duplicar':
-                    const itemDuplicado = { ...itemConfirmacion };
-                    delete itemDuplicado.agencia_id;
-                    itemDuplicado.agencia_codigo = itemDuplicado.agencia_codigo + '_COPIA';
-                    itemDuplicado.agencia_razon_social = itemDuplicado.agencia_razon_social + ' (Copia)';
-
-                    response = await fetch('/api/magic/agencias', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                        },
-                        body: JSON.stringify(itemDuplicado)
-                    });
+                    response = await apiHelper.patch(`/agencias/${itemId}/deactivate`);
                     break;
 
                 default:
@@ -302,8 +271,7 @@ function GestionAgencias() {
             if (response && response.ok) {
                 const mensajes = {
                     activar: 'Agencia activada exitosamente',
-                    desactivar: 'Agencia desactivada exitosamente',
-                    duplicar: 'Agencia duplicada exitosamente'
+                    desactivar: 'Agencia desactivada exitosamente'
                 };
 
                 Notifications.success(mensajes[accionConfirmacion]);
@@ -320,7 +288,6 @@ function GestionAgencias() {
             setLoadingAction(false);
         }
     };
-
     const abrirModalDetalles = (item) => {
         setItemDetalles(item);
         setModalDetalles(true);
@@ -473,7 +440,7 @@ function GestionAgencias() {
                                 }, [
                                     BotonesUniversal.ver({ onClick: () => abrirModalDetalles(item) }),
                                     BotonesUniversal.editar({ onClick: () => abrirModalFormulario(item) }),
-                                    BotonesUniversal.duplicar({ onClick: () => abrirModalConfirmacion(item, 'duplicar') }),
+                                    // BotonesUniversal.duplicar({ onClick: () => abrirModalConfirmacion(item, 'duplicar') }),
                                     BotonesUniversal.toggleEstado({
                                         activo: esActivo,
                                         onClick: () => abrirModalConfirmacion(item, esActivo ? 'desactivar' : 'activar')

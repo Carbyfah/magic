@@ -7,6 +7,7 @@
  * Cambios automáticos de vehículos: Disponible → Asignado → Disponible
  */
 import AuthService from '../../../services/auth';
+import apiHelper from '../../../utils/apiHelper';
 
 // CONFIGURACIÓN BASE COMPARTIDA
 const baseConfig = {
@@ -162,47 +163,31 @@ export const configRutasActivadas = {
     // VALIDACIÓN DE ESTADOS NECESARIOS - LÓGICA DE NEGOCIO
     validateStates: async () => {
         try {
-            const token = AuthService.getToken();
-            const response = await fetch('/api/magic/estados/contexto/ruta-activada', {
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+            const response = await apiHelper.get('/estados/contexto/ruta-activada');
+            const estados = await apiHelper.handleResponse(response);
 
-            if (response.ok) {
-                const estados = await response.json();
+            // Estados necesarios para el flujo de negocio Magic Travel
+            const estadosNecesarios = ['Activada', 'Llena', 'Ejecución', 'Cerrada'];
 
-                // Estados necesarios para el flujo de negocio Magic Travel
-                const estadosNecesarios = ['Activada', 'Llena', 'Ejecución', 'Cerrada'];
+            const estadosFaltantes = estadosNecesarios.filter(necesario =>
+                !estados.some(estado =>
+                    estado.estado_estado.toLowerCase() === necesario.toLowerCase()
+                )
+            );
 
-                const estadosFaltantes = estadosNecesarios.filter(necesario =>
-                    !estados.some(estado =>
-                        estado.estado_estado.toLowerCase() === necesario.toLowerCase()
-                    )
-                );
-
-                if (estadosFaltantes.length > 0) {
-                    return {
-                        valido: false,
-                        faltantes: estadosFaltantes,
-                        mensaje: `Estados faltantes para rutas activadas: ${estadosFaltantes.join(', ')}`,
-                        contexto: 'ruta-activada'
-                    };
-                }
-
+            if (estadosFaltantes.length > 0) {
                 return {
-                    valido: true,
-                    estados,
-                    mensaje: 'Todos los estados necesarios están disponibles'
+                    valido: false,
+                    faltantes: estadosFaltantes,
+                    mensaje: `Estados faltantes para rutas activadas: ${estadosFaltantes.join(', ')}`,
+                    contexto: 'ruta-activada'
                 };
             }
+
             return {
-                valido: false,
-                mensaje: 'Error al cargar estados de rutas activadas desde el servidor',
-                contexto: 'ruta-activada'
+                valido: true,
+                estados,
+                mensaje: 'Todos los estados necesarios están disponibles'
             };
         } catch (error) {
             console.error('Error validando estados de rutas activadas:', error);
@@ -261,58 +246,47 @@ export const configRutasActivadas = {
         // Validar que solo vehículos disponibles puedan asignarse
         canAssignVehicle: async (vehiculoId) => {
             try {
-                const response = await fetch(`/api/magic/vehiculos/${vehiculoId}`);
-                if (response.ok) {
-                    const vehiculo = await response.json();
+                const response = await apiHelper.get(`/vehiculos/${vehiculoId}`);
+                const vehiculo = await apiHelper.handleResponse(response);
 
-                    // Verificar que el vehículo esté disponible
-                    if (!vehiculo.caracteristicas?.puede_ser_asignado) {
-                        return {
-                            valido: false,
-                            mensaje: 'Solo se pueden asignar vehículos en estado "Disponible"'
-                        };
-                    }
-
-                    return { valido: true };
+                // Verificar que el vehículo esté disponible
+                if (!vehiculo.caracteristicas?.puede_ser_asignado) {
+                    return {
+                        valido: false,
+                        mensaje: 'Solo se pueden asignar vehículos en estado "Disponible"'
+                    };
                 }
-                return { valido: false, mensaje: 'Error al verificar vehículo' };
+
+                return { valido: true };
             } catch (error) {
                 console.error('Error verificando vehículo:', error);
                 return { valido: false, mensaje: 'Error de conexión' };
             }
         },
-
         // Cambio automático de vehículo al crear ruta
         autoChangeVehicleToAssigned: async (vehiculoId) => {
             try {
                 // Obtener estado "Asignado" para vehículos
-                const response = await fetch('/api/magic/estados/contexto/vehiculo');
-                if (response.ok) {
-                    const estados = await response.json();
-                    const estadoAsignado = estados.find(estado =>
-                        estado.estado_estado.toLowerCase().includes('asignado')
-                    );
+                const response = await apiHelper.get('/estados/contexto/vehiculo');
+                const estados = await apiHelper.handleResponse(response);
 
-                    if (estadoAsignado) {
-                        // Cambiar estado del vehículo automáticamente
-                        const updateResponse = await fetch(`/api/magic/vehiculos/${vehiculoId}`, {
-                            method: 'PUT',
-                            headers: {
-                                'Accept': 'application/json',
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                            },
-                            body: JSON.stringify({
-                                estado_id: estadoAsignado.estado_id
-                            })
-                        });
+                const estadoAsignado = estados.find(estado =>
+                    estado.estado_estado.toLowerCase().includes('asignado')
+                );
 
-                        if (updateResponse.ok) {
-                            return {
-                                valido: true,
-                                mensaje: 'Vehículo cambiado automáticamente a estado "Asignado"'
-                            };
-                        }
+                if (estadoAsignado) {
+                    // Cambiar estado del vehículo automáticamente
+                    const updateResponse = await apiHelper.put(`/vehiculos/${vehiculoId}`, {
+                        estado_id: estadoAsignado.estado_id
+                    });
+
+                    const updateData = await apiHelper.handleResponse(updateResponse);
+
+                    if (updateResponse.ok) {
+                        return {
+                            valido: true,
+                            mensaje: 'Vehículo cambiado automáticamente a estado "Asignado"'
+                        };
                     }
                 }
                 return { valido: false, mensaje: 'No se pudo cambiar estado del vehículo automáticamente' };
@@ -325,34 +299,26 @@ export const configRutasActivadas = {
         // Control de capacidad - cambio a "Llena"
         checkCapacityAndChangeState: async (rutaActivadaId) => {
             try {
-                const response = await fetch(`/api/magic/rutas-activadas/${rutaActivadaId}`);
-                if (response.ok) {
-                    const ruta = await response.json();
+                const response = await apiHelper.get(`/rutas-activadas/${rutaActivadaId}`);
+                const ruta = await apiHelper.handleResponse(response);
 
-                    // Verificar si la ruta está llena (100% capacidad)
-                    if (ruta.porcentaje_ocupacion >= 100) {
-                        const estadoLlena = await configRutasActivadas.getStateByType('llena');
+                // Verificar si la ruta está llena (100% capacidad)
+                if (ruta.porcentaje_ocupacion >= 100) {
+                    const estadoLlena = await configRutasActivadas.getStateByType('llena');
 
-                        if (estadoLlena) {
-                            // Cambiar estado a "Llena" automáticamente
-                            const updateResponse = await fetch(`/api/magic/rutas-activadas/${rutaActivadaId}`, {
-                                method: 'PUT',
-                                headers: {
-                                    'Accept': 'application/json',
-                                    'Content-Type': 'application/json',
-                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                                },
-                                body: JSON.stringify({
-                                    estado_id: estadoLlena.estado_id
-                                })
-                            });
+                    if (estadoLlena) {
+                        // Cambiar estado a "Llena" automáticamente
+                        const updateResponse = await apiHelper.put(`/rutas-activadas/${rutaActivadaId}`, {
+                            estado_id: estadoLlena.estado_id
+                        });
 
-                            if (updateResponse.ok) {
-                                return {
-                                    valido: true,
-                                    mensaje: 'Ruta cambiada automáticamente a estado "Llena"'
-                                };
-                            }
+                        const updateData = await apiHelper.handleResponse(updateResponse);
+
+                        if (updateResponse.ok) {
+                            return {
+                                valido: true,
+                                mensaje: 'Ruta cambiada automáticamente a estado "Llena"'
+                            };
                         }
                     }
                 }
@@ -370,21 +336,18 @@ export const configRutasActivadas = {
                     return { valido: false, mensaje: 'Ruta no tiene vehículo asignado' };
                 }
 
-                const response = await fetch(`/api/magic/vehiculos/${rutaActivada.vehiculo_id}`);
-                if (response.ok) {
-                    const vehiculo = await response.json();
+                const response = await apiHelper.get(`/vehiculos/${rutaActivada.vehiculo_id}`);
+                const vehiculo = await apiHelper.handleResponse(response);
 
-                    // Verificar que el vehículo ya esté disponible (regresó)
-                    if (!vehiculo.caracteristicas?.es_disponible) {
-                        return {
-                            valido: false,
-                            mensaje: 'No se puede cerrar la ruta: el vehículo aún no ha regresado (debe estar "Disponible")'
-                        };
-                    }
-
-                    return { valido: true };
+                // Verificar que el vehículo ya esté disponible (regresó)
+                if (!vehiculo.caracteristicas?.es_disponible) {
+                    return {
+                        valido: false,
+                        mensaje: 'No se puede cerrar la ruta: el vehículo aún no ha regresado (debe estar "Disponible")'
+                    };
                 }
-                return { valido: false, mensaje: 'Error al verificar estado del vehículo' };
+
+                return { valido: true };
             } catch (error) {
                 console.error('Error validando cierre de ruta:', error);
                 return { valido: false, mensaje: 'Error de conexión' };
@@ -446,32 +409,20 @@ export const configRutasActivadas = {
         // NUEVO: Obtener notificaciones inteligentes
         obtenerNotificaciones: async (rutaActivada) => {
             try {
-                const response = await fetch(`/api/magic/rutas-activadas/${rutaActivada.id}/notificaciones`);
-                if (response.ok) {
-                    return await response.json();
-                }
-                return { notificaciones: [] };
+                const response = await apiHelper.get(`/rutas-activadas/${rutaActivada.id}/notificaciones`);
+                const data = await apiHelper.handleResponse(response);
+                return data;
             } catch (error) {
                 console.warn('Error obteniendo notificaciones:', error);
                 return { notificaciones: [] };
             }
         },
-
         // NUEVO: Validar antes de agregar reserva
         validarAgregarReserva: async (rutaActivada, adultos, ninos = 0) => {
             try {
-                const response = await fetch(`/api/magic/rutas-activadas/${rutaActivada.id}/validar-reserva`, {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ adultos, ninos })
-                });
-                if (response.ok) {
-                    return await response.json();
-                }
-                return { puede_recibir: false, mensaje: 'Error de validación' };
+                const response = await apiHelper.post(`/rutas-activadas/${rutaActivada.id}/validar-reserva`, { adultos, ninos });
+                const data = await apiHelper.handleResponse(response);
+                return data;
             } catch (error) {
                 console.warn('Error validando reserva:', error);
                 return { puede_recibir: false, mensaje: 'Error de conexión' };
@@ -565,19 +516,18 @@ export const configRutasActivadas = {
             }
 
             try {
-                const response = await fetch('/api/magic/estados/contexto/ruta-activada');
-                if (response.ok) {
-                    const estadosRuta = await response.json();
-                    const estadoValido = estadosRuta.some(estado =>
-                        estado.estado_id == formData.estado_id
-                    );
+                const response = await apiHelper.get('/estados/contexto/ruta-activada');
+                const estadosRuta = await apiHelper.handleResponse(response);
 
-                    if (!estadoValido) {
-                        return {
-                            valido: false,
-                            mensaje: 'Debe seleccionar un estado válido para rutas activadas'
-                        };
-                    }
+                const estadoValido = estadosRuta.some(estado =>
+                    estado.estado_id == formData.estado_id
+                );
+
+                if (!estadoValido) {
+                    return {
+                        valido: false,
+                        mensaje: 'Debe seleccionar un estado válido para rutas activadas'
+                    };
                 }
             } catch (error) {
                 console.warn('Error validando estado de ruta:', error);

@@ -4,7 +4,7 @@
  * CONFIGURACIÓN PARA EL MÓDULO DE AUDITORÍAS MAGIC TRAVEL
  * Sistema de seguimiento y monitoreo de cambios
  */
-
+import apiHelper from '../../../utils/apiHelper';
 // CONFIGURACIÓN BASE PARA AUDITORÍAS
 const baseConfig = {
     defaultItemsPerPage: 15,
@@ -314,6 +314,168 @@ export const configAuditorias = {
                 180: 'Limpieza extendida',
                 365: 'Limpieza anual completa'
             }
+        }
+    },
+
+    // VALIDACIÓN DE ESTADOS - No aplica para auditorías
+    validateStates: async () => {
+        return {
+            valido: true,
+            mensaje: 'Las auditorías no requieren validación de estados específicos'
+        };
+    },
+
+    // VALIDADORES DE INTEGRIDAD PARA AUDITORÍAS
+    integrityValidators: {
+        // Validar rango de fechas para reportes
+        validateDateRange: (fechaInicio, fechaFin) => {
+            if (!fechaInicio || !fechaFin) {
+                return {
+                    valido: false,
+                    mensaje: 'Las fechas de inicio y fin son requeridas'
+                };
+            }
+
+            const inicio = new Date(fechaInicio);
+            const fin = new Date(fechaFin);
+
+            if (inicio > fin) {
+                return {
+                    valido: false,
+                    mensaje: 'La fecha de inicio no puede ser posterior a la fecha de fin'
+                };
+            }
+
+            // Validar que no sea un rango muy amplio (más de 1 año)
+            const diffTime = Math.abs(fin - inicio);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays > 365) {
+                return {
+                    valido: false,
+                    mensaje: 'El rango de fechas no puede ser mayor a 1 año'
+                };
+            }
+
+            return { valido: true };
+        },
+
+        // Validar días para limpieza
+        validateCleanupDays: (dias) => {
+            if (!dias || dias < 30) {
+                return {
+                    valido: false,
+                    mensaje: 'Mínimo 30 días para limpieza de auditorías'
+                };
+            }
+
+            if (dias > 3650) { // 10 años
+                return {
+                    valido: false,
+                    mensaje: 'Máximo 10 años para retención de auditorías'
+                };
+            }
+
+            return { valido: true };
+        }
+    },
+
+    // HELPERS ESPECÍFICOS PARA AUDITORÍAS
+    helpers: {
+        // Formatear información del registro auditado
+        formatAuditInfo: (auditoria) => {
+            const tabla = auditoria.tabla_original || 'desconocida';
+            const accion = auditoria.accion || 'N/A';
+            const fecha = auditoria.fecha_modificacion ?
+                new Date(auditoria.fecha_modificacion).toLocaleString('es-GT') : 'N/A';
+
+            return {
+                tabla: tabla.replace('_', ' ').toUpperCase(),
+                accion: accion,
+                fecha: fecha,
+                identificador: configAuditorias.helpers.extraerCampoPrincipal(auditoria, tabla)
+            };
+        },
+
+        // Obtener estadísticas rápidas
+        getQuickStats: (auditorias) => {
+            return configAuditorias.auditoria ?
+                generarEstadisticasRapidas(auditorias) :
+                { total: 0, porAccion: {}, porTabla: {}, ultimaActividad: null };
+        },
+
+        // Obtener color para acción
+        getActionColor: (accion) => {
+            return getColorAccion(accion);
+        },
+
+        // Extraer campo principal de un registro
+        extraerCampoPrincipal: (registro, tablaNombre) => {
+            return extraerCampoPrincipal(registro, tablaNombre);
+        },
+
+        // Formatear fecha relativa
+        formatRelativeDate: (fecha) => {
+            return formatearFechaAuditoria(fecha, 'relativo');
+        },
+
+        // Obtener información de tabla
+        getTableInfo: (tablaNombre) => {
+            return getTablaAuditoriaInfo(tablaNombre);
+        }
+    },
+
+    // VALIDACIÓN COMPLETA PARA REPORTES
+    validateReportForm: (formulario) => {
+        const errores = {};
+
+        // Validar fechas
+        const validacionFecha = configAuditorias.integrityValidators.validateDateRange(
+            formulario.fecha_inicio,
+            formulario.fecha_fin
+        );
+        if (!validacionFecha.valido) {
+            errores.fecha_inicio = validacionFecha.mensaje;
+        }
+
+        return errores;
+    },
+
+    // PROCESAMIENTO ANTES DE GENERAR REPORTE
+    processBeforeReport: (datos) => {
+        // Limpiar valores vacíos
+        Object.keys(datos).forEach(key => {
+            if (datos[key] === '') {
+                delete datos[key];
+            }
+        });
+
+        return datos;
+    },
+
+    // ACCIONES ESPECÍFICAS PARA AUDITORÍAS
+    actions: {
+        view: {
+            label: 'Ver Detalles',
+            icon: 'eye',
+            color: 'blue',
+            condition: () => true,
+            requiresConfirmation: false
+        },
+        generateReport: {
+            label: 'Generar Reporte',
+            icon: 'download',
+            color: 'green',
+            condition: () => true,
+            requiresConfirmation: false
+        },
+        cleanup: {
+            label: 'Limpiar Registros',
+            icon: 'trash',
+            color: 'red',
+            condition: () => true,
+            requiresConfirmation: true,
+            confirmMessage: '¿Eliminar registros antiguos de auditoría?'
         }
     }
 };

@@ -178,30 +178,21 @@ function GestionRoles() {
 
         setLoadingAction(true);
         try {
-            const url = itemEditando
-                ? `/api/magic/roles/${obtenerIdItem(itemEditando)}`
-                : '/api/magic/roles';
-            const method = itemEditando ? 'PUT' : 'POST';
+            const response = itemEditando
+                ? await apiHelper.put(`/roles/${obtenerIdItem(itemEditando)}`, formulario)
+                : await apiHelper.post('/roles', formulario);
 
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                },
-                body: JSON.stringify(formulario)
-            });
+            const data = await apiHelper.handleResponse(response);
 
             if (response.ok) {
                 Notifications.success(itemEditando ? 'Rol actualizado exitosamente' : 'Rol creado exitosamente');
                 setModalFormulario(false);
                 cargarDatos();
             } else {
-                const errorData = await response.json();
-                if (errorData.errors) {
-                    setErrores(errorData.errors);
+                if (data.errors) {
+                    setErrores(data.errors);
                 } else {
-                    Notifications.error(errorData.message || 'Error al guardar');
+                    Notifications.error(data.message || 'Error al guardar');
                 }
             }
         } catch (error) {
@@ -228,21 +219,11 @@ function GestionRoles() {
 
             switch (accionConfirmacion) {
                 case 'activar':
-                    response = await fetch(`/api/magic/roles/${itemId}/activate`, {
-                        method: 'PATCH',
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                        }
-                    });
+                    response = await apiHelper.patch(`/roles/${itemId}/activate`);
                     break;
 
                 case 'desactivar':
-                    response = await fetch(`/api/magic/roles/${itemId}/deactivate`, {
-                        method: 'PATCH',
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                        }
-                    });
+                    response = await apiHelper.patch(`/roles/${itemId}/deactivate`);
                     break;
 
                 case 'duplicar':
@@ -251,21 +232,16 @@ function GestionRoles() {
                     itemDuplicado.rol_codigo = itemDuplicado.rol_codigo + '_COPIA';
                     itemDuplicado.rol_rol = itemDuplicado.rol_rol + ' (Copia)';
 
-                    response = await fetch('/api/magic/roles', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                        },
-                        body: JSON.stringify(itemDuplicado)
-                    });
+                    response = await apiHelper.post('/roles', itemDuplicado);
                     break;
 
                 default:
                     return;
             }
 
-            if (response && response.ok) {
+            const data = await apiHelper.handleResponse(response);
+
+            if (response.ok) {
                 const mensajes = {
                     activar: 'Rol activado exitosamente',
                     desactivar: 'Rol desactivado exitosamente',
@@ -276,8 +252,7 @@ function GestionRoles() {
                 setModalConfirmacion(false);
                 cargarDatos();
             } else {
-                const errorData = await response.json();
-                Notifications.error(`Error al ${accionConfirmacion}: ${errorData.message || 'Error desconocido'}`);
+                Notifications.error(`Error al ${accionConfirmacion}: ${data.message || 'Error desconocido'}`);
             }
         } catch (error) {
             console.error('Error:', error);
@@ -488,7 +463,8 @@ function GestionRoles() {
             loading: loadingAction,
             tipoItem: 'rol',
             campos: generarCamposFormulario(),
-            esEdicion: !itemEditando
+            // esEdicion: !itemEditando
+            esEdicion: !!itemEditando
         }),
 
         ModalUniversal.confirmacion({

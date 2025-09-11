@@ -143,7 +143,7 @@ function Login({ onLoginSuccess }) {
                     padding: '2rem'
                 }
             }, [
-                // Panel informativo con credenciales por defecto
+                // Panel informativo con credenciales por defecto - LOS 3 ROLES
                 e('div', {
                     key: 'credentials-info',
                     style: {
@@ -160,30 +160,70 @@ function Login({ onLoginSuccess }) {
                         style: {
                             fontWeight: '600',
                             color: '#0369a1',
-                            marginBottom: '0.5rem',
+                            marginBottom: '0.75rem',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '6px'
                         }
                     }, [
                         Icons.info(),
-                        'Credenciales por defecto'
+                        'Usuarios de prueba disponibles'
                     ]),
+
+                    // ADMINISTRADOR
                     e('div', {
-                        key: 'credentials',
+                        key: 'admin-credentials',
                         style: {
-                            color: '#0c4a6e',
-                            lineHeight: '1.4'
+                            marginBottom: '0.5rem',
+                            padding: '0.5rem',
+                            backgroundColor: '#fef2f2',
+                            borderRadius: '4px',
+                            borderLeft: '3px solid #dc2626'
                         }
                     }, [
-                        e('div', { key: 'user' }, [
-                            e('strong', {}, 'Usuario: '),
-                            'DEV-ADMIN-001'
-                        ]),
-                        e('div', { key: 'pass' }, [
-                            e('strong', {}, 'Contraseña: '),
-                            'MagicTravel2025!'
-                        ])
+                        e('div', {
+                            key: 'admin-title',
+                            style: { fontWeight: '600', color: '#dc2626', fontSize: '12px', marginBottom: '2px' }
+                        }, 'ADMINISTRADOR (Acceso completo)'),
+                        e('div', { key: 'admin-user', style: { color: '#0c4a6e' } }, 'Usuario: USR-001'),
+                        e('div', { key: 'admin-pass', style: { color: '#0c4a6e' } }, 'Contraseña: MagicTravel2025!')
+                    ]),
+
+                    // OPERADOR
+                    e('div', {
+                        key: 'operator-credentials',
+                        style: {
+                            marginBottom: '0.5rem',
+                            padding: '0.5rem',
+                            backgroundColor: '#eff6ff',
+                            borderRadius: '4px',
+                            borderLeft: '3px solid #2563eb'
+                        }
+                    }, [
+                        e('div', {
+                            key: 'operator-title',
+                            style: { fontWeight: '600', color: '#2563eb', fontSize: '12px', marginBottom: '2px' }
+                        }, 'OPERADOR (Solo operación)'),
+                        e('div', { key: 'operator-user', style: { color: '#0c4a6e' } }, 'Usuario: USR-002'),
+                        e('div', { key: 'operator-pass', style: { color: '#0c4a6e' } }, 'Contraseña: Operador123!')
+                    ]),
+
+                    // VENDEDOR
+                    e('div', {
+                        key: 'seller-credentials',
+                        style: {
+                            padding: '0.5rem',
+                            backgroundColor: '#ecfdf5',
+                            borderRadius: '4px',
+                            borderLeft: '3px solid #059669'
+                        }
+                    }, [
+                        e('div', {
+                            key: 'seller-title',
+                            style: { fontWeight: '600', color: '#059669', fontSize: '12px', marginBottom: '2px' }
+                        }, 'VENDEDOR (Operación + Comercial)'),
+                        e('div', { key: 'seller-user', style: { color: '#0c4a6e' } }, 'Usuario: USR-003'),
+                        e('div', { key: 'seller-pass', style: { color: '#0c4a6e' } }, 'Contraseña: Vendedora123!')
                     ])
                 ]),
 

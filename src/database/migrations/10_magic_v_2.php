@@ -211,7 +211,6 @@ return new class extends Migration
             $table->decimal('tour_activado_duracion_horas', 4, 2)->nullable();
             $table->boolean('tour_activado_situacion')->default(1);
             $table->unsignedBigInteger('persona_id')->nullable(); // Guía puede ser externo
-            $table->unsignedBigInteger('estado_id');
             $table->unsignedBigInteger('servicio_id');
             $table->timestamps();
             $table->unsignedBigInteger('created_by')->nullable();
@@ -219,7 +218,6 @@ return new class extends Migration
             $table->softDeletes();
 
             $table->foreign('persona_id')->references('persona_id')->on('persona');
-            $table->foreign('estado_id')->references('estado_id')->on('estado');
             $table->foreign('servicio_id')->references('servicio_id')->on('servicio');
         });
 

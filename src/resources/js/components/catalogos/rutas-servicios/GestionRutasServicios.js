@@ -334,21 +334,12 @@ function GestionRutasServicios() {
 
             const endpoint = vistaActiva;
             const idField = vistaActiva === 'rutas' ? 'ruta_id' : 'servicio_id';
-            const url = itemEditando
-                ? `/api/magic/${endpoint}/${itemEditando[idField]}`
-                : `/api/magic/${endpoint}`;
 
-            const method = itemEditando ? 'PUT' : 'POST';
+            const response = itemEditando
+                ? await apiHelper.put(`/${endpoint}/${itemEditando[idField]}`, datosParaEnviar)
+                : await apiHelper.post(`/${endpoint}`, datosParaEnviar);
 
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: JSON.stringify(datosParaEnviar)
-            });
+            const data = await apiHelper.handleResponse(response);
 
             if (response.ok) {
                 Notifications.success(
@@ -390,51 +381,14 @@ function GestionRutasServicios() {
             const itemId = itemConfirmacion[idField];
 
             let response;
-            let url;
 
             switch (accionConfirmacion) {
                 case 'activar':
-                case 'desactivar':
-                    // Actualizar el estado directamente
-                    const nuevoEstado = accionConfirmacion === 'activar';
-                    const campoEstado = vistaActiva === 'rutas' ? 'ruta_situacion' : 'servicio_situacion';
-
-                    url = `/api/magic/${endpoint}/${itemId}`;
-                    response = await fetch(url, {
-                        method: 'PUT',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest'
-                        },
-                        body: JSON.stringify({
-                            ...itemConfirmacion,
-                            [campoEstado]: nuevoEstado
-                        })
-                    });
+                    response = await apiHelper.patch(`/${endpoint}/${itemId}/activate`);
                     break;
 
-                case 'duplicar':
-                    const itemDuplicado = { ...itemConfirmacion };
-                    delete itemDuplicado[idField];
-                    if (vistaActiva === 'rutas') {
-                        delete itemDuplicado.ruta_codigo;
-                        itemDuplicado.ruta_ruta = `${itemDuplicado.ruta_ruta} (Copia)`;
-                    } else {
-                        delete itemDuplicado.servicio_codigo;
-                        itemDuplicado.servicio_servicio = `${itemDuplicado.servicio_servicio} (Copia)`;
-                    }
-
-                    url = `/api/magic/${endpoint}`;
-                    response = await fetch(url, {
-                        method: 'POST',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest'
-                        },
-                        body: JSON.stringify(itemDuplicado)
-                    });
+                case 'desactivar':
+                    response = await apiHelper.patch(`/${endpoint}/${itemId}/deactivate`);
                     break;
 
                 default:
@@ -444,8 +398,7 @@ function GestionRutasServicios() {
             if (response && response.ok) {
                 const mensajes = {
                     activar: `${vistaActiva.slice(0, -1)} activado exitosamente`,
-                    desactivar: `${vistaActiva.slice(0, -1)} desactivado exitosamente`,
-                    duplicar: `${vistaActiva.slice(0, -1)} duplicado exitosamente`
+                    desactivar: `${vistaActiva.slice(0, -1)} desactivado exitosamente`
                 };
 
                 Notifications.success(mensajes[accionConfirmacion]);
@@ -647,7 +600,8 @@ function GestionRutasServicios() {
                                         item: item,
                                         onVer: () => abrirModalDetalles(item),
                                         onEditar: () => abrirModalFormulario(item),
-                                        onDuplicar: () => abrirModalConfirmacion(item, 'duplicar'),
+                                        mostrarDuplicar: false,
+                                        // onDuplicar: () => abrirModalConfirmacion(item, 'duplicar'),
                                         onActivar: () => abrirModalConfirmacion(
                                             item,
                                             esActivo ? 'desactivar' : 'activar'

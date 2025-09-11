@@ -109,7 +109,8 @@ function GestionRutasActivas() {
 
             const promesasNotificaciones = rutasActivas.map(async (ruta) => {
                 try {
-                    const response = await fetch(`/api/magic/rutas-activadas/${ruta.id}/notificaciones`);
+                    // const response = await fetch(`/api/magic/rutas-activadas/${ruta.id}/notificaciones`);
+                    const response = await apiHelper.get(`/rutas-activadas/${ruta.id}/notificaciones`);
                     if (response.ok) {
                         const data = await response.json();
                         return { id: ruta.id, notificaciones: data.notificaciones || [] };
@@ -258,13 +259,7 @@ function GestionRutasActivas() {
             }
 
             // Si la validación es exitosa, cerrar la ruta
-            const response = await fetch(`/api/magic/rutas-activadas/${ruta.id}/cerrar`, {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                }
-            });
+            const response = await apiHelper.post(`/rutas-activadas/${ruta.id}/cerrar`);
 
             if (response.ok) {
                 Notifications.success('Ruta cerrada exitosamente');
@@ -741,22 +736,11 @@ function GestionRutasActivas() {
                 }
             }
 
-            const url = itemEditando
-                ? `/api/magic/rutas-activadas/${obtenerIdItem(itemEditando)}`
-                : `/api/magic/rutas-activadas`;
+            const response = itemEditando
+                ? await apiHelper.put(`/rutas-activadas/${obtenerIdItem(itemEditando)}`, datosParaEnviar)
+                : await apiHelper.post('/rutas-activadas', datosParaEnviar);
 
-            const method = itemEditando ? 'PUT' : 'POST';
-
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                },
-                body: JSON.stringify(datosParaEnviar)
-            });
+            const data = await apiHelper.handleResponse(response);
 
             if (response.ok) {
                 Notifications.success(
@@ -771,12 +755,12 @@ function GestionRutasActivas() {
                 setModalFormulario(false);
                 cargarDatos(); // Esto recargará las notificaciones automáticamente
             } else {
-                const errorData = await response.json();
+                const errorData = await apiHelper.handleResponse(response);
                 if (errorData.errors) {
                     setErrores(errorData.errors);
                     Notifications.error('Por favor corrige los errores en el formulario');
                 } else {
-                    Notifications.error(`Error al guardar: ${errorData.message || response.status}`);
+                    Notifications.error(`Error al guardar: ${errorData.message || 'Error desconocido'}`);
                 }
             }
         } catch (error) {
@@ -786,7 +770,6 @@ function GestionRutasActivas() {
             setLoadingAction(false);
         }
     };
-
     const abrirModalConfirmacion = (item, accion) => {
         setItemConfirmacion(item);
         setAccionConfirmacion(accion);
@@ -809,29 +792,14 @@ function GestionRutasActivas() {
             const itemId = obtenerIdItem(itemConfirmacion);
 
             let response;
-            let url;
 
             switch (accionConfirmacion) {
                 case 'activar':
-                    url = `/api/magic/rutas-activadas/${itemId}/activate`;
-                    response = await fetch(url, {
-                        method: 'PATCH',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        }
-                    });
+                    response = await apiHelper.patch(`/rutas-activadas/${itemId}/activate`);
                     break;
 
                 case 'desactivar':
-                    url = `/api/magic/rutas-activadas/${itemId}/deactivate`;
-                    response = await fetch(url, {
-                        method: 'PATCH',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        }
-                    });
+                    response = await apiHelper.patch(`/rutas-activadas/${itemId}/deactivate`);
                     break;
 
                 case 'duplicar':
@@ -848,25 +816,16 @@ function GestionRutasActivas() {
                         vehiculo_id: itemConfirmacion.vehiculo_id,
                         ruta_activada_situacion: 1
                     };
-
-                    url = `/api/magic/rutas-activadas`;
-                    response = await fetch(url, {
-                        method: 'POST',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        },
-                        body: JSON.stringify(itemDuplicado)
-                    });
+                    response = await apiHelper.post('/rutas-activadas', itemDuplicado);
                     break;
 
                 default:
                     return;
             }
 
-            if (response && response.ok) {
+            const data = await apiHelper.handleResponse(response);
+
+            if (response.ok) {
                 const mensajes = {
                     activar: 'Ruta activada exitosamente',
                     desactivar: 'Ruta desactivada exitosamente',
@@ -877,8 +836,7 @@ function GestionRutasActivas() {
                 setModalConfirmacion(false);
                 cargarDatos();
             } else {
-                const errorData = await response.json();
-                Notifications.error(`Error al ${accionConfirmacion}: ${errorData.message || 'Error desconocido'}`);
+                Notifications.error(`Error al ${accionConfirmacion}: ${data.message || 'Error desconocido'}`);
             }
         } catch (error) {
             console.error('Error:', error);
@@ -903,7 +861,8 @@ function GestionRutasActivas() {
             setLoadingAction(true);
             Notifications.info('Generando lista para conductor...');
 
-            const response = await fetch(`/api/magic/rutas-activadas/${rutaActivada.id}/lista-conductor-pdf`);
+            // const response = await fetch(`/api/magic/rutas-activadas/${rutaActivada.id}/lista-conductor-pdf`);
+            const response = await apiHelper.get(`/rutas-activadas/${rutaActivada.id}/lista-conductor-pdf`);
 
             if (response.ok) {
                 const blob = await response.blob();

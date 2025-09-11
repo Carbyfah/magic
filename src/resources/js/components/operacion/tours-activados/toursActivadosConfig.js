@@ -8,6 +8,7 @@
  */
 
 import AuthService from '../../../services/auth';
+import apiHelper from '../../../utils/apiHelper';
 
 // CONFIGURACIÓN BASE COMPARTIDA
 const baseConfig = {
@@ -103,19 +104,6 @@ export const configToursActivados = {
             width: 'medio',
             help: 'Guía interno asignado (dejar vacío para guía externo)'
         },
-        estado_id: {
-            label: 'Estado del Tour',
-            type: 'foreign_key',
-            sortable: true,
-            filterable: false,
-            sortType: 'numeric',
-            required: true,
-            relatedTable: 'estados',
-            relatedKey: 'estado_id',
-            displayField: 'estado_estado',
-            endpoint: '/api/magic/estados/contexto/ruta-activada',
-            width: 'medio'
-        },
         servicio_id: {
             label: 'Servicio',
             type: 'foreign_key',
@@ -150,7 +138,7 @@ export const configToursActivados = {
     displayFields: ['codigo', 'fecha_hora', 'servicio_id', 'persona_id', 'descripcion'],
 
     // Configuración específica para transaccionales (menos FK que rutas)
-    foreignKeys: ['persona_id', 'estado_id', 'servicio_id'],
+    foreignKeys: ['persona_id', 'servicio_id'],
 
     // Validaciones específicas para tours activados
     validations: {
@@ -158,81 +146,6 @@ export const configToursActivados = {
             unique: true,
             endpoint: '/api/magic/tours-activados/verificar-codigo'
         }
-    },
-
-    // VALIDACIÓN DE ESTADOS NECESARIOS - LÓGICA DE NEGOCIO
-    validateStates: async () => {
-        try {
-            const token = AuthService.getToken();
-            const response = await fetch('/api/magic/estados/contexto/tour-activado', {
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            if (response.ok) {
-                const estados = await response.json();
-
-                // Estados necesarios para el flujo de negocio Tours
-                const estadosNecesarios = ['Activado', 'En Ejecución', 'Cerrado'];
-
-                const estadosFaltantes = estadosNecesarios.filter(necesario =>
-                    !estados.some(estado =>
-                        estado.estado_estado.toLowerCase().includes(necesario.toLowerCase())
-                    )
-                );
-
-                if (estadosFaltantes.length > 0) {
-                    return {
-                        valido: false,
-                        faltantes: estadosFaltantes,
-                        mensaje: `Estados faltantes para tours activados: ${estadosFaltantes.join(', ')}`,
-                        contexto: 'tour-activado'
-                    };
-                }
-
-                return {
-                    valido: true,
-                    estados,
-                    mensaje: 'Todos los estados necesarios están disponibles'
-                };
-            }
-            return {
-                valido: false,
-                mensaje: 'Error al cargar estados de tours activados desde el servidor',
-                contexto: 'tour-activado'
-            };
-        } catch (error) {
-            console.error('Error validando estados de tours activados:', error);
-            return {
-                valido: false,
-                mensaje: 'Error de conexión al validar estados de tours activados',
-                contexto: 'tour-activado'
-            };
-        }
-    },
-
-    // DETECCIÓN DE ESTADOS ESPECÍFICOS
-    stateDetection: {
-        activado: (estado) => estado.estado_estado && (
-            estado.estado_estado.toLowerCase().includes('activado') ||
-            estado.estado_estado.toLowerCase().includes('programado') ||
-            estado.estado_estado.toLowerCase().includes('pendiente')
-        ),
-        ejecucion: (estado) => estado.estado_estado && (
-            estado.estado_estado.toLowerCase().includes('ejecución') ||
-            estado.estado_estado.toLowerCase().includes('ejecutando') ||
-            estado.estado_estado.toLowerCase().includes('en curso') ||
-            estado.estado_estado.toLowerCase().includes('realizando')
-        ),
-        cerrado: (estado) => estado.estado_estado && (
-            estado.estado_estado.toLowerCase().includes('cerrado') ||
-            estado.estado_estado.toLowerCase().includes('completado') ||
-            estado.estado_estado.toLowerCase().includes('finalizado')
-        )
     },
 
     // OBTENER ESTADO POR TIPO
@@ -262,29 +175,26 @@ export const configToursActivados = {
 
             try {
                 const fecha = new Date(fechaHora).toISOString().split('T')[0];
-                const response = await fetch('/api/magic/tours-activados');
+                const response = await apiHelper.get('/tours-activados');
+                const toursData = await apiHelper.handleResponse(response);
+                const tours = toursData.data || toursData;
 
-                if (response.ok) {
-                    const tours = await response.json();
-                    const toursData = tours.data || tours;
+                // Verificar conflictos de horario para el guía
+                const conflicto = tours.some(tour => {
+                    if (tourId && tour.id === tourId) return false; // Excluir el tour actual al editar
 
-                    // Verificar conflictos de horario para el guía
-                    const conflicto = toursData.some(tour => {
-                        if (tourId && tour.id === tourId) return false; // Excluir el tour actual al editar
-
-                        if (tour.persona_id === personaId && tour.activo) {
-                            const fechaTour = new Date(tour.fecha_completa).toISOString().split('T')[0];
-                            return fechaTour === fecha; // Mismo día
-                        }
-                        return false;
-                    });
-
-                    if (conflicto) {
-                        return {
-                            valido: false,
-                            mensaje: 'El guía ya está asignado a otro tour en esa fecha'
-                        };
+                    if (tour.persona_id === personaId && tour.activo) {
+                        const fechaTour = new Date(tour.fecha_completa).toISOString().split('T')[0];
+                        return fechaTour === fecha; // Mismo día
                     }
+                    return false;
+                });
+
+                if (conflicto) {
+                    return {
+                        valido: false,
+                        mensaje: 'El guía ya está asignado a otro tour en esa fecha'
+                    };
                 }
 
                 return { valido: true };
@@ -377,11 +287,9 @@ export const configToursActivados = {
         // Obtener notificaciones inteligentes
         obtenerNotificaciones: async (tourActivado) => {
             try {
-                const response = await fetch(`/api/magic/tours-activados/${tourActivado.id}/notificaciones`);
-                if (response.ok) {
-                    return await response.json();
-                }
-                return { notificaciones: [] };
+                const response = await apiHelper.get(`/tours-activados/${tourActivado.id}/notificaciones`);
+                const data = await apiHelper.handleResponse(response);
+                return data;
             } catch (error) {
                 console.warn('Error obteniendo notificaciones:', error);
                 return { notificaciones: [] };
@@ -391,18 +299,9 @@ export const configToursActivados = {
         // Validar antes de agregar reserva (siempre válido)
         validarAgregarReserva: async (tourActivado, adultos, ninos = 0) => {
             try {
-                const response = await fetch(`/api/magic/tours-activados/${tourActivado.id}/validar-reserva`, {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ adultos, ninos })
-                });
-                if (response.ok) {
-                    return await response.json();
-                }
-                return { puede_recibir: true, mensaje: 'Tour sin límite de capacidad' };
+                const response = await apiHelper.post(`/tours-activados/${tourActivado.id}/validar-reserva`, { adultos, ninos });
+                const data = await apiHelper.handleResponse(response);
+                return data;
             } catch (error) {
                 console.warn('Error validando reserva:', error);
                 return { puede_recibir: true, mensaje: 'Tours no tienen límite de capacidad' };

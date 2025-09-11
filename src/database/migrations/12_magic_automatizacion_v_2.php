@@ -431,20 +431,18 @@ return new class extends Migration
                 ta.tour_activado_duracion_horas as duracion_horas,
                 IFNULL(SUM(res.reserva_cantidad_adultos + IFNULL(res.reserva_cantidad_ninos, 0)), 0) as total_pasajeros,
                 COUNT(res.reserva_id) as total_reservas,
-                e.estado_estado as estado_tour,
                 CONCAT(p.persona_nombres, ' ', p.persona_apellidos) as guia_responsable,
                 'SIN_LIMITE' as capacidad_info,
                 'SIEMPRE_DISPONIBLE' as status_disponibilidad
             FROM tour_activado ta
             JOIN servicio s ON ta.servicio_id = s.servicio_id
-            JOIN estado e ON ta.estado_id = e.estado_id
             LEFT JOIN persona p ON ta.persona_id = p.persona_id
             LEFT JOIN reserva res ON ta.tour_activado_id = res.tour_activado_id
                                    AND res.reserva_situacion = 1
             WHERE ta.tour_activado_situacion = 1
             GROUP BY ta.tour_activado_id, ta.tour_activado_codigo, ta.tour_activado_fecha_hora,
                      s.servicio_servicio, ta.tour_activado_descripcion, ta.tour_activado_punto_encuentro,
-                     ta.tour_activado_duracion_horas, e.estado_estado, p.persona_nombres, p.persona_apellidos
+                     ta.tour_activado_duracion_horas, p.persona_nombres, p.persona_apellidos
             ORDER BY ta.tour_activado_fecha_hora
         ");
 
@@ -590,15 +588,13 @@ return new class extends Migration
                 IFNULL(SUM(res.reserva_cantidad_adultos + IFNULL(res.reserva_cantidad_ninos, 0)), 0) as pasajeros_confirmados,
                 COUNT(res.reserva_id) as total_reservas,
                 IFNULL(SUM(res.reserva_monto), 0) as ingresos_estimados,
-                e.estado_estado as estado
+                'Activo' as estado
             FROM tour_activado ta
             JOIN servicio s ON ta.servicio_id = s.servicio_id
-            JOIN estado e ON ta.estado_id = e.estado_id
             LEFT JOIN reserva res ON ta.tour_activado_id = res.tour_activado_id AND res.reserva_situacion = 1
             WHERE ta.tour_activado_situacion = 1
             GROUP BY ta.tour_activado_id, ta.tour_activado_codigo, ta.tour_activado_fecha_hora,
-                     s.servicio_servicio, ta.tour_activado_descripcion, ta.tour_activado_punto_encuentro,
-                     e.estado_estado
+                     s.servicio_servicio, ta.tour_activado_descripcion, ta.tour_activado_punto_encuentro
 
             ORDER BY fecha, hora
         ");

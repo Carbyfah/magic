@@ -2,6 +2,7 @@
 import React from 'react';
 import Icons from '../../utils/Icons';
 import apiHelper from '../../utils/apiHelper';
+import AuthService from '../../services/auth';
 const { createElement: e, useState, useEffect } = React;
 
 function Dashboard({ onNavigate }) {
@@ -551,7 +552,7 @@ function Dashboard({ onNavigate }) {
             })
         ]),
 
-        // Quick Access Cards
+        // Quick Access Cards - FILTRADAS POR ROL
         e('div', {
             key: 'quick-access-section',
             style: {
@@ -576,78 +577,135 @@ function Dashboard({ onNavigate }) {
                     gap: '1.5rem'
                 }
             }, [
-                QuickAccessCard({
-                    title: 'Rutas Activas',
-                    description: 'Gestionar rutas del día y seguimiento en tiempo real',
-                    icon: Icons.route(),
-                    color: 'blue',
+                // Definir todas las tarjetas disponibles
+                {
                     module: 'rutas-activas',
-                    stats: [
-                        { value: formatNumber(dashboardData.kpis.rutas_programadas), label: 'Programadas' },
-                        { value: formatNumber(dashboardData.kpis.vehiculos_operativos), label: 'En ruta' }
-                    ]
-                }),
-
-                QuickAccessCard({
-                    title: 'Reservaciones',
-                    description: 'Crear y administrar reservas de clientes',
-                    icon: Icons.calendar(),
-                    color: 'green',
+                    card: QuickAccessCard({
+                        title: 'Rutas Activas',
+                        description: 'Gestionar rutas del día y seguimiento en tiempo real',
+                        icon: Icons.route(),
+                        color: 'blue',
+                        module: 'rutas-activas',
+                        stats: [
+                            { value: formatNumber(dashboardData.kpis.rutas_programadas), label: 'Programadas' },
+                            { value: formatNumber(dashboardData.kpis.vehiculos_operativos), label: 'En ruta' }
+                        ]
+                    })
+                },
+                {
                     module: 'reservaciones',
-                    stats: [
-                        { value: formatNumber(dashboardData.kpis.reservas_activas), label: 'Activas' },
-                        { value: formatNumber(dashboardData.kpis.reservas_hoy), label: 'Hoy' }
-                    ]
-                }),
-
-                QuickAccessCard({
-                    title: 'Control Flota',
-                    description: 'Administrar vehículos y mantenimientos',
-                    icon: Icons.truck(),
-                    color: 'yellow',
-                    module: 'vehiculos',
-                    stats: [
-                        { value: formatNumber(dashboardData.kpis.vehiculos_operativos), label: 'Operativos' },
-                        { value: formatPercentage(dashboardData.kpis.ocupacion_promedio), label: 'Ocupación' }
-                    ]
-                }),
-
-                QuickAccessCard({
-                    title: 'Usuarios Sistema',
-                    description: 'Gestionar usuarios y permisos del sistema',
-                    icon: Icons.userCheck(),
-                    color: 'purple',
+                    card: QuickAccessCard({
+                        title: 'Reservaciones',
+                        description: 'Crear y administrar reservas de clientes',
+                        icon: Icons.calendar(),
+                        color: 'green',
+                        module: 'reservaciones',
+                        stats: [
+                            { value: formatNumber(dashboardData.kpis.reservas_activas), label: 'Activas' },
+                            { value: formatNumber(dashboardData.kpis.reservas_hoy), label: 'Hoy' }
+                        ]
+                    })
+                },
+                {
+                    module: 'control-flota',
+                    card: QuickAccessCard({
+                        title: 'Control Flota',
+                        description: 'Administrar vehículos y mantenimientos',
+                        icon: Icons.truck(),
+                        color: 'yellow',
+                        module: 'control-flota',
+                        stats: [
+                            { value: formatNumber(dashboardData.kpis.vehiculos_operativos), label: 'Operativos' },
+                            { value: formatPercentage(dashboardData.kpis.ocupacion_promedio), label: 'Ocupación' }
+                        ]
+                    })
+                },
+                {
+                    module: 'tours-activados',
+                    card: QuickAccessCard({
+                        title: 'Tours Activados',
+                        description: 'Gestionar tours y excursiones programadas',
+                        icon: Icons.mapPin(),
+                        color: 'purple',
+                        module: 'tours-activados',
+                        stats: [
+                            { value: 'Tours', label: 'Activos' },
+                            { value: 'Guías', label: 'Asignados' }
+                        ]
+                    })
+                },
+                {
+                    module: 'contactos-agencia',
+                    card: QuickAccessCard({
+                        title: 'Contactos Agencia',
+                        description: 'Gestionar contactos y relaciones comerciales',
+                        icon: Icons.userGroup(),
+                        color: 'blue',
+                        module: 'contactos-agencia',
+                        stats: [
+                            { value: formatNumber(dashboardData.kpis.agencias_activas), label: 'Agencias' },
+                            { value: 'Comercial', label: 'Gestión' }
+                        ]
+                    })
+                },
+                {
+                    module: 'dashboard-ventas',
+                    card: QuickAccessCard({
+                        title: 'Dashboard Ventas',
+                        description: 'Reportes y análisis de ventas y rendimiento',
+                        icon: Icons.chartBar(),
+                        color: 'green',
+                        module: 'dashboard-ventas',
+                        stats: [
+                            { value: formatCurrency(dashboardData.kpis.ingresos_totales), label: 'Ingresos' },
+                            { value: formatPercentage(dashboardData.kpis.porcentaje_ventas_directas), label: 'Directas' }
+                        ]
+                    })
+                },
+                {
                     module: 'usuarios-sistema',
-                    stats: [
-                        { value: formatNumber(dashboardData.kpis.usuarios_sistema), label: 'Total' },
-                        { value: formatNumber(dashboardData.kpis.agencias_activas), label: 'Agencias' }
-                    ]
-                }),
-
-                QuickAccessCard({
-                    title: 'Rutas y Servicios',
-                    description: 'Configurar rutas, servicios y tarifas del sistema',
-                    icon: Icons.map(),
-                    color: 'blue',
-                    module: 'rutas-servicios',
-                    stats: [
-                        { value: 'Catálogo', label: 'Base' },
-                        { value: 'Config', label: 'Sistema' }
-                    ]
-                }),
-
-                QuickAccessCard({
-                    title: 'Empleados',
-                    description: 'Gestionar personal y información laboral',
-                    icon: Icons.users(),
-                    color: 'green',
+                    card: QuickAccessCard({
+                        title: 'Usuarios Sistema',
+                        description: 'Gestionar usuarios y permisos del sistema',
+                        icon: Icons.userCheck(),
+                        color: 'purple',
+                        module: 'usuarios-sistema',
+                        stats: [
+                            { value: formatNumber(dashboardData.kpis.usuarios_sistema), label: 'Total' },
+                            { value: 'Permisos', label: 'Control' }
+                        ]
+                    })
+                },
+                {
                     module: 'empleados',
-                    stats: [
-                        { value: 'Personal', label: 'Activo' },
-                        { value: 'Gestión', label: 'RH' }
-                    ]
-                })
-            ])
+                    card: QuickAccessCard({
+                        title: 'Empleados',
+                        description: 'Gestionar personal y información laboral',
+                        icon: Icons.users(),
+                        color: 'yellow',
+                        module: 'empleados',
+                        stats: [
+                            { value: 'Personal', label: 'Activo' },
+                            { value: 'Gestión', label: 'RH' }
+                        ]
+                    })
+                },
+                {
+                    module: 'rutas-servicios',
+                    card: QuickAccessCard({
+                        title: 'Rutas y Servicios',
+                        description: 'Configurar rutas, servicios y tarifas del sistema',
+                        icon: Icons.map(),
+                        color: 'blue',
+                        module: 'rutas-servicios',
+                        stats: [
+                            { value: 'Catálogo', label: 'Base' },
+                            { value: 'Config', label: 'Sistema' }
+                        ]
+                    })
+                }
+            ].filter(item => AuthService.canAccessModule(item.module))
+                .map(item => item.card))
         ]),
 
         // Footer Info

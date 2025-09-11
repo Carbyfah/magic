@@ -238,37 +238,17 @@ function GestionEmpleados() {
         }
     };
 
-    // Validación del formulario
-    const validarFormulario = () => {
-        const nuevosErrores = {};
-
-        if (!formulario.persona_nombres?.trim()) {
-            nuevosErrores.persona_nombres = 'Los nombres son requeridos';
-        }
-
-        if (!formulario.persona_apellidos?.trim()) {
-            nuevosErrores.persona_apellidos = 'Los apellidos son requeridos';
-        }
-
-        if (!formulario.tipo_persona_id) {
-            nuevosErrores.tipo_persona_id = 'El tipo de empleado es requerido';
-        }
-
-        if (formulario.persona_email && !formulario.persona_email.includes('@')) {
-            nuevosErrores.persona_email = 'El email debe tener un formato válido';
-        }
-
-        if (formulario.persona_telefono && (formulario.persona_telefono.toString().length < 8 || formulario.persona_telefono.toString().length > 15)) {
-            nuevosErrores.persona_telefono = 'El teléfono debe tener entre 8 y 15 dígitos';
-        }
-
+    // Validación del formulario - USAR CONFIG
+    const validarFormulario = async () => {
+        const nuevosErrores = await currentConfig.validateForm(formulario, itemEditando?.persona_id);
         setErrores(nuevosErrores);
         return Object.keys(nuevosErrores).length === 0;
     };
 
     // Guardar item - CORREGIDO
     const guardarItem = async () => {
-        if (!validarFormulario()) return;
+        const formularioValido = await validarFormulario();
+        if (!formularioValido) return;
 
         try {
             setLoadingAction(true);
@@ -288,22 +268,11 @@ function GestionEmpleados() {
 
             console.log('Datos a enviar:', datosParaEnviar);
 
-            const url = itemEditando
-                ? `/api/magic/personas/${obtenerIdItem(itemEditando)}`
-                : `/api/magic/personas`;
+            const response = itemEditando
+                ? await apiHelper.put(`/personas/${obtenerIdItem(itemEditando)}`, datosParaEnviar)
+                : await apiHelper.post('/personas', datosParaEnviar);
 
-            const method = itemEditando ? 'PUT' : 'POST';
-
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                },
-                body: JSON.stringify(datosParaEnviar)
-            });
+            const data = await apiHelper.handleResponse(response);
 
             if (response.ok) {
                 Notifications.success(
@@ -312,12 +281,11 @@ function GestionEmpleados() {
                 setModalFormulario(false);
                 cargarDatos();
             } else {
-                const errorData = await response.json();
-                if (errorData.errors) {
-                    setErrores(errorData.errors);
+                if (data.errors) {
+                    setErrores(data.errors);
                     Notifications.error('Por favor corrige los errores en el formulario');
                 } else {
-                    Notifications.error(`Error al guardar: ${response.status}`);
+                    Notifications.error(`Error al guardar: ${data.message || 'Error desconocido'}`);
                 }
             }
         } catch (error) {
@@ -343,29 +311,14 @@ function GestionEmpleados() {
             const itemId = obtenerIdItem(itemConfirmacion);
 
             let response;
-            let url;
 
             switch (accionConfirmacion) {
                 case 'activar':
-                    url = `/api/magic/personas/${itemId}/activate`;
-                    response = await fetch(url, {
-                        method: 'PATCH',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        }
-                    });
+                    response = await apiHelper.patch(`/personas/${itemId}/activate`);
                     break;
 
                 case 'desactivar':
-                    url = `/api/magic/personas/${itemId}/deactivate`;
-                    response = await fetch(url, {
-                        method: 'PATCH',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        }
-                    });
+                    response = await apiHelper.patch(`/personas/${itemId}/deactivate`);
                     break;
 
                 case 'duplicar':
@@ -378,24 +331,16 @@ function GestionEmpleados() {
                         persona_situacion: 1 // Usar 1 en lugar de true
                     };
 
-                    url = `/api/magic/personas`;
-                    response = await fetch(url, {
-                        method: 'POST',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        },
-                        body: JSON.stringify(itemDuplicado)
-                    });
+                    response = await apiHelper.post('/personas', itemDuplicado);
                     break;
 
                 default:
                     return;
             }
 
-            if (response && response.ok) {
+            const data = await apiHelper.handleResponse(response);
+
+            if (response.ok) {
                 const mensajes = {
                     activar: 'Empleado activado exitosamente',
                     desactivar: 'Empleado desactivado exitosamente',
@@ -406,8 +351,7 @@ function GestionEmpleados() {
                 setModalConfirmacion(false);
                 cargarDatos();
             } else {
-                const errorData = await response.json();
-                Notifications.error(`Error al ${accionConfirmacion}: ${errorData.message || 'Error desconocido'}`);
+                Notifications.error(`Error al ${accionConfirmacion}: ${data.message || 'Error desconocido'}`);
             }
         } catch (error) {
             console.error('Error:', error);
