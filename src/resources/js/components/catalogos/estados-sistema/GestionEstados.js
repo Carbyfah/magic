@@ -10,6 +10,7 @@ import useTableData from '../../common/useTableData';
 import TableControls from '../../common/TableControls';
 import TablePagination from '../../common/TablePagination';
 import { estadosConfig } from './estadosConfig';
+import apiHelper from '../../../utils/apiHelper';
 
 const { createElement: e, useState, useEffect } = React;
 
@@ -49,23 +50,10 @@ function GestionEstados() {
     const cargarDatos = async () => {
         try {
             setLoading(true);
-            const response = await fetch('/api/magic/estados', {
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setEstados(data);
-                console.log('Estados cargados:', data.length, 'items');
-            } else {
-                console.error('Error al cargar estados:', response.status);
-                Notifications.error(`Error al cargar estados: ${response.status}`);
-            }
-
+            const response = await apiHelper.estados.getAll();
+            const data = await apiHelper.handleResponse(response);
+            setEstados(data);
+            console.log('Estados cargados:', data.length, 'items');
         } catch (error) {
             console.error('Error de conexión:', error);
             Notifications.error('Error de conexión al cargar datos');
@@ -87,6 +75,7 @@ function GestionEstados() {
                 opciones: [
                     { value: 'vehiculo', label: 'Estados para Vehículos' },
                     { value: 'ruta-activada', label: 'Estados para Rutas Activadas' },
+                    { value: 'tour-activado', label: 'Estados para Tours Activados' },
                     { value: 'reserva', label: 'Estados para Reservas' }
 
                 ],
@@ -206,36 +195,32 @@ function GestionEstados() {
     const guardarItem = async () => {
         if (!validarFormulario()) return;
 
-        setLoadingAction(true);
         try {
-            const url = itemEditando
-                ? `/api/magic/estados/${obtenerIdItem(itemEditando)}`
-                : '/api/magic/estados';
-            const method = itemEditando ? 'PUT' : 'POST';
+            setLoadingAction(true);
 
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                },
-                body: JSON.stringify(formulario)
-            });
+            const response = itemEditando
+                ? await apiHelper.put(`/estados/${obtenerIdItem(itemEditando)}`, formulario)
+                : await apiHelper.post('/estados', formulario);
+
+            const data = await apiHelper.handleResponse(response);
 
             if (response.ok) {
-                Notifications.success(itemEditando ? 'Estado actualizado exitosamente' : 'Estado creado exitosamente');
+                Notifications.success(
+                    `Estado ${itemEditando ? 'actualizado' : 'creado'} exitosamente`
+                );
                 setModalFormulario(false);
                 cargarDatos();
             } else {
                 const errorData = await response.json();
                 if (errorData.errors) {
                     setErrores(errorData.errors);
+                    Notifications.error('Por favor corrige los errores en el formulario');
                 } else {
-                    Notifications.error(errorData.message || 'Error al guardar');
+                    Notifications.error(`Error al guardar: ${response.status}`);
                 }
             }
         } catch (error) {
-            console.error('Error:', error);
+            console.error('Error de conexión:', error);
             Notifications.error('Error de conexión');
         } finally {
             setLoadingAction(false);
@@ -249,30 +234,21 @@ function GestionEstados() {
     };
 
     const ejecutarAccion = async () => {
-        if (!itemConfirmacion || !accionConfirmacion) return;
+        if (!itemConfirmacion) return;
 
-        setLoadingAction(true);
         try {
-            let response;
+            setLoadingAction(true);
             const itemId = obtenerIdItem(itemConfirmacion);
+
+            let response;
 
             switch (accionConfirmacion) {
                 case 'activar':
-                    response = await fetch(`/api/magic/estados/${itemId}/activate`, {
-                        method: 'PATCH',
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                        }
-                    });
+                    response = await apiHelper.patch(`/estados/${itemId}/activate`);
                     break;
 
                 case 'desactivar':
-                    response = await fetch(`/api/magic/estados/${itemId}/deactivate`, {
-                        method: 'PATCH',
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                        }
-                    });
+                    response = await apiHelper.patch(`/estados/${itemId}/deactivate`);
                     break;
 
                 case 'duplicar':
@@ -281,14 +257,7 @@ function GestionEstados() {
                     itemDuplicado.estado_codigo = itemDuplicado.estado_codigo + '_COPIA';
                     itemDuplicado.estado_estado = itemDuplicado.estado_estado + ' (Copia)';
 
-                    response = await fetch('/api/magic/estados', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                        },
-                        body: JSON.stringify(itemDuplicado)
-                    });
+                    response = await apiHelper.post('/estados', itemDuplicado);
                     break;
 
                 default:
@@ -612,6 +581,96 @@ function GestionEstados() {
                             ])
                         ]),
 
+                        // TOURS ACTIVADOS - Agregar después de la sección de rutas
+                        e('div', {
+                            key: 'tours-section',
+                            style: {
+                                padding: '1rem',
+                                backgroundColor: 'white',
+                                borderRadius: '8px',
+                                border: '1px solid #e5e7eb'
+                            }
+                        }, [
+                            e('h4', {
+                                style: {
+                                    fontSize: '1rem',
+                                    fontWeight: '600',
+                                    color: '#10b981',
+                                    margin: '0 0 0.75rem 0',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem'
+                                }
+                            }, [
+                                Icons.mapPin('#10b981'),
+                                'Estados para Tours Activados'
+                            ]),
+                            e('div', {
+                                style: { display: 'flex', flexDirection: 'column', gap: '0.5rem' }
+                            }, [
+                                e('div', {
+                                    style: {
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        fontSize: '0.875rem',
+                                        color: '#374151'
+                                    }
+                                }, [
+                                    e('span', {
+                                        style: {
+                                            width: '6px',
+                                            height: '6px',
+                                            backgroundColor: '#3b82f6',
+                                            borderRadius: '50%'
+                                        }
+                                    }),
+                                    e('strong', {}, 'Activado'),
+                                    e('span', { style: { color: '#6b7280' } }, '- Puede recibir reservas')
+                                ]),
+                                e('div', {
+                                    style: {
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        fontSize: '0.875rem',
+                                        color: '#374151'
+                                    }
+                                }, [
+                                    e('span', {
+                                        style: {
+                                            width: '6px',
+                                            height: '6px',
+                                            backgroundColor: '#22c55e',
+                                            borderRadius: '50%'
+                                        }
+                                    }),
+                                    e('strong', {}, 'En Ejecución'),
+                                    e('span', { style: { color: '#6b7280' } }, '- Tour en progreso')
+                                ]),
+                                e('div', {
+                                    style: {
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        fontSize: '0.875rem',
+                                        color: '#374151'
+                                    }
+                                }, [
+                                    e('span', {
+                                        style: {
+                                            width: '6px',
+                                            height: '6px',
+                                            backgroundColor: '#6b7280',
+                                            borderRadius: '50%'
+                                        }
+                                    }),
+                                    e('strong', {}, 'Cerrado'),
+                                    e('span', { style: { color: '#6b7280' } }, '- Tour completado')
+                                ])
+                            ])
+                        ]),
+
                         // RESERVAS
                         e('div', {
                             key: 'reservas-section',
@@ -720,7 +779,7 @@ function GestionEstados() {
                             }
                         }, [
                             e('strong', {}, 'Importante: '),
-                            'Al crear estados, selecciona el contexto correcto (Vehículos, Rutas o Reservas). Los nombres deben coincidir exactamente con los mostrados arriba para que el sistema funcione correctamente.'
+                            'Al crear estados, selecciona el contexto correcto (Vehículos, Rutas, Tours o Reservas). Los nombres deben coincidir exactamente con los mostrados arriba para que el sistema funcione correctamente.'
                         ])
                     ])
                 ])

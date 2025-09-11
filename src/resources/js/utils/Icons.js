@@ -1238,7 +1238,25 @@ const Icons = {
         e('path', { key: '1', d: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z' }),
         e('line', { key: '2', x1: '12', y1: '9', x2: '12', y2: '13' }),
         e('line', { key: '3', x1: '12', y1: '17', x2: '12.01', y2: '17' })
-    ])
+    ]),
+
+    toggleSidebar: (direction = 'left') => {
+        const isLeft = direction?.toLowerCase() === 'left';
+        return e('svg', {
+            width: '16',
+            height: '16',
+            viewBox: '0 0 24 24',
+            fill: 'none',
+            stroke: 'currentColor',
+            strokeWidth: '2',
+            strokeLinecap: 'round',
+            strokeLinejoin: 'round'
+        }, [
+            isLeft
+                ? e('path', { key: '1', d: 'M15 18l-6-6 6-6' })
+                : e('path', { key: '1', d: 'M9 18l6-6-6-6' })
+        ]);
+    },
 
 };
 

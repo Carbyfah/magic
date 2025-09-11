@@ -6,6 +6,7 @@
  * Estados: Activada, Llena, Ejecución, Cerrada
  * Cambios automáticos de vehículos: Disponible → Asignado → Disponible
  */
+import AuthService from '../../../services/auth';
 
 // CONFIGURACIÓN BASE COMPARTIDA
 const baseConfig = {
@@ -161,7 +162,16 @@ export const configRutasActivadas = {
     // VALIDACIÓN DE ESTADOS NECESARIOS - LÓGICA DE NEGOCIO
     validateStates: async () => {
         try {
-            const response = await fetch('/api/magic/estados/contexto/ruta-activada');
+            const token = AuthService.getToken();
+            const response = await fetch('/api/magic/estados/contexto/ruta-activada', {
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
             if (response.ok) {
                 const estados = await response.json();
 

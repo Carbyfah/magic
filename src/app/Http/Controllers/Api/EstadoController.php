@@ -35,10 +35,6 @@ class EstadoController extends Controller
     /**
      * CREAR ESTADO
      */
-    /**
-     * CREAR ESTADO
-     */
-
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -46,7 +42,7 @@ class EstadoController extends Controller
             'estado_estado' => 'required|string|max:45',
             'estado_descripcion' => 'nullable|string|max:45',
             'estado_situacion' => 'sometimes|boolean',
-            'contexto' => 'nullable|in:vehiculo,reserva,ruta-activada,factura'
+            'contexto' => 'nullable|in:vehiculo,reserva,ruta-activada,tour-activado,factura'
         ]);
 
         // Generar código contextual SI viene contexto, sino usar método original
@@ -174,6 +170,19 @@ class EstadoController extends Controller
     }
 
     /**
+     * ESTADOS PARA TOURS ACTIVADOS - NUEVO
+     */
+    public function paraTourActivado()
+    {
+        return response()->json(
+            Estado::where('estado_codigo', 'LIKE', 'TOU-%')
+                ->where('estado_situacion', 1)
+                ->orderBy('estado_estado')
+                ->get()
+        );
+    }
+
+    /**
      * ESTADOS PARA FACTURAS
      */
     public function paraFactura()
@@ -187,7 +196,7 @@ class EstadoController extends Controller
     }
 
     /**
-     * GENERAR CÓDIGO CONTEXTUAL
+     * GENERAR CÓDIGO CONTEXTUAL - ACTUALIZADO CON TOURS
      */
     private function generarCodigoContextual($contexto, $nombre)
     {
@@ -195,6 +204,7 @@ class EstadoController extends Controller
             'vehiculo' => 'VEH-',
             'reserva' => 'RES-',
             'ruta-activada' => 'RUT-',
+            'tour-activado' => 'TOU-',
             'factura' => 'FAC-'
         ];
 

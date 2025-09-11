@@ -10,6 +10,7 @@ import useTableData from '../../common/useTableData';
 import TableControls from '../../common/TableControls';
 import TablePagination from '../../common/TablePagination';
 import { tiposEmpleadosConfig } from './tiposPersonaConfig';
+import apiHelper from '../../../utils/apiHelper';
 
 const { createElement: e, useState, useEffect } = React;
 
@@ -49,24 +50,10 @@ function GestionTipoPersona() {
     const cargarDatos = async () => {
         try {
             setLoading(true);
-            // CORRECCIÓN: URL debe ser 'tipo-personas' no 'tipo-persona'
-            const response = await fetch('/api/magic/tipo-personas', {
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setTiposPersona(data);
-                console.log('Tipos de persona cargados:', data.length, 'items');
-            } else {
-                console.error('Error al cargar tipos de persona:', response.status);
-                Notifications.error(`Error al cargar tipos de persona: ${response.status}`);
-            }
-
+            const response = await apiHelper.tiposPersona.getAll();
+            const data = await apiHelper.handleResponse(response);
+            setTiposPersona(data);
+            console.log('Tipos de persona cargados:', data.length, 'items');
         } catch (error) {
             console.error('Error de conexión:', error);
             Notifications.error('Error de conexión al cargar datos');

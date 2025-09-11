@@ -16,6 +16,7 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
     // Obtener módulos permitidos para el usuario actual
     const allowedModules = AuthService.getAllowedModules();
     const currentUser = AuthService.getUser();
+    const permissions = AuthService.getPermissions();
 
     const toggleSection = (section) => {
         if (collapsed) {
@@ -81,6 +82,7 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
             children: [
                 { id: 'control-flota', label: 'Control de Flota', icon: Icons.truck() },
                 { id: 'rutas-activas', label: 'Rutas Activas', icon: Icons.route() },
+                { id: 'tours-activados', label: 'Tours Activados', icon: Icons.mapPin() },
                 { id: 'reservaciones', label: 'Reservaciones', icon: Icons.calendar() }
             ]
         },
@@ -117,22 +119,18 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
         }
     ];
 
-    // Filtrar estructura del menú según permisos - CORREGIDO
+    // Filtrar estructura del menú según permisos
     const menuStructure = fullMenuStructure.filter(item => {
         if (item.type === 'single') {
             return isModuleAllowed(item.id);
         } else if (item.type === 'section') {
-            // Filtrar hijos sin modificar el objeto original
+            // Filtrar hijos según permisos
             const allowedChildren = item.children.filter(child => isModuleAllowed(child.id));
-            if (allowedChildren.length > 0) {
-                // Crear una copia del item con solo los hijos permitidos
-                return true;
-            }
-            return false;
+            return allowedChildren.length > 0;
         }
         return true;
     }).map(item => {
-        // Si es una sección, crear una copia con solo los hijos permitidos
+        // Si es una sección, filtrar los hijos según permisos
         if (item.type === 'section') {
             return {
                 ...item,
@@ -141,6 +139,28 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
         }
         return item;
     });
+
+    // Función para obtener el badge del rol
+    const getRoleBadge = () => {
+        const rol = AuthService.getRoleName().toLowerCase();
+        let color = '#6b7280';
+        let bgColor = '#f3f4f6';
+
+        if (rol.includes('administrador')) {
+            color = '#dc2626';
+            bgColor = '#fef2f2';
+        } else if (rol.includes('operador')) {
+            color = '#2563eb';
+            bgColor = '#eff6ff';
+        } else if (rol.includes('vendedor')) {
+            color = '#059669';
+            bgColor = '#ecfdf5';
+        }
+
+        return { color, bgColor };
+    };
+
+    const roleBadge = getRoleBadge();
 
     return e('aside', {
         style: {
@@ -199,16 +219,23 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
                             fontSize: '14px',
                             fontWeight: '600',
                             color: '#374151',
-                            marginBottom: '2px'
+                            marginBottom: '4px'
                         }
                     }, currentUser.nombre_completo || 'Usuario'),
                     e('div', {
                         key: 'user-role',
                         style: {
-                            fontSize: '12px',
-                            color: '#6b7280'
+                            display: 'inline-block',
+                            fontSize: '11px',
+                            fontWeight: '500',
+                            color: roleBadge.color,
+                            backgroundColor: roleBadge.bgColor,
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.025em'
                         }
-                    }, currentUser.rol?.nombre || 'Sin rol')
+                    }, AuthService.getRoleName())
                 ])
             ])
         ]),
@@ -400,7 +427,7 @@ function Sidebar({ activeModule, onModuleChange, collapsed, onToggle }) {
                     e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
                     e.currentTarget.style.borderColor = '#d1d5db';
                 }
-            }, Icons.toggleSidebar(collapsed ? 'right' : 'left'))
+            }, collapsed ? Icons.chevronRight() : Icons.chevronLeft())
         )
     ]);
 }

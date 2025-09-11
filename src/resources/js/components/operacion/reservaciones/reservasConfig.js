@@ -6,6 +6,8 @@
  * Estados: Pendiente, Confirmada, Cancelada
  */
 
+import AuthService from '../../../services/auth';
+
 // CONFIGURACIÓN BASE COMPARTIDA
 const baseConfig = {
     defaultItemsPerPage: 10,
@@ -246,7 +248,16 @@ export const configReservas = {
     // VALIDACIÓN DE ESTADOS NECESARIOS - LÓGICA DE NEGOCIO
     validateStates: async () => {
         try {
-            const response = await fetch('/api/magic/estados/contexto/reserva');
+            const token = AuthService.getToken();
+            const response = await fetch('/api/magic/estados/contexto/reserva', {
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
             if (response.ok) {
                 const estados = await response.json();
 

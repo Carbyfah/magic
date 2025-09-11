@@ -4,6 +4,7 @@ import React from 'react';
 import Icons from '../../../utils/Icons';
 import Notifications from '../../../utils/notifications';
 import dashboardVentasConfig, { configGraficos, obtenerColorPorValor } from './dasboardVentasConfig';
+import apiHelper from '../../../utils/apiHelper';
 
 const { createElement: e, useState, useEffect, useRef } = React;
 
@@ -64,43 +65,61 @@ function GestionVentas() {
                 vendedoresRes,
                 rutasRes
             ] = await Promise.all([
-                fetch(dashboardVentasConfig.endpoints.metricas),
-                fetch(dashboardVentasConfig.endpoints.ventasPorDia),
-                fetch(dashboardVentasConfig.endpoints.reservasPorEstado),
-                fetch(dashboardVentasConfig.endpoints.ventasPorAgencia),
-                fetch(dashboardVentasConfig.endpoints.topVendedores),
-                fetch(dashboardVentasConfig.endpoints.rutasMasVendidas)
+                apiHelper.get('/dashboard/ventas/metricas'),
+                apiHelper.get('/dashboard/ventas/ventas-por-dia'),
+                apiHelper.get('/dashboard/ventas/reservas-por-estado'),
+                apiHelper.get('/dashboard/ventas/ventas-por-agencia'),
+                apiHelper.get('/dashboard/ventas/top-vendedores'),
+                apiHelper.get('/dashboard/ventas/rutas-mas-vendidas')
             ]);
 
-            if (metricasRes.ok) {
-                const metricasData = await metricasRes.json();
+            // Procesar métricas
+            try {
+                const metricasData = await apiHelper.handleResponse(metricasRes);
                 setMetricas(metricasData);
                 setUltimaActualizacion(new Date().toLocaleString('es-GT'));
+            } catch (error) {
+                console.error('Error en métricas:', error);
             }
 
-            if (ventasDiaRes.ok) {
-                const ventasData = await ventasDiaRes.json();
+            // Procesar ventas por día
+            try {
+                const ventasData = await apiHelper.handleResponse(ventasDiaRes);
                 setGraficos(prev => ({ ...prev, ventasPorDia: ventasData.datos || [] }));
+            } catch (error) {
+                console.error('Error en ventas por día:', error);
             }
 
-            if (reservasEstadoRes.ok) {
-                const reservasData = await reservasEstadoRes.json();
+            // Procesar reservas por estado
+            try {
+                const reservasData = await apiHelper.handleResponse(reservasEstadoRes);
                 setGraficos(prev => ({ ...prev, reservasPorEstado: reservasData.datos || [] }));
+            } catch (error) {
+                console.error('Error en reservas por estado:', error);
             }
 
-            if (ventasAgenciaRes.ok) {
-                const agenciaData = await ventasAgenciaRes.json();
+            // Procesar ventas por agencia
+            try {
+                const agenciaData = await apiHelper.handleResponse(ventasAgenciaRes);
                 setGraficos(prev => ({ ...prev, ventasPorAgencia: agenciaData.datos || [] }));
+            } catch (error) {
+                console.error('Error en ventas por agencia:', error);
             }
 
-            if (vendedoresRes.ok) {
-                const vendedoresData = await vendedoresRes.json();
+            // Procesar vendedores
+            try {
+                const vendedoresData = await apiHelper.handleResponse(vendedoresRes);
                 setRankings(prev => ({ ...prev, vendedores: vendedoresData.datos || [] }));
+            } catch (error) {
+                console.error('Error en vendedores:', error);
             }
 
-            if (rutasRes.ok) {
-                const rutasData = await rutasRes.json();
+            // Procesar rutas
+            try {
+                const rutasData = await apiHelper.handleResponse(rutasRes);
                 setRankings(prev => ({ ...prev, rutas: rutasData.datos || [] }));
+            } catch (error) {
+                console.error('Error en rutas:', error);
             }
 
             if (!silencioso) {

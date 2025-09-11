@@ -95,7 +95,7 @@ DELETE FROM migrations WHERE migration LIKE '%magic%';
 
 <!-- -- Verificar que solo queden las migraciones de Laravel -->
 
-SELECT \* FROM migrations;
+<!-- SELECT * FROM migrations; -->
 
 <!-- Sal de MySQL: -->
 
@@ -111,6 +111,8 @@ cd /var/www/html
 php artisan migrate
 
 <!-- Entra a MySQL: -->
+
+<!-- eliminar la db -->
 
 docker exec -it magictravel_mysql mysql -u root -p
 Contraseña: root_secure_2025
@@ -143,3 +145,4 @@ EXIT;
 docker exec -it magictravel_php bash
 cd /var/www/html
 php artisan migrate
+php artisan db:seed

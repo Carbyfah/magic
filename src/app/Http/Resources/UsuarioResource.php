@@ -29,7 +29,8 @@ class UsuarioResource extends JsonResource
 
             'rol' => [
                 'id' => $this->rol?->rol_id,
-                'nombre' => $this->rol?->rol_rol,
+                'rol_rol' => $this->rol?->rol_rol,     // AGREGAR: campo real de BD
+                'nombre' => $this->rol?->rol_rol,      // MANTENER: para compatibilidad
                 'codigo' => $this->rol?->rol_codigo,
             ],
 

@@ -4,6 +4,8 @@
  * CONFIGURACIÓN ESPECÍFICA PARA VEHÍCULOS (TABLA VEHICULO)
  * Adaptado para tabla con FK hacia estado y sistema de notificaciones
  */
+import AuthService from '../../../services/auth';
+import apiHelper from '../../../utils/apiHelper';
 
 // CONFIGURACIÓN BASE COMPARTIDA
 const baseConfig = {
@@ -122,38 +124,31 @@ export const configVehiculos = {
     // VALIDACIÓN DE ESTADOS NECESARIOS - ACTUALIZADA PARA FLUJO DE NEGOCIO
     validateStates: async () => {
         try {
-            const response = await fetch('/api/magic/estados/contexto/vehiculo');
-            if (response.ok) {
-                const estados = await response.json();
+            const response = await apiHelper.get('/estados/contexto/vehiculo');
+            const estados = await apiHelper.handleResponse(response);
 
-                // Estados necesarios para el flujo de negocio Magic Travel
-                const estadosNecesarios = ['Disponible', 'Mantenimiento', 'Asignado'];
+            // Estados necesarios para el flujo de negocio Magic Travel
+            const estadosNecesarios = ['Disponible', 'Mantenimiento', 'Asignado'];
 
-                const estadosFaltantes = estadosNecesarios.filter(necesario =>
-                    !estados.some(estado =>
-                        estado.estado_estado.toLowerCase() === necesario.toLowerCase()
-                    )
-                );
+            const estadosFaltantes = estadosNecesarios.filter(necesario =>
+                !estados.some(estado =>
+                    estado.estado_estado.toLowerCase() === necesario.toLowerCase()
+                )
+            );
 
-                if (estadosFaltantes.length > 0) {
-                    return {
-                        valido: false,
-                        faltantes: estadosFaltantes,
-                        mensaje: `Estados faltantes para vehículos: ${estadosFaltantes.join(', ')}`,
-                        contexto: 'vehiculo'
-                    };
-                }
-
+            if (estadosFaltantes.length > 0) {
                 return {
-                    valido: true,
-                    estados,
-                    mensaje: 'Todos los estados necesarios están disponibles'
+                    valido: false,
+                    faltantes: estadosFaltantes,
+                    mensaje: `Estados faltantes para vehículos: ${estadosFaltantes.join(', ')}`,
+                    contexto: 'vehiculo'
                 };
             }
+
             return {
-                valido: false,
-                mensaje: 'Error al cargar estados de vehículos desde el servidor',
-                contexto: 'vehiculo'
+                valido: true,
+                estados,
+                mensaje: 'Todos los estados necesarios están disponibles'
             };
         } catch (error) {
             console.error('Error validando estados de vehículos:', error);
@@ -307,19 +302,18 @@ export const configVehiculos = {
             }
 
             try {
-                const response = await fetch('/api/magic/estados/contexto/vehiculo');
-                if (response.ok) {
-                    const estadosVehiculo = await response.json();
-                    const estadoValido = estadosVehiculo.some(estado =>
-                        estado.estado_id == vehiculoData.estado_id
-                    );
+                const response = await apiHelper.get('/estados/contexto/vehiculo');
+                const estadosVehiculo = await apiHelper.handleResponse(response);
 
-                    if (!estadoValido) {
-                        return {
-                            valido: false,
-                            mensaje: 'Debe seleccionar un estado válido para vehículos'
-                        };
-                    }
+                const estadoValido = estadosVehiculo.some(estado =>
+                    estado.estado_id == vehiculoData.estado_id
+                );
+
+                if (!estadoValido) {
+                    return {
+                        valido: false,
+                        mensaje: 'Debe seleccionar un estado válido para vehículos'
+                    };
                 }
             } catch (error) {
                 console.warn('Error validando estado de vehículo:', error);
@@ -333,16 +327,15 @@ export const configVehiculos = {
             // Si intenta cambiar a "disponible" desde "asignado", verificar que no tenga rutas activas
             if (configVehiculos.stateDetection.asignado(vehiculo.estado)) {
                 try {
-                    const response = await fetch(`/api/magic/vehiculos/${vehiculo.vehiculo_id}/rutas-activas`);
-                    if (response.ok) {
-                        const rutasActivas = await response.json();
-                        if (rutasActivas.length > 0) {
-                            return {
-                                valido: false,
-                                mensaje: 'No se puede cambiar el estado: el vehículo tiene rutas activas asignadas',
-                                rutasActivas: rutasActivas
-                            };
-                        }
+                    const response = await apiHelper.get(`/vehiculos/${vehiculo.vehiculo_id}/rutas-activas`);
+                    const rutasActivas = await apiHelper.handleResponse(response);
+
+                    if (rutasActivas.length > 0) {
+                        return {
+                            valido: false,
+                            mensaje: 'No se puede cambiar el estado: el vehículo tiene rutas activas asignadas',
+                            rutasActivas: rutasActivas
+                        };
                     }
                 } catch (error) {
                     console.warn('No se pudo verificar rutas activas:', error);
@@ -437,11 +430,8 @@ export const configVehiculos = {
         // NUEVO: Obtener notificaciones del vehículo
         obtenerNotificaciones: async (vehiculo) => {
             try {
-                const response = await fetch(`/api/magic/vehiculos/${vehiculo.vehiculo_id}/notificaciones`);
-                if (response.ok) {
-                    return await response.json();
-                }
-                return { notificaciones: [] };
+                const response = await apiHelper.get(`/vehiculos/${vehiculo.vehiculo_id}/notificaciones`);
+                return await apiHelper.handleResponse(response);
             } catch (error) {
                 console.warn('Error obteniendo notificaciones:', error);
                 return { notificaciones: [] };
@@ -451,18 +441,8 @@ export const configVehiculos = {
         // NUEVO: Validar cambio de estado antes de ejecutar
         validarCambioEstado: async (vehiculo, nuevoEstado) => {
             try {
-                const response = await fetch(`/api/magic/vehiculos/${vehiculo.vehiculo_id}/validar-estado`, {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ nuevo_estado: nuevoEstado })
-                });
-                if (response.ok) {
-                    return await response.json();
-                }
-                return { puede_cambiar: false, mensaje: 'Error de validación' };
+                const response = await apiHelper.post(`/vehiculos/${vehiculo.vehiculo_id}/validar-estado`, { nuevo_estado: nuevoEstado });
+                return await apiHelper.handleResponse(response);
             } catch (error) {
                 console.warn('Error validando cambio de estado:', error);
                 return { puede_cambiar: false, mensaje: 'Error de conexión' };

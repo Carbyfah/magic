@@ -11,6 +11,8 @@ import TableControls from '../../common/TableControls';
 import TablePagination from '../../common/TablePagination';
 import { contactoAgenciaConfig } from './contactoAgenciaConfig';
 
+import apiHelper from '../../../utils/apiHelper';
+
 const { createElement: e, useState, useEffect } = React;
 
 function GestionContactoAgencias() {
@@ -50,39 +52,30 @@ function GestionContactoAgencias() {
     const cargarDatos = async () => {
         try {
             setLoading(true);
+
             const [contactosRes, agenciasRes] = await Promise.all([
-                fetch('/api/magic/contactos-agencia', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                }),
-                fetch('/api/magic/agencias', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
+                apiHelper.contactosAgencia.getAll(),
+                apiHelper.agencias.getAll()
             ]);
 
-            if (contactosRes.ok) {
-                const contactosData = await contactosRes.json();
+            // Procesar contactos
+            try {
+                const contactosData = await apiHelper.handleResponse(contactosRes);
                 setContactos(contactosData.data || contactosData);
                 console.log('Contactos cargados:', (contactosData.data || contactosData).length, 'items');
-            } else {
-                console.error('Error al cargar contactos:', contactosRes.status);
-                Notifications.error(`Error al cargar contactos: ${contactosRes.status}`);
+            } catch (contactosError) {
+                console.error('Error al cargar contactos:', contactosError);
+                Notifications.error(`Error al cargar contactos: ${contactosError.message}`);
             }
 
-            if (agenciasRes.ok) {
-                const agenciasData = await agenciasRes.json();
+            // Procesar agencias
+            try {
+                const agenciasData = await apiHelper.handleResponse(agenciasRes);
                 setAgencias(agenciasData.data || agenciasData);
                 console.log('Agencias cargadas:', (agenciasData.data || agenciasData).length, 'items');
-            } else {
-                console.error('Error al cargar agencias:', agenciasRes.status);
-                Notifications.error(`Error al cargar agencias: ${agenciasRes.status}`);
+            } catch (agenciasError) {
+                console.error('Error al cargar agencias:', agenciasError);
+                Notifications.error(`Error al cargar agencias: ${agenciasError.message}`);
             }
 
         } catch (error) {

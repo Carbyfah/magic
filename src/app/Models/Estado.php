@@ -49,6 +49,11 @@ class Estado extends Model
         return $this->hasMany(Vehiculo::class, 'estado_id', 'estado_id');
     }
 
+    public function toursActivados()
+    {
+        return $this->hasMany(TourActivado::class, 'estado_id', 'estado_id');
+    }
+
     /**
      * SCOPES SIMPLES
      */
@@ -89,6 +94,172 @@ class Estado extends Model
     {
         return $this->reservas()->exists() ||
             $this->rutasActivadas()->exists() ||
-            $this->vehiculos()->exists();
+            $this->vehiculos()->exists() ||
+            $this->toursActivados()->exists();
+    }
+
+    /**
+     * MÉTODOS ESPECÍFICOS PARA CONTEXTOS
+     */
+    public static function paraVehiculo()
+    {
+        return self::activo()
+            ->whereIn('estado_estado', ['Disponible', 'Asignado', 'En Mantenimiento', 'Fuera de Servicio'])
+            ->orderBy('estado_estado')
+            ->get();
+    }
+
+    public static function paraReserva()
+    {
+        return self::activo()
+            ->whereIn('estado_estado', ['Pendiente', 'Confirmada', 'Cancelada', 'Ejecutada', 'Facturada'])
+            ->orderBy('estado_estado')
+            ->get();
+    }
+
+    public static function paraRutaActivada()
+    {
+        return self::activo()
+            ->whereIn('estado_estado', ['Activada', 'Llena', 'Ejecución', 'Cerrada'])
+            ->orderBy('estado_estado')
+            ->get();
+    }
+
+    public static function paraTourActivado()
+    {
+        return self::activo()
+            ->whereIn('estado_estado', ['Activado', 'En Ejecución', 'Cerrado'])
+            ->orderBy('estado_estado')
+            ->get();
+    }
+
+    public static function paraFactura()
+    {
+        return self::activo()
+            ->whereIn('estado_estado', ['Pendiente', 'Pagada', 'Anulada'])
+            ->orderBy('estado_estado')
+            ->get();
+    }
+
+    /**
+     * MÉTODOS DE VALIDACIÓN DE CONTEXTO
+     */
+    public function esParaVehiculo()
+    {
+        return in_array($this->estado_estado, ['Disponible', 'Asignado', 'En Mantenimiento', 'Fuera de Servicio']);
+    }
+
+    public function esParaReserva()
+    {
+        return in_array($this->estado_estado, ['Pendiente', 'Confirmada', 'Cancelada', 'Ejecutada', 'Facturada']);
+    }
+
+    public function esParaRutaActivada()
+    {
+        return in_array($this->estado_estado, ['Activada', 'Llena', 'Ejecución', 'Cerrada']);
+    }
+
+    public function esParaTourActivado()
+    {
+        return in_array($this->estado_estado, ['Activado', 'En Ejecución', 'Cerrado']);
+    }
+
+    public function esParaFactura()
+    {
+        return in_array($this->estado_estado, ['Pendiente', 'Pagada', 'Anulada']);
+    }
+
+    /**
+     * MÉTODOS DE TRANSICIÓN DE ESTADOS
+     */
+    public function puedeTransicionarA($nuevoEstado)
+    {
+        $transicionesPermitidas = [
+            // Vehículos
+            'Disponible' => ['Asignado', 'En Mantenimiento'],
+            'Asignado' => ['Disponible', 'En Mantenimiento'],
+            'En Mantenimiento' => ['Disponible', 'Fuera de Servicio'],
+            'Fuera de Servicio' => ['En Mantenimiento'],
+
+            // Reservas
+            'Pendiente' => ['Confirmada', 'Cancelada'],
+            'Confirmada' => ['Ejecutada', 'Cancelada'],
+            'Ejecutada' => ['Facturada'],
+            'Cancelada' => [], // No puede cambiar
+            'Facturada' => [], // No puede cambiar
+
+            // Rutas Activadas
+            'Activada' => ['Llena', 'Ejecución', 'Cerrada'],
+            'Llena' => ['Ejecución', 'Cerrada'],
+            'Ejecución' => ['Cerrada'],
+            'Cerrada' => [], // No puede cambiar
+
+            // Tours Activados
+            'Activado' => ['En Ejecución', 'Cerrado'],
+            'En Ejecución' => ['Cerrado'],
+            'Cerrado' => [], // No puede cambiar
+
+            // Facturas
+            'Pendiente' => ['Pagada', 'Anulada'],
+            'Pagada' => [], // No puede cambiar
+            'Anulada' => [] // No puede cambiar
+        ];
+
+        $estadosPermitidos = $transicionesPermitidas[$this->estado_estado] ?? [];
+        return in_array($nuevoEstado, $estadosPermitidos);
+    }
+
+    /**
+     * MÉTODOS DE CONSULTA ESPECÍFICOS
+     */
+    public static function obtenerEstadosDisponiblesParaContexto($contexto)
+    {
+        switch ($contexto) {
+            case 'vehiculo':
+                return self::paraVehiculo();
+            case 'reserva':
+                return self::paraReserva();
+            case 'ruta-activada':
+                return self::paraRutaActivada();
+            case 'tour-activado':
+                return self::paraTourActivado();
+            case 'factura':
+                return self::paraFactura();
+            default:
+                return self::activo()->orderBy('estado_estado')->get();
+        }
+    }
+
+    public function getContextosAttribute()
+    {
+        $contextos = [];
+
+        if ($this->esParaVehiculo()) $contextos[] = 'vehiculo';
+        if ($this->esParaReserva()) $contextos[] = 'reserva';
+        if ($this->esParaRutaActivada()) $contextos[] = 'ruta-activada';
+        if ($this->esParaTourActivado()) $contextos[] = 'tour-activado';
+        if ($this->esParaFactura()) $contextos[] = 'factura';
+
+        return $contextos;
+    }
+
+    /**
+     * BOOT METHOD PARA EVENTOS
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($estado) {
+            if (empty($estado->estado_codigo)) {
+                $estado->estado_codigo = self::generarCodigo();
+            }
+        });
+
+        static::deleting(function ($estado) {
+            if ($estado->tieneRegistrosAsociados()) {
+                throw new \Exception('No se puede eliminar un estado que tiene registros asociados.');
+            }
+        });
     }
 }

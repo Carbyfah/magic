@@ -31,6 +31,7 @@ import GestionVentas from './components/comercial/dashboard-ventas/GestionVentas
 import GestionVehiculos from './components/operacion/control-flota/GestionVehiculos';
 import GestionReservas from './components/operacion/reservaciones/GestionReservas';
 import GestionRutasActivas from './components/operacion/rutas-activas/GestionRutasActivas';
+import GestionToursActivados from './components/operacion/tours-activados/GestionToursActivados';
 
 // Personal
 import GestionEmpleados from './components/personal/empleados/GestionEmpleados';
@@ -208,6 +209,8 @@ function ModuleContent({ module, onNavigate }) {
         case 'vehiculos':
             return e(GestionVehiculos, { key: 'gestion-vehiculos-component' });
 
+        case 'tours-activados':
+            return e(GestionToursActivados, { key: 'gestion-tours-activados-component' });
         // COMERCIAL
         case 'agencias':
             return e(GestionAgencias, { key: 'gestion-agencias-component' });
@@ -288,7 +291,7 @@ function AuthenticatedApp({ currentUser, onLogout }) {
         e('main', {
             key: 'app-main',
             style: {
-                marginLeft: sidebarCollapsed ? '80px' : '260px',
+                marginLeft: sidebarCollapsed ? '80px' : '280px',
                 marginTop: '64px',
                 minHeight: 'calc(100vh - 64px)',
                 transition: 'margin-left 0.3s ease'
@@ -314,22 +317,39 @@ function App() {
         checkAuthenticationStatus();
     }, []);
 
+    // Función para verificar autenticación al cargar la aplicación
     const checkAuthenticationStatus = async () => {
         try {
             setIsLoading(true);
 
-            if (AuthService.isAuthenticated()) {
-                // Verificar que el token siga siendo válido
-                const user = await AuthService.getCurrentUser();
-                if (user) {
-                    setCurrentUser(user);
-                    setIsAuthenticated(true);
-                    Notifications.success('Sesión restaurada correctamente', 'Bienvenido de vuelta');
-                } else {
-                    // Token inválido o expirado
-                    handleLogout();
-                }
+            console.log('=== VERIFICANDO AUTENTICACION ===');
+            console.log('Token en localStorage:', AuthService.getStoredToken());
+            console.log('Usuario en localStorage:', AuthService.getStoredUser());
+
+            // Verificar si hay datos en localStorage
+            const storedToken = AuthService.getStoredToken();
+            const storedUser = AuthService.getStoredUser();
+
+            if (storedToken && storedUser) {
+                console.log('Datos encontrados en localStorage, restaurando sesión...');
+
+                // Restaurar la sesión desde localStorage
+                AuthService.currentToken = storedToken;
+                AuthService.currentUser = storedUser;
+
+                setCurrentUser(storedUser);
+                setIsAuthenticated(true);
+
+                console.log('Sesión restaurada exitosamente');
+                Notifications.success('Sesión restaurada correctamente', 'Bienvenido de vuelta');
+
+                // OPCIONAL: Verificar con el servidor en segundo plano
+                // AuthService.getCurrentUser().catch(() => {
+                //     console.log('Token expirado, cerrando sesión...');
+                //     handleLogout();
+                // });
             } else {
+                console.log('No hay datos de sesión, redirigiendo al login');
                 setIsAuthenticated(false);
                 setCurrentUser(null);
             }

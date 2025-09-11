@@ -11,6 +11,8 @@ import TableControls from '../../common/TableControls';
 import TablePagination from '../../common/TablePagination';
 import { usuariosConfig } from './usuariosConfig';
 
+import apiHelper from '../../../utils/apiHelper';
+
 const { createElement: e, useState, useEffect } = React;
 
 function GestionUsuarios() {
@@ -52,54 +54,39 @@ function GestionUsuarios() {
         try {
             setLoading(true);
             const [usuariosRes, personasRes, rolesRes] = await Promise.all([
-                fetch('/api/magic/usuarios', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                }),
-                fetch('/api/magic/personas', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                }),
-                fetch('/api/magic/roles', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
+                apiHelper.usuarios.getAll(),
+                apiHelper.get('/personas'),
+                apiHelper.roles.getAll()
             ]);
 
-            if (usuariosRes.ok) {
-                const usuariosData = await usuariosRes.json();
+            // Procesar usuarios
+            try {
+                const usuariosData = await apiHelper.handleResponse(usuariosRes);
                 setUsuarios(usuariosData.data || usuariosData);
                 console.log('Usuarios cargados:', (usuariosData.data || usuariosData).length, 'items');
-            } else {
-                console.error('Error al cargar usuarios:', usuariosRes.status);
-                Notifications.error(`Error al cargar usuarios: ${usuariosRes.status}`);
+            } catch (error) {
+                console.error('Error al cargar usuarios:', error);
+                Notifications.error(`Error al cargar usuarios: ${error.message}`);
             }
 
-            if (personasRes.ok) {
-                const personasData = await personasRes.json();
+            // Procesar personas
+            try {
+                const personasData = await apiHelper.handleResponse(personasRes);
                 setPersonas(personasData.data || personasData);
                 console.log('Personas cargadas:', (personasData.data || personasData).length, 'items');
-            } else {
-                console.error('Error al cargar personas:', personasRes.status);
-                Notifications.error(`Error al cargar personas: ${personasRes.status}`);
+            } catch (error) {
+                console.error('Error al cargar personas:', error);
+                Notifications.error(`Error al cargar personas: ${error.message}`);
             }
 
-            if (rolesRes.ok) {
-                const rolesData = await rolesRes.json();
+            // Procesar roles
+            try {
+                const rolesData = await apiHelper.handleResponse(rolesRes);
                 setRoles(rolesData.data || rolesData);
                 console.log('Roles cargados:', (rolesData.data || rolesData).length, 'items');
-            } else {
-                console.error('Error al cargar roles:', rolesRes.status);
-                Notifications.error(`Error al cargar roles: ${rolesRes.status}`);
+            } catch (error) {
+                console.error('Error al cargar roles:', error);
+                Notifications.error(`Error al cargar roles: ${error.message}`);
             }
 
         } catch (error) {
@@ -109,7 +96,6 @@ function GestionUsuarios() {
             setLoading(false);
         }
     };
-
     // Generar campos de formulario
     const generarCamposFormulario = () => {
         const campos = [];

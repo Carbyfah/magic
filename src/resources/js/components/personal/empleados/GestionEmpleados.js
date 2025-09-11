@@ -11,6 +11,8 @@ import TableControls from '../../common/TableControls';
 import TablePagination from '../../common/TablePagination';
 import { empleadosConfig } from './empleadosConfig';
 
+import apiHelper from '../../../utils/apiHelper';
+
 const { createElement: e, useState, useEffect } = React;
 
 function GestionEmpleados() {
@@ -51,38 +53,28 @@ function GestionEmpleados() {
         try {
             setLoading(true);
             const [empleadosRes, tiposRes] = await Promise.all([
-                fetch('/api/magic/personas', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                }),
-                fetch('/api/magic/tipo-personas', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
+                apiHelper.get('/personas'),
+                apiHelper.tiposPersona.getAll()
             ]);
 
-            if (empleadosRes.ok) {
-                const empleadosData = await empleadosRes.json();
+            // Procesar empleados
+            try {
+                const empleadosData = await apiHelper.handleResponse(empleadosRes);
                 setEmpleados(empleadosData.data || empleadosData);
                 console.log('Empleados cargados:', (empleadosData.data || empleadosData).length, 'items');
-            } else {
-                console.error('Error al cargar empleados:', empleadosRes.status);
-                Notifications.error(`Error al cargar empleados: ${empleadosRes.status}`);
+            } catch (error) {
+                console.error('Error al cargar empleados:', error);
+                Notifications.error(`Error al cargar empleados: ${error.message}`);
             }
 
-            if (tiposRes.ok) {
-                const tiposData = await tiposRes.json();
+            // Procesar tipos de persona
+            try {
+                const tiposData = await apiHelper.handleResponse(tiposRes);
                 setTiposPersona(tiposData.data || tiposData);
                 console.log('Tipos de persona cargados:', (tiposData.data || tiposData).length, 'items');
-            } else {
-                console.error('Error al cargar tipos de persona:', tiposRes.status);
-                Notifications.error(`Error al cargar tipos de persona: ${tiposRes.status}`);
+            } catch (error) {
+                console.error('Error al cargar tipos de persona:', error);
+                Notifications.error(`Error al cargar tipos de persona: ${error.message}`);
             }
 
         } catch (error) {

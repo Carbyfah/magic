@@ -5,6 +5,9 @@ const AuthService = {
     USER_KEY: 'magic_user',
     API_BASE: '/api/auth',
 
+    // MODO PRODUCCIÓN - VALIDACIÓN DE ROLES ACTIVADA
+    DESARROLLO_MODE: false,
+
     // Estado actual
     currentUser: null,
     currentToken: null,
@@ -16,48 +19,69 @@ const AuthService = {
 
         // DEBUG: Mostrar información al inicializar
         console.log('=== INIT AuthService ===');
+        console.log('MODO PRODUCCIÓN ACTIVO - CON VALIDACIÓN DE ROLES');
         console.log('Token:', !!this.currentToken);
         console.log('Usuario:', this.currentUser);
         if (this.currentUser) {
             console.log('Rol nombre:', this.currentUser.rol?.nombre);
-            console.log('Es admin?', this.isAdmin());
         }
         console.log('========================');
     },
 
     // Métodos de almacenamiento
     getStoredToken() {
-        return localStorage.getItem(this.TOKEN_KEY);
+        try {
+            return localStorage.getItem(this.TOKEN_KEY);
+        } catch (error) {
+            console.error('Error obteniendo token:', error);
+            return null;
+        }
     },
 
     getStoredUser() {
-        const userData = localStorage.getItem(this.USER_KEY);
-        return userData ? JSON.parse(userData) : null;
+        try {
+            const userData = localStorage.getItem(this.USER_KEY);
+            return userData ? JSON.parse(userData) : null;
+        } catch (error) {
+            console.error('Error obteniendo usuario:', error);
+            return null;
+        }
     },
 
     setStoredToken(token) {
-        if (token) {
-            localStorage.setItem(this.TOKEN_KEY, token);
-            this.currentToken = token;
-        } else {
-            localStorage.removeItem(this.TOKEN_KEY);
-            this.currentToken = null;
+        try {
+            if (token) {
+                localStorage.setItem(this.TOKEN_KEY, token);
+                this.currentToken = token;
+                console.log('Token guardado en localStorage');
+            } else {
+                localStorage.removeItem(this.TOKEN_KEY);
+                this.currentToken = null;
+                console.log('Token removido de localStorage');
+            }
+        } catch (error) {
+            console.error('Error guardando token:', error);
         }
     },
 
     setStoredUser(user) {
-        if (user) {
-            localStorage.setItem(this.USER_KEY, JSON.stringify(user));
-            this.currentUser = user;
+        try {
+            if (user) {
+                localStorage.setItem(this.USER_KEY, JSON.stringify(user));
+                this.currentUser = user;
 
-            // DEBUG: Mostrar información del usuario almacenado
-            console.log('=== USUARIO ALMACENADO ===');
-            console.log('Nombre:', user.nombre_completo);
-            console.log('Rol:', user.rol?.nombre);
-            console.log('==========================');
-        } else {
-            localStorage.removeItem(this.USER_KEY);
-            this.currentUser = null;
+                // DEBUG: Mostrar información del usuario almacenado
+                console.log('=== USUARIO ALMACENADO ===');
+                console.log('Nombre:', user.nombre_completo);
+                console.log('Rol:', user.rol?.rol_rol);
+                console.log('==========================');
+            } else {
+                localStorage.removeItem(this.USER_KEY);
+                this.currentUser = null;
+                console.log('Usuario removido de localStorage');
+            }
+        } catch (error) {
+            console.error('Error guardando usuario:', error);
         }
     },
 
@@ -164,122 +188,106 @@ const AuthService = {
         return this.currentToken;
     },
 
+    // ===== MÉTODOS DE ROLES ACTIVADOS PARA PRODUCCIÓN =====
+
     // Verificar permisos por rol
     hasRole(rolCodigo) {
         if (!this.currentUser || !this.currentUser.rol) {
             return false;
         }
-        return this.currentUser.rol.codigo === rolCodigo;
+        return this.currentUser.rol.rol_codigo === rolCodigo;
     },
+
+    // Reemplaza estos métodos en auth.js para usar la estructura correcta del rol
 
     // Verificar si es administrador
     isAdmin() {
-        if (!this.currentUser || !this.currentUser.rol) {
-            console.log('DEBUG: No hay usuario o rol');
+        if (!this.currentUser || !this.currentUser.rol || !this.currentUser.rol.nombre) {
             return false;
         }
 
-        const rolNombre = this.currentUser.rol.nombre;
-        console.log('DEBUG: Verificando admin. Rol nombre:', rolNombre);
+        const rolNombre = this.currentUser.rol.nombre; // CAMBIAR: usar 'nombre' en lugar de 'rol_rol'
 
-        // Comparación ultra-robusta - normalizar y limpiar caracteres especiales
         const rolNormalizado = rolNombre
             .toLowerCase()
             .trim()
             .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '') // Quitar acentos/diacríticos
-            .replace(/[ıi]/g, 'i'); // Normalizar variaciones de 'i'
+            .replace(/[\u0300-\u036f]/g, '');
 
-        console.log('DEBUG: Rol normalizado:', rolNormalizado);
-
-        const esAdmin = rolNormalizado.includes('admin') ||
-            rolNormalizado === 'administrador' ||
-            rolNormalizado.includes('administrador');
-
-        console.log('DEBUG: Es admin?', esAdmin);
-        return esAdmin;
+        return rolNormalizado === 'administrador' ||
+            rolNormalizado === 'admin';
     },
 
     // Verificar si es operador
     isOperator() {
-        if (!this.currentUser || !this.currentUser.rol) {
+        if (!this.currentUser || !this.currentUser.rol || !this.currentUser.rol.nombre) {
             return false;
         }
 
-        const rolNombre = this.currentUser.rol.nombre;
-
-        return rolNombre === 'Operador' ||
-            rolNombre === 'OPERADOR' ||
-            rolNombre === 'operador';
+        const rolNombre = this.currentUser.rol.nombre; // CAMBIAR: usar 'nombre' en lugar de 'rol_rol'
+        return rolNombre.toLowerCase().trim() === 'operador';
     },
 
     // Verificar si es vendedor
     isSeller() {
-        if (!this.currentUser || !this.currentUser.rol) {
+        if (!this.currentUser || !this.currentUser.rol || !this.currentUser.rol.nombre) {
             return false;
         }
 
-        const rolNombre = this.currentUser.rol.nombre;
-
-        return rolNombre === 'Vendedor' ||
-            rolNombre === 'VENDEDOR' ||
-            rolNombre === 'vendedor';
+        const rolNombre = this.currentUser.rol.nombre; // CAMBIAR: usar 'nombre' en lugar de 'rol_rol'
+        return rolNombre.toLowerCase().trim() === 'vendedor';
     },
+
+    // Método helper
+    getRoleName() {
+        return this.currentUser?.rol?.nombre || 'Sin rol'; // CAMBIAR: usar 'nombre' en lugar de 'rol_rol'
+    },
+
 
     // Obtener módulos permitidos según rol
     getAllowedModules() {
         if (!this.currentUser) {
-            console.log('DEBUG: No hay usuario actual');
             return [];
         }
 
-        console.log('=== DEBUG getAllowedModules ===');
-        console.log('Usuario:', this.currentUser.nombre_completo);
-        console.log('Rol:', this.currentUser.rol?.nombre);
-        console.log('Es admin?', this.isAdmin());
-        console.log('Es operador?', this.isOperator());
-        console.log('Es vendedor?', this.isSeller());
+        console.log('=== DEBUG COMPLETO ===');
+        console.log('currentUser completo:', this.currentUser);
+        console.log('currentUser.rol:', this.currentUser.rol);
+        console.log('Tipo de rol:', typeof this.currentUser.rol);
+        console.log('Keys del usuario:', Object.keys(this.currentUser));
+        console.log('======================');
 
         // ADMINISTRADOR: Acceso total a todos los módulos del sistema
         if (this.isAdmin()) {
-            const adminModules = [
+            return [
                 'dashboard',
                 'catalogos', 'rutas-servicios', 'estados-sistema', 'tipos-persona', 'agencias',
-                'operacion', 'control-flota', 'rutas-activas', 'reservaciones',
+                'operacion', 'control-flota', 'rutas-activas', 'reservaciones', 'tours-activados',
                 'comercial', 'contactos-agencia', 'dashboard-ventas',
                 'personal', 'empleados', 'roles-permisos', 'usuarios-sistema',
                 'reportes', 'auditoria', 'estadisticas'
             ];
-            console.log('DEBUG: Devolviendo módulos de admin:', adminModules);
-            return adminModules;
         }
 
-        // Operador: módulos operacionales
+        // OPERADOR: módulos operacionales
         if (this.isOperator()) {
-            const operatorModules = [
+            return [
                 'dashboard',
-                'operacion', 'control-flota', 'rutas-activas', 'reservaciones',
-                'comercial', 'contactos-agencia',
-                'catalogos', 'rutas-servicios', 'agencias'
+                'operacion', 'control-flota', 'rutas-activas', 'reservaciones', 'tours-activados',
+                'comercial', 'contactos-agencia', 'agencias'
             ];
-            console.log('DEBUG: Devolviendo módulos de operador:', operatorModules);
-            return operatorModules;
         }
 
-        // Vendedor: módulos comerciales
+        // VENDEDOR: módulos comerciales
         if (this.isSeller()) {
-            const sellerModules = [
+            return [
                 'dashboard',
                 'operacion', 'reservaciones',
-                'comercial', 'contactos-agencia', 'dashboard-ventas',
-                'catalogos', 'agencias'
+                'comercial', 'contactos-agencia', 'dashboard-ventas', 'agencias'
             ];
-            console.log('DEBUG: Devolviendo módulos de vendedor:', sellerModules);
-            return sellerModules;
         }
 
         // Por defecto: solo dashboard
-        console.log('DEBUG: Devolviendo módulos por defecto: [dashboard]');
         return ['dashboard'];
     },
 
@@ -287,6 +295,51 @@ const AuthService = {
     canAccessModule(moduleId) {
         const allowedModules = this.getAllowedModules();
         return allowedModules.includes(moduleId);
+    },
+
+    // Método helper para obtener el nombre del rol
+    getRoleName() {
+        return this.currentUser?.rol?.rol_rol || 'Sin rol';
+    },
+
+    // Método helper para verificar múltiples roles
+    hasAnyRole(roles) {
+        if (!Array.isArray(roles)) {
+            return this.hasRole(roles);
+        }
+
+        return roles.some(rol => this.hasRole(rol));
+    },
+
+    // Método para obtener permisos específicos por contexto
+    getPermissions() {
+        if (!this.currentUser) {
+            return {
+                canCreate: false,
+                canEdit: false,
+                canDelete: false,
+                canViewReports: false,
+                canManageUsers: false,
+                canManageConfig: false
+            };
+        }
+
+        const isAdmin = this.isAdmin();
+        const isOperator = this.isOperator();
+        const isSeller = this.isSeller();
+
+        return {
+            canCreate: isAdmin || isOperator,
+            canEdit: isAdmin || isOperator,
+            canDelete: isAdmin,
+            canViewReports: isAdmin,
+            canManageUsers: isAdmin,
+            canManageConfig: isAdmin,
+            canViewSalesData: isAdmin || isSeller,
+            canManageReservations: isAdmin || isOperator || isSeller,
+            canManageVehicles: isAdmin,
+            canOperateRoutes: isAdmin || isOperator
+        };
     }
 };
 

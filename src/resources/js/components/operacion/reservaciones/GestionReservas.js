@@ -11,6 +11,8 @@ import TableControls from '../../common/TableControls';
 import TablePagination from '../../common/TablePagination';
 import { reservasConfig } from './reservasConfig';
 
+import apiHelper from '../../../utils/apiHelper';
+
 const { createElement: e, useState, useEffect } = React;
 
 function GestionReservas() {
@@ -55,6 +57,10 @@ function GestionReservas() {
 
     const tableData = useTableData(currentConfig, currentRawData);
 
+    // NUEVO: Estado para tipo de servicio seleccionado
+    const [tipoServicio, setTipoServicio] = useState('ruta'); // 'ruta' o 'tour'
+    const [toursActivados, setToursActivados] = useState([]);
+
     // Efectos principales
     useEffect(() => {
         cargarDatos();
@@ -66,7 +72,7 @@ function GestionReservas() {
         if (reservas.length > 0) {
             cargarNotificacionesInteligentes();
         }
-    }, [reservas]);
+    }, [reservas, tipoServicio]);
 
     // NUEVO: SISTEMA DE VALIDACIÓN DE ESTADOS - IGUAL QUE VEHÍCULOS Y RUTAS
     const validarEstados = async () => {
@@ -216,87 +222,73 @@ function GestionReservas() {
     const cargarDatos = async () => {
         try {
             setLoading(true);
-            const [reservasRes, usuariosRes, estadosRes, agenciasRes, rutasActivadasRes] = await Promise.all([
-                fetch('/api/magic/reservas', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                }),
-                fetch('/api/magic/usuarios', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                }),
-                fetch('/api/magic/estados/contexto/reserva', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                }),
-                fetch('/api/magic/agencias', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                }),
-                fetch('/api/magic/rutas-activadas', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
+            const [reservasRes, usuariosRes, estadosRes, agenciasRes, rutasActivadasRes, toursActivadosRes] = await Promise.all([
+                apiHelper.get(`/reservas${tipoServicio === 'ruta' ? '/solo-rutas' : '/solo-tours'}`),
+                apiHelper.usuarios.getAll(),
+                apiHelper.get('/estados/contexto/reserva'),
+                apiHelper.agencias.getAll(),
+                apiHelper.get('/rutas-activadas'),
+                apiHelper.get('/tours-activados')
             ]);
 
-            if (reservasRes.ok) {
-                const reservasData = await reservasRes.json();
+            // Procesar reservas
+            try {
+                const reservasData = await apiHelper.handleResponse(reservasRes);
                 setReservas(reservasData.data || reservasData);
                 console.log('Reservas cargadas:', (reservasData.data || reservasData).length, 'items');
-            } else {
-                console.error('Error al cargar reservas:', reservasRes.status);
-                Notifications.error(`Error al cargar reservas: ${reservasRes.status}`);
+            } catch (error) {
+                console.error('Error al cargar reservas:', error);
+                Notifications.error(`Error al cargar reservas: ${error.message}`);
             }
 
-            if (usuariosRes.ok) {
-                const usuariosData = await usuariosRes.json();
+            // Procesar usuarios
+            try {
+                const usuariosData = await apiHelper.handleResponse(usuariosRes);
                 setUsuarios(usuariosData.data || usuariosData);
                 console.log('Usuarios cargados:', (usuariosData.data || usuariosData).length, 'items');
-            } else {
-                console.error('Error al cargar usuarios:', usuariosRes.status);
-                Notifications.error(`Error al cargar usuarios: ${usuariosRes.status}`);
+            } catch (error) {
+                console.error('Error al cargar usuarios:', error);
+                Notifications.error(`Error al cargar usuarios: ${error.message}`);
             }
 
-            if (estadosRes.ok) {
-                const estadosData = await estadosRes.json();
+            // Procesar estados
+            try {
+                const estadosData = await apiHelper.handleResponse(estadosRes);
                 setEstados(estadosData.data || estadosData);
                 console.log('Estados contextuales cargados:', (estadosData.data || estadosData).length, 'items');
-            } else {
-                console.error('Error al cargar estados:', estadosRes.status);
-                Notifications.error(`Error al cargar estados: ${estadosRes.status}`);
+            } catch (error) {
+                console.error('Error al cargar estados:', error);
+                Notifications.error(`Error al cargar estados: ${error.message}`);
             }
 
-            if (agenciasRes.ok) {
-                const agenciasData = await agenciasRes.json();
+            // Procesar agencias
+            try {
+                const agenciasData = await apiHelper.handleResponse(agenciasRes);
                 setAgencias(agenciasData.data || agenciasData);
                 console.log('Agencias cargadas:', (agenciasData.data || agenciasData).length, 'items');
-            } else {
-                console.error('Error al cargar agencias:', agenciasRes.status);
-                Notifications.error(`Error al cargar agencias: ${agenciasRes.status}`);
+            } catch (error) {
+                console.error('Error al cargar agencias:', error);
+                Notifications.error(`Error al cargar agencias: ${error.message}`);
             }
 
-            if (rutasActivadasRes.ok) {
-                const rutasActivadasData = await rutasActivadasRes.json();
+            // Procesar rutas activadas
+            try {
+                const rutasActivadasData = await apiHelper.handleResponse(rutasActivadasRes);
                 setRutasActivadas(rutasActivadasData.data || rutasActivadasData);
                 console.log('Rutas activadas cargadas:', (rutasActivadasData.data || rutasActivadasData).length, 'items');
-            } else {
-                console.error('Error al cargar rutas activadas:', rutasActivadasRes.status);
-                Notifications.error(`Error al cargar rutas activadas: ${rutasActivadasRes.status}`);
+            } catch (error) {
+                console.error('Error al cargar rutas activadas:', error);
+                Notifications.error(`Error al cargar rutas activadas: ${error.message}`);
+            }
+
+            // Procesar tours activados
+            try {
+                const toursActivadosData = await apiHelper.handleResponse(toursActivadosRes);
+                setToursActivados(toursActivadosData.data || toursActivadosData);
+                console.log('Tours activados cargados:', (toursActivadosData.data || toursActivadosData).length, 'items');
+            } catch (error) {
+                console.error('Error al cargar tours activados:', error);
+                Notifications.error(`Error al cargar tours activados: ${error.message}`);
             }
 
         } catch (error) {
@@ -478,22 +470,42 @@ function GestionReservas() {
         });
 
         // ASIGNACIONES
-        campos.push({
-            nombre: 'ruta_activada_id',
-            tipo: 'select',
-            searchable: true,
-            requerido: true,
-            opciones: rutasActivadas
-                .filter(ruta => ruta.activo === true)
-                .map(ruta => ({
-                    value: ruta.id,
-                    label: `${ruta.ruta_completa} - ${ruta.fecha} ${ruta.hora}`
-                })),
-            placeholder: 'Seleccione la ruta programada',
-            soloLectura: false,
-            ancho: 'completo',
-            label: 'Ruta Programada'
-        });
+        // Campo dinámico según tipo de servicio
+        if (tipoServicio === 'ruta') {
+            campos.push({
+                nombre: 'ruta_activada_id',
+                tipo: 'select',
+                searchable: true,
+                requerido: true,
+                opciones: rutasActivadas
+                    .filter(ruta => ruta.activo === true)
+                    .map(ruta => ({
+                        value: ruta.id,
+                        label: `${ruta.ruta_completa} - ${ruta.fecha} ${ruta.hora}`
+                    })),
+                placeholder: 'Seleccione la ruta programada',
+                soloLectura: false,
+                ancho: 'completo',
+                label: 'Ruta Programada'
+            });
+        } else {
+            campos.push({
+                nombre: 'tour_activado_id',
+                tipo: 'select',
+                searchable: true,
+                requerido: true,
+                opciones: toursActivados
+                    .filter(tour => tour.activo === true)
+                    .map(tour => ({
+                        value: tour.id,
+                        label: `${tour.servicio?.nombre || 'Tour'} - ${tour.fecha} ${tour.hora}`
+                    })),
+                placeholder: 'Seleccione el tour programado',
+                soloLectura: false,
+                ancho: 'completo',
+                label: 'Tour Programado'
+            });
+        }
 
         campos.push({
             nombre: 'agencia_id',
@@ -556,9 +568,9 @@ function GestionReservas() {
             { campo: 'nombre_completo_cliente', label: 'Cliente', tipo: 'texto' },
             { campo: 'telefono_formateado', label: 'Teléfono', tipo: 'texto' },
             { campo: 'total_pasajeros', label: 'Pasajeros', tipo: 'numero' },
-            { campo: 'viaje', label: 'Viaje', tipo: 'objeto' },
+            { campo: 'viaje', label: item.tour_activado_id ? 'Tour' : 'Viaje', tipo: 'objeto' },
             { campo: 'monto', label: 'Monto', tipo: 'moneda' },
-            { campo: 'estado', label: 'Estado', tipo: 'estado' } // NUEVO: tipo estado
+            { campo: 'estado', label: 'Estado', tipo: 'estado' }
         ];
 
         return e('div', {
@@ -643,8 +655,16 @@ function GestionReservas() {
                 usuario_id: item.usuario_id,
                 estado_id: item.estado_id,
                 agencia_id: item.agencia_id || '',
-                ruta_activada_id: item.ruta_activada_id
+                ruta_activada_id: item.ruta_activada_id || '',
+                tour_activado_id: item.tour_activado_id || ''
             });
+
+            // Establecer tipo según el item
+            if (item.tour_activado_id) {
+                setTipoServicio('tour');
+            } else {
+                setTipoServicio('ruta');
+            }
         } else {
             // Buscar estado pendiente dinámicamente
             const estadoPendiente = obtenerEstadoPorTipo('pendiente');
@@ -701,6 +721,15 @@ function GestionReservas() {
         console.log('Formulario completo:', Object.keys(formulario));
 
         const nuevosErrores = await currentConfig.validateForm(formulario);
+
+        // Validar que tenga ruta o tour según el tipo seleccionado
+        if (tipoServicio === 'ruta' && !formulario.ruta_activada_id) {
+            nuevosErrores.ruta_activada_id = 'La ruta programada es requerida';
+        }
+
+        if (tipoServicio === 'tour' && !formulario.tour_activado_id) {
+            nuevosErrores.tour_activado_id = 'El tour programado es requerido';
+        }
         console.log('Errores de validación:', nuevosErrores);
 
         setErrores(nuevosErrores);
@@ -739,6 +768,17 @@ function GestionReservas() {
             // Convertir agencia_id vacío a null
             if (datosParaEnviar.agencia_id === '') {
                 datosParaEnviar.agencia_id = null;
+            }// Asegurar que solo uno de los campos esté presente según el tipo
+            if (tipoServicio === 'ruta') {
+                datosParaEnviar.tour_activado_id = null;
+                if (datosParaEnviar.ruta_activada_id === '') {
+                    datosParaEnviar.ruta_activada_id = null;
+                }
+            } else {
+                datosParaEnviar.ruta_activada_id = null;
+                if (datosParaEnviar.tour_activado_id === '') {
+                    datosParaEnviar.tour_activado_id = null;
+                }
             }
 
             console.log('Datos a enviar (monto se calculará automáticamente por triggers):', datosParaEnviar);
@@ -965,7 +1005,8 @@ function GestionReservas() {
                         usuario_id: itemConfirmacion.usuario_id,
                         estado_id: estadoPendiente?.estado_id || estados[0]?.estado_id,
                         agencia_id: itemConfirmacion.agencia_id,
-                        ruta_activada_id: itemConfirmacion.ruta_activada_id,
+                        ruta_activada_id: itemConfirmacion.ruta_activada_id || null,
+                        tour_activado_id: itemConfirmacion.tour_activado_id || null,
                         reserva_situacion: 1
                     };
 
@@ -1160,8 +1201,12 @@ function GestionReservas() {
         const rutasMap = new Map();
 
         reservas.forEach(reserva => {
-            if (reserva.ruta_activada_id && reserva.viaje) {
-                const key = reserva.ruta_activada_id;
+            const esRuta = reserva.ruta_activada_id && !reserva.tour_activado_id;
+            const esTour = reserva.tour_activado_id && !reserva.ruta_activada_id;
+
+            // Solo procesar reservas del tipo seleccionado
+            if ((tipoServicio === 'ruta' && esRuta) || (tipoServicio === 'tour' && esTour)) {
+                const key = tipoServicio === 'ruta' ? reserva.ruta_activada_id : reserva.tour_activado_id;
 
                 if (!rutasMap.has(key)) {
                     rutasMap.set(key, {
@@ -1187,9 +1232,24 @@ function GestionReservas() {
         });
     };
 
-    // USAR DATOS DEL NUEVO SISTEMA REUTILIZABLE
-    const datosActuales = tableData.data;
-    const totalDatos = currentRawData.length;
+    // FILTRAR DATOS SEGÚN TIPO DE SERVICIO SELECCIONADO
+    const reservasFiltradas = reservas.filter(reserva => {
+        if (tipoServicio === 'ruta') {
+            return reserva.ruta_activada_id && !reserva.tour_activado_id;
+        } else {
+            return reserva.tour_activado_id && !reserva.ruta_activada_id;
+        }
+    });
+
+    // USAR DATOS FILTRADOS EN EL SISTEMA REUTILIZABLE
+    const tableDataFiltrado = useTableData(currentConfig, reservasFiltradas);
+    // Función para cambiar tipo de servicio y recargar datos
+    const cambiarTipoServicio = (nuevoTipo) => {
+        setTipoServicio(nuevoTipo);
+        cargarDatos(); // Recargar con el nuevo endpoint
+    };
+    const datosActuales = tableDataFiltrado.data;
+    const totalDatos = reservasFiltradas.length;
 
     return e('div', {
         style: { padding: '1.5rem', maxWidth: '100%', minHeight: '100vh' }
@@ -1215,7 +1275,45 @@ function GestionReservas() {
                             color: '#111827',
                             margin: '0'
                         }
-                    }, 'Gestión de Reservas'),
+                    }, `Gestión de Reservas - ${tipoServicio === 'ruta' ? 'Rutas' : 'Tours'}`),
+
+                    // NUEVO: Selector de tipo de servicio
+                    e('div', {
+                        style: {
+                            display: 'flex',
+                            gap: '1rem',
+                            margin: '1rem 0',
+                            padding: '0.75rem',
+                            backgroundColor: '#f9fafb',
+                            borderRadius: '8px',
+                            border: '1px solid #e5e7eb'
+                        }
+                    }, [
+                        e('label', {
+                            style: { display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }
+                        }, [
+                            e('input', {
+                                type: 'radio',
+                                name: 'tipoServicio',
+                                value: 'ruta',
+                                checked: tipoServicio === 'ruta',
+                                onChange: (e) => cambiarTipoServicio('ruta')
+                            }),
+                            e('span', { style: { fontWeight: '500' } }, 'Reservas de Rutas')
+                        ]),
+                        e('label', {
+                            style: { display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }
+                        }, [
+                            e('input', {
+                                type: 'radio',
+                                name: 'tipoServicio',
+                                value: 'tour',
+                                checked: tipoServicio === 'tour',
+                                onChange: (e) => cambiarTipoServicio('tour')
+                            }),
+                            e('span', { style: { fontWeight: '500' } }, 'Reservas de Tours')
+                        ])
+                    ]),
 
                     // NUEVO: Indicador de notificaciones
                     Object.keys(notificacionesReservas).length > 0 && e('div', {
@@ -1245,7 +1343,7 @@ function GestionReservas() {
                         margin: '0.25rem 0 0 0',
                         fontSize: '1rem'
                     }
-                }, `${datosActuales.length} de ${totalDatos} reservas encontradas`)
+                }, `${datosActuales.length} de ${totalDatos} reservas de ${tipoServicio === 'ruta' ? 'rutas' : 'tours'} encontradas`)
             ]),
             e('div', {
                 key: 'actions-section',
@@ -1253,7 +1351,7 @@ function GestionReservas() {
             }, [
                 BotonesUniversal.nuevo({
                     onClick: () => abrirModalFormulario(),
-                    texto: 'Nueva Reserva',
+                    texto: `Nueva Reserva de ${tipoServicio === 'ruta' ? 'Ruta' : 'Tour'}`,
                     loading: loading
                 }),
                 e('button', {
@@ -1275,9 +1373,9 @@ function GestionReservas() {
         e(TableControls, {
             key: 'table-controls',
             config: currentConfig,
-            filters: tableData.filters,
-            statistics: tableData.statistics,
-            actions: tableData.actions,
+            filters: tableDataFiltrado.filters,
+            statistics: tableDataFiltrado.statistics,
+            actions: tableDataFiltrado.actions,
             loading: loading,
             onRefresh: cargarDatos,
             showStatistics: true
@@ -1362,6 +1460,12 @@ function GestionReservas() {
                                             color: item.tipo_venta === 'DIRECTA' ? 'azul' : 'morado',
                                             key: `badge-tipo-${itemId}`
                                         }),
+                                        // NUEVO: Badge para tipo de servicio
+                                        BotonesUniversal.badge({
+                                            texto: item.tour_activado_id ? 'TOUR' : 'RUTA',
+                                            color: item.tour_activado_id ? 'verde' : 'azul',
+                                            key: `badge-servicio-${itemId}`
+                                        }),
 
                                         // NUEVO: Badge de notificación
                                         tieneNotificaciones && BotonesUniversal.badge({
@@ -1438,8 +1542,8 @@ function GestionReservas() {
         // COMPONENTE DE PAGINACIÓN
         e(TablePagination, {
             key: 'table-pagination',
-            pagination: tableData.pagination,
-            actions: tableData.actions,
+            pagination: tableDataFiltrado.pagination,
+            actions: tableDataFiltrado.actions,
             showInfo: true,
             compact: false
         }),

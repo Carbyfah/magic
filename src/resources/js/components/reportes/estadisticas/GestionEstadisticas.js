@@ -4,6 +4,8 @@ import React from 'react';
 import Icons from '../../../utils/Icons';
 import Notifications from '../../../utils/notifications';
 
+import apiHelper from '../../../utils/apiHelper';
+
 const { createElement: e, useState, useEffect, useRef } = React;
 
 // CONFIGURACIÓN DIRECTA SINCRONIZADA CON EL BACKEND
@@ -442,18 +444,14 @@ function GestionEstadisticas() {
         try {
             if (!silencioso) setLoading(true);
 
-            const response = await fetch(estadisticasConfig.endpoints.dashboard);
+            const response = await apiHelper.get('/estadisticas/dashboard');
+            const data = await apiHelper.handleResponse(response);
 
-            if (response.ok) {
-                const data = await response.json();
-                setDatosGenerales(data.resumen_general || {});
-                setUltimaActualizacion(new Date().toLocaleString('es-GT'));
+            setDatosGenerales(data.resumen_general || {});
+            setUltimaActualizacion(new Date().toLocaleString('es-GT'));
 
-                if (!silencioso) {
-                    Notifications.success('Datos generales actualizados');
-                }
-            } else {
-                throw new Error('Error al cargar datos generales');
+            if (!silencioso) {
+                Notifications.success('Datos generales actualizados');
             }
 
         } catch (error) {
@@ -475,6 +473,8 @@ function GestionEstadisticas() {
         }
     };
 
+    // REEMPLAZAR en GestionEstadisticas.js - línea ~485-495 aproximadamente
+
     // Cargar gráfico individual
     const cargarGrafico = async (tipo, silencioso = false) => {
         try {
@@ -486,23 +486,29 @@ function GestionEstadisticas() {
                 throw new Error(`Configuración no encontrada para gráfico: ${tipo}`);
             }
 
-            const response = await fetch(url);
+            console.log(`Cargando gráfico ${tipo} desde URL:`, url);
 
-            if (response.ok) {
-                const datosGrafico = await response.json();
+            // CORRECCIÓN: Usar la URL completa construida sin modificaciones
+            let endpoint = url;
 
-                if (!datosGrafico || !datosGrafico.data) {
-                    throw new Error('Datos del gráfico inválidos');
-                }
+            // Si la URL ya incluye /api/magic, removerlo para apiHelper
+            if (url.startsWith('/api/magic/')) {
+                endpoint = url.replace('/api/magic/', '/');
+            }
 
-                await crearActualizarGrafico(tipo, datosGrafico);
+            console.log(`Endpoint final para apiHelper:`, endpoint);
 
-                if (!silencioso) {
-                    Notifications.success(`Gráfico ${obtenerConfigGrafico(tipo)?.titulo || tipo} actualizado`);
-                }
-            } else {
-                const errorData = await response.json().catch(() => ({ message: 'Error desconocido' }));
-                throw new Error(`Error ${response.status}: ${errorData.message || response.statusText}`);
+            const response = await apiHelper.get(endpoint);
+            const datosGrafico = await apiHelper.handleResponse(response);
+
+            if (!datosGrafico || !datosGrafico.data) {
+                throw new Error('Datos del gráfico inválidos');
+            }
+
+            await crearActualizarGrafico(tipo, datosGrafico);
+
+            if (!silencioso) {
+                Notifications.success(`Gráfico ${obtenerConfigGrafico(tipo)?.titulo || tipo} actualizado`);
             }
 
         } catch (error) {

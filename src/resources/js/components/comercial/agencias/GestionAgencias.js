@@ -11,6 +11,8 @@ import TableControls from '../../common/TableControls';
 import TablePagination from '../../common/TablePagination';
 import { agenciasConfig } from './agenciasConfig';
 
+import apiHelper from '../../../utils/apiHelper';
+
 const { createElement: e, useState, useEffect } = React;
 
 function GestionAgencias() {
@@ -49,23 +51,10 @@ function GestionAgencias() {
     const cargarDatos = async () => {
         try {
             setLoading(true);
-            const response = await fetch('/api/magic/agencias', {
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setAgencias(data);
-                console.log('Agencias cargadas:', data.length, 'items');
-            } else {
-                console.error('Error al cargar agencias:', response.status);
-                Notifications.error(`Error al cargar agencias: ${response.status}`);
-            }
-
+            const response = await apiHelper.agencias.getAll();
+            const data = await apiHelper.handleResponse(response);
+            setAgencias(data);
+            console.log('Agencias cargadas:', data.length, 'items');
         } catch (error) {
             console.error('Error de conexión:', error);
             Notifications.error('Error de conexión al cargar datos');

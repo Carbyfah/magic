@@ -5,6 +5,8 @@
  * Plantillas reutilizables para los 13 módulos principales
  */
 
+import apiHelper from '../../../utils/apiHelper';
+
 // CONFIGURACIÓN BASE COMPARTIDA
 const baseConfig = {
     defaultItemsPerPage: 10,
@@ -40,6 +42,7 @@ export const configEstados = {
                 { value: 'vehiculo', label: 'Estados para Vehículos' },
                 { value: 'reserva', label: 'Estados para Reservas' },
                 { value: 'ruta-activada', label: 'Estados para Rutas Activadas' },
+                { value: 'tour-activado', label: 'Estados para Tours Activados' },
                 { value: 'factura', label: 'Estados para Facturas' }
             ],
             formOnly: true // Solo aparece en formularios, no en listados

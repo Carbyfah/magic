@@ -10,6 +10,7 @@ import useTableData from '../../common/useTableData';
 import TableControls from '../../common/TableControls';
 import TablePagination from '../../common/TablePagination';
 import { auditoriasConfig } from './auditoriasConfig';
+import apiHelper from '../../../utils/apiHelper';
 
 const { createElement: e, useState, useEffect } = React;
 
@@ -68,33 +69,25 @@ function GestionAuditorias() {
         cargarUsuarios();
     }, [filtros]);
 
-    // NUEVA FUNCIÓN: Cargar usuarios para el filtro
+    // Función para cargar usuarios
     const cargarUsuarios = async () => {
         try {
-            const response = await fetch('/api/magic/usuarios', {
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
+            const response = await apiHelper.usuarios.getAll();
+            const result = await apiHelper.handleResponse(response);
 
-            if (response.ok) {
-                const result = await response.json();
-                if (result.success && result.data) {
-                    setUsuarios(result.data);
-                } else if (result.data) {
-                    setUsuarios(result.data);
-                } else {
-                    setUsuarios([]);
-                }
+            if (result.success && result.data) {
+                setUsuarios(result.data);
+            } else if (result.data) {
+                setUsuarios(result.data);
+            } else {
+                setUsuarios([]);
             }
         } catch (error) {
             console.error('Error al cargar usuarios:', error);
         }
     };
 
-    // Función para cargar datos desde API - MEJORADA
+    // Función para cargar datos de auditorías
     const cargarDatos = async () => {
         try {
             setLoading(true);
@@ -104,26 +97,15 @@ function GestionAuditorias() {
                 if (value) params.append(key, value);
             });
 
-            const response = await fetch(`/api/magic/auditorias?${params.toString()}`, {
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
+            const response = await apiHelper.get(`/auditorias?${params.toString()}`);
+            const result = await apiHelper.handleResponse(response);
 
-            if (response.ok) {
-                const result = await response.json();
-                if (result.success && result.data) {
-                    setAuditorias(result.data);
-                    console.log('Auditorías cargadas:', result.data.length, 'items');
-                } else {
-                    setAuditorias([]);
-                    console.log('No se encontraron auditorías');
-                }
+            if (result.success && result.data) {
+                setAuditorias(result.data);
+                console.log('Auditorías cargadas:', result.data.length, 'items');
             } else {
-                console.error('Error al cargar auditorías:', response.status);
-                Notifications.error(`Error al cargar auditorías: ${response.status}`);
+                setAuditorias([]);
+                console.log('No se encontraron auditorías');
             }
 
         } catch (error) {
@@ -137,18 +119,9 @@ function GestionAuditorias() {
     // Función para cargar estadísticas
     const cargarEstadisticas = async () => {
         try {
-            const response = await fetch('/api/magic/auditorias/stats', {
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-                setEstadisticas(result.data);
-            }
+            const response = await apiHelper.get('/auditorias/stats');
+            const result = await apiHelper.handleResponse(response);
+            setEstadisticas(result.data);
         } catch (error) {
             console.error('Error al cargar estadísticas:', error);
         }
@@ -496,7 +469,7 @@ function GestionAuditorias() {
         }
     };
 
-    // NUEVA FUNCIÓN: Generar reporte Excel
+    // Función para generar reporte Excel
     const generarReporteExcel = async () => {
         if (!formularioReporte.fecha_inicio || !formularioReporte.fecha_fin) {
             Notifications.error('Las fechas de inicio y fin son requeridas');
@@ -505,17 +478,9 @@ function GestionAuditorias() {
 
         setLoadingAction(true);
         try {
-            const response = await fetch('/api/magic/auditorias/reporte-excel', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                },
-                body: JSON.stringify(formularioReporte)
-            });
+            const response = await apiHelper.post('/auditorias/reporte-excel', formularioReporte);
 
             if (response.ok) {
-                // Crear descarga del archivo Excel
                 const blob = await response.blob();
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -529,7 +494,7 @@ function GestionAuditorias() {
                 Notifications.success('Reporte Excel generado exitosamente');
                 setModalReporte(false);
             } else {
-                const errorData = await response.json();
+                const errorData = await apiHelper.handleResponse(response);
                 Notifications.error(`Error al generar reporte Excel: ${errorData.message}`);
             }
         } catch (error) {
@@ -545,7 +510,7 @@ function GestionAuditorias() {
         setModalLimpiar(true);
     };
 
-    // Ejecutar limpieza
+    // Función para ejecutar limpieza
     const ejecutarLimpieza = async () => {
         if (diasLimpiar < 30) {
             Notifications.error('Mínimo 30 días para limpieza');
@@ -554,25 +519,13 @@ function GestionAuditorias() {
 
         setLoadingAction(true);
         try {
-            const response = await fetch('/api/magic/auditorias/limpiar', {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                },
-                body: JSON.stringify({ dias: diasLimpiar })
-            });
+            const response = await apiHelper.delete('/auditorias/limpiar', { dias: diasLimpiar });
+            const result = await apiHelper.handleResponse(response);
 
-            if (response.ok) {
-                const result = await response.json();
-                Notifications.success(result.message);
-                setModalLimpiar(false);
-                cargarDatos();
-                cargarEstadisticas();
-            } else {
-                const errorData = await response.json();
-                Notifications.error(`Error al limpiar: ${errorData.message}`);
-            }
+            Notifications.success(result.message);
+            setModalLimpiar(false);
+            cargarDatos();
+            cargarEstadisticas();
         } catch (error) {
             console.error('Error:', error);
             Notifications.error('Error de conexión');

@@ -11,6 +11,8 @@ import TableControls from '../../common/TableControls';
 import TablePagination from '../../common/TablePagination';
 import { rolesConfig } from './rolesConfig';
 
+import apiHelper from '../../../utils/apiHelper';
+
 const { createElement: e, useState, useEffect } = React;
 
 function GestionRoles() {
@@ -49,23 +51,10 @@ function GestionRoles() {
     const cargarDatos = async () => {
         try {
             setLoading(true);
-            const response = await fetch('/api/magic/roles', {
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setRoles(data);
-                console.log('Roles cargados:', data.length, 'items');
-            } else {
-                console.error('Error al cargar roles:', response.status);
-                Notifications.error(`Error al cargar roles: ${response.status}`);
-            }
-
+            const response = await apiHelper.roles.getAll();
+            const data = await apiHelper.handleResponse(response);
+            setRoles(data);
+            console.log('Roles cargados:', data.length, 'items');
         } catch (error) {
             console.error('Error de conexión:', error);
             Notifications.error('Error de conexión al cargar datos');

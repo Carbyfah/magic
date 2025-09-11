@@ -10,6 +10,7 @@ import useTableData from '../../common/useTableData';
 import TableControls from '../../common/TableControls';
 import TablePagination from '../../common/TablePagination';
 import { vehiculosConfig } from './vehiculosConfig';
+import apiHelper from '../../../utils/apiHelper';
 
 const { createElement: e, useState, useEffect } = React;
 
@@ -81,38 +82,28 @@ function GestionVehiculos() {
         try {
             setLoading(true);
             const [vehiculosRes, estadosRes] = await Promise.all([
-                fetch('/api/magic/vehiculos', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                }),
-                fetch('/api/magic/estados/contexto/vehiculo', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
+                apiHelper.vehiculos.getAll(),
+                apiHelper.get('/estados/contexto/vehiculo')
             ]);
 
-            if (vehiculosRes.ok) {
-                const vehiculosData = await vehiculosRes.json();
+            // Procesar vehículos
+            try {
+                const vehiculosData = await apiHelper.handleResponse(vehiculosRes);
                 setVehiculos(vehiculosData.data || vehiculosData);
                 console.log('Vehículos cargados:', (vehiculosData.data || vehiculosData).length, 'items');
-            } else {
-                console.error('Error al cargar vehículos:', vehiculosRes.status);
-                Notifications.error(`Error al cargar vehículos: ${vehiculosRes.status}`);
+            } catch (vehiculosError) {
+                console.error('Error al cargar vehículos:', vehiculosError);
+                Notifications.error(`Error al cargar vehículos: ${vehiculosError.message}`);
             }
 
-            if (estadosRes.ok) {
-                const estadosData = await estadosRes.json();
+            // Procesar estados
+            try {
+                const estadosData = await apiHelper.handleResponse(estadosRes);
                 setEstados(estadosData.data || estadosData);
                 console.log('Estados de vehículo cargados:', (estadosData.data || estadosData).length, 'items');
-            } else {
-                console.error('Error al cargar estados:', estadosRes.status);
-                Notifications.error(`Error al cargar estados: ${estadosRes.status}`);
+            } catch (estadosError) {
+                console.error('Error al cargar estados:', estadosError);
+                Notifications.error(`Error al cargar estados: ${estadosError.message}`);
             }
 
         } catch (error) {
@@ -361,22 +352,12 @@ function GestionVehiculos() {
 
             console.log('Datos procesados a enviar:', datosParaEnviar);
 
-            const url = itemEditando
-                ? `/api/magic/vehiculos/${obtenerIdItem(itemEditando)}`
-                : `/api/magic/vehiculos`;
+            // Usar apiHelper en lugar de fetch directo
+            const response = itemEditando
+                ? await apiHelper.put(`/vehiculos/${obtenerIdItem(itemEditando)}`, datosParaEnviar)
+                : await apiHelper.post('/vehiculos', datosParaEnviar);
 
-            const method = itemEditando ? 'PUT' : 'POST';
-
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                },
-                body: JSON.stringify(datosParaEnviar)
-            });
+            const data = await apiHelper.handleResponse(response);
 
             if (response.ok) {
                 Notifications.success(
@@ -420,14 +401,7 @@ function GestionVehiculos() {
 
             switch (accionConfirmacion) {
                 case 'activar':
-                    url = `/api/magic/vehiculos/${itemId}/activate`;
-                    response = await fetch(url, {
-                        method: 'PATCH',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        }
-                    });
+                    response = await apiHelper.patch(`/vehiculos/${itemId}/activate`);
                     break;
 
                 case 'desactivar':
@@ -439,37 +413,20 @@ function GestionVehiculos() {
                         return;
                     }
 
-                    url = `/api/magic/vehiculos/${itemId}/deactivate`;
-                    response = await fetch(url, {
-                        method: 'PATCH',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        }
-                    });
+                    response = await apiHelper.patch(`/vehiculos/${itemId}/deactivate`);
                     break;
 
                 case 'duplicar':
-                    const itemDuplicado = {
-                        vehiculo_placa: '',
-                        vehiculo_marca: itemConfirmacion.vehiculo_marca || itemConfirmacion.marca,
-                        vehiculo_modelo: itemConfirmacion.vehiculo_modelo || itemConfirmacion.modelo,
-                        vehiculo_capacidad: itemConfirmacion.vehiculo_capacidad || itemConfirmacion.capacidad,
-                        estado_id: itemConfirmacion.estado_id || itemConfirmacion.estado?.id,
-                        vehiculo_situacion: 1
-                    };
+                    // const itemDuplicado = {
+                    //     vehiculo_placa: '',
+                    //     vehiculo_marca: itemConfirmacion.vehiculo_marca || itemConfirmacion.marca,
+                    //     vehiculo_modelo: itemConfirmacion.vehiculo_modelo || itemConfirmacion.modelo,
+                    //     vehiculo_capacidad: itemConfirmacion.vehiculo_capacidad || itemConfirmacion.capacidad,
+                    //     estado_id: itemConfirmacion.estado_id || itemConfirmacion.estado?.id,
+                    //     vehiculo_situacion: 1
+                    // };
 
-                    url = `/api/magic/vehiculos`;
-                    response = await fetch(url, {
-                        method: 'POST',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        },
-                        body: JSON.stringify(itemDuplicado)
-                    });
+                    // response = await apiHelper.post('/vehiculos', itemDuplicado);
                     break;
 
                 default:
@@ -647,7 +604,8 @@ function GestionVehiculos() {
                                         item: item,
                                         onVer: () => abrirModalDetalles(item),
                                         onEditar: () => abrirModalFormulario(item),
-                                        onDuplicar: () => abrirModalConfirmacion(item, 'duplicar'),
+                                        mostrarDuplicar: false,
+                                        // onDuplicar: () => abrirModalConfirmacion(item, 'duplicar'),
                                         onActivar: () => abrirModalConfirmacion(
                                             item,
                                             esActivo ? 'desactivar' : 'activar'

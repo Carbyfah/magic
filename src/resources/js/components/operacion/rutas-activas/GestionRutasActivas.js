@@ -11,6 +11,8 @@ import TableControls from '../../common/TableControls';
 import TablePagination from '../../common/TablePagination';
 import { rutasActivasConfig } from './rutasActivasConfig';
 
+import apiHelper from '../../../utils/apiHelper';
+
 const { createElement: e, useState, useEffect } = React;
 
 function GestionRutasActivas() {
@@ -134,107 +136,77 @@ function GestionRutasActivas() {
         }
     };
 
-    // Función para cargar datos desde API
+    // Cargar datos API
     const cargarDatos = async () => {
         try {
             setLoading(true);
             const [rutasActivadasRes, usuariosRes, estadosRes, serviciosRes, rutasRes, vehiculosRes] = await Promise.all([
-                fetch('/api/magic/rutas-activadas', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                }),
-                fetch('/api/magic/personas', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                }),
-                fetch('/api/magic/estados/contexto/ruta-activada', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                }),
-                fetch('/api/magic/servicios', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                }),
-                fetch('/api/magic/rutas', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                }),
-                fetch('/api/magic/vehiculos', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
+                apiHelper.get('/rutas-activadas'),
+                apiHelper.get('/personas'),
+                apiHelper.get('/estados/contexto/ruta-activada'),
+                apiHelper.servicios.getAll(),
+                apiHelper.rutas.getAll(),
+                apiHelper.vehiculos.getAll()
             ]);
 
-            if (rutasActivadasRes.ok) {
-                const rutasActivadasData = await rutasActivadasRes.json();
+            // Procesar rutas activadas
+            try {
+                const rutasActivadasData = await apiHelper.handleResponse(rutasActivadasRes);
                 setRutasActivadas(rutasActivadasData.data || rutasActivadasData);
                 console.log('Rutas activadas cargadas:', (rutasActivadasData.data || rutasActivadasData).length, 'items');
-            } else {
-                console.error('Error al cargar rutas activadas:', rutasActivadasRes.status);
-                Notifications.error(`Error al cargar rutas activadas: ${rutasActivadasRes.status}`);
+            } catch (error) {
+                console.error('Error al cargar rutas activadas:', error);
+                Notifications.error(`Error al cargar rutas activadas: ${error.message}`);
             }
 
-            if (usuariosRes.ok) {
-                const personasData = await usuariosRes.json();
+            // Procesar personas
+            try {
+                const personasData = await apiHelper.handleResponse(usuariosRes);
                 setPersonas(personasData.data || personasData);
                 console.log('Personas cargadas:', (personasData.data || personasData).length, 'items');
-            } else {
-                console.error('Error al cargar personas:', usuariosRes.status);
-                Notifications.error(`Error al cargar personas: ${usuariosRes.status}`);
+            } catch (error) {
+                console.error('Error al cargar personas:', error);
+                Notifications.error(`Error al cargar personas: ${error.message}`);
             }
 
-            if (estadosRes.ok) {
-                const estadosData = await estadosRes.json();
+            // Procesar estados
+            try {
+                const estadosData = await apiHelper.handleResponse(estadosRes);
                 setEstados(estadosData.data || estadosData);
                 console.log('Estados cargados:', (estadosData.data || estadosData).length, 'items');
-            } else {
-                console.error('Error al cargar estados:', estadosRes.status);
-                Notifications.error(`Error al cargar estados: ${estadosRes.status}`);
+            } catch (error) {
+                console.error('Error al cargar estados:', error);
+                Notifications.error(`Error al cargar estados: ${error.message}`);
             }
 
-            if (serviciosRes.ok) {
-                const serviciosData = await serviciosRes.json();
+            // Procesar servicios
+            try {
+                const serviciosData = await apiHelper.handleResponse(serviciosRes);
                 setServicios(serviciosData.data || serviciosData);
                 console.log('Servicios cargados:', (serviciosData.data || serviciosData).length, 'items');
-            } else {
-                console.error('Error al cargar servicios:', serviciosRes.status);
-                Notifications.error(`Error al cargar servicios: ${serviciosRes.status}`);
+            } catch (error) {
+                console.error('Error al cargar servicios:', error);
+                Notifications.error(`Error al cargar servicios: ${error.message}`);
             }
 
-            if (rutasRes.ok) {
-                const rutasData = await rutasRes.json();
+            // Procesar rutas
+            try {
+                const rutasData = await apiHelper.handleResponse(rutasRes);
                 setRutas(rutasData.data || rutasData);
                 console.log('Rutas cargadas:', (rutasData.data || rutasData).length, 'items');
-            } else {
-                console.error('Error al cargar rutas:', rutasRes.status);
-                Notifications.error(`Error al cargar rutas: ${rutasRes.status}`);
+            } catch (error) {
+                console.error('Error al cargar rutas:', error);
+                Notifications.error(`Error al cargar rutas: ${error.message}`);
             }
 
-            if (vehiculosRes.ok) {
-                const vehiculosData = await vehiculosRes.json();
+            // Procesar vehículos
+            try {
+                const vehiculosData = await apiHelper.handleResponse(vehiculosRes);
                 setVehiculos(vehiculosData.data || vehiculosData);
                 console.log('Vehículos cargados:', (vehiculosData.data || vehiculosData).length, 'items');
-            } else {
-                console.error('Error al cargar vehículos:', vehiculosRes.status);
-                Notifications.error(`Error al cargar vehículos: ${vehiculosRes.status}`);
+            } catch (error) {
+                console.error('Error al cargar vehículos:', error);
+                Notifications.error(`Error al cargar vehículos: ${error.message}`);
             }
 
         } catch (error) {

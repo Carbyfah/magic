@@ -184,34 +184,42 @@ class EstadisticaController extends Controller
     }
 
     /**
-     * DATOS JSON: Ocupación de vehículos - USANDO VISTA REAL
+     * DATOS JSON: Ocupación de vehículos - CORREGIDO
      */
     public function graficoOcupacionVehiculos(Request $request)
     {
         try {
             $fecha = $request->get('fecha', null);
 
-            // Primero intentar con la vista
-            $query = DB::table('v_ocupacion_rutas');
+            // Usar los nombres EXACTOS según las migraciones
+            $query = DB::table('ruta_activada as ra')
+                ->join('vehiculo as v', 'ra.vehiculo_id', '=', 'v.vehiculo_id')
+                ->leftJoin('reserva as r', function ($join) {
+                    $join->on('r.ruta_activada_id', '=', 'ra.ruta_activada_id')
+                        ->where('r.reserva_situacion', 1);
+                })
+                ->select([
+                    'v.vehiculo_placa as placa',
+                    'v.vehiculo_capacidad as capacidad_total',
+                    DB::raw('IFNULL(SUM(r.reserva_cantidad_adultos + IFNULL(r.reserva_cantidad_ninos, 0)), 0) as pasajeros_confirmados'),
+                    DB::raw('IF(v.vehiculo_capacidad > 0,
+                           ROUND((IFNULL(SUM(r.reserva_cantidad_adultos + IFNULL(r.reserva_cantidad_ninos, 0)), 0) / v.vehiculo_capacidad) * 100, 1),
+                           0) as porcentaje_ocupacion')
+                ])
+                ->where('ra.ruta_activada_situacion', 1);
 
+            // CORRECCIÓN: Usar el campo correcto de fecha
             if ($fecha) {
-                $query->where('fecha_operacion', $fecha);
+                $query->whereDate('ra.ruta_activada_fecha_hora', $fecha);
             }
 
-            $ocupacion = $query->orderBy('porcentaje_ocupacion', 'desc')
+            $ocupacion = $query->groupBy('ra.vehiculo_id', 'v.vehiculo_placa', 'v.vehiculo_capacidad')
+                ->orderBy('porcentaje_ocupacion', 'desc')
                 ->limit(8)
                 ->get();
 
-            // Si no hay datos con fecha específica, tomar todos los datos disponibles
-            if ($ocupacion->isEmpty()) {
-                $ocupacion = DB::table('v_ocupacion_rutas')
-                    ->orderBy('porcentaje_ocupacion', 'desc')
-                    ->limit(8)
-                    ->get();
-            }
-
-            // Si aún no hay datos, crear consulta directa
-            if ($ocupacion->isEmpty()) {
+            // Si no hay datos con fecha específica, buscar sin filtro de fecha
+            if ($ocupacion->isEmpty() && $fecha) {
                 $ocupacion = DB::table('ruta_activada as ra')
                     ->join('vehiculo as v', 'ra.vehiculo_id', '=', 'v.vehiculo_id')
                     ->leftJoin('reserva as r', function ($join) {
@@ -219,12 +227,12 @@ class EstadisticaController extends Controller
                             ->where('r.reserva_situacion', 1);
                     })
                     ->select([
-                        'v.vehiculo_placa',
+                        'v.vehiculo_placa as placa',
                         'v.vehiculo_capacidad as capacidad_total',
                         DB::raw('IFNULL(SUM(r.reserva_cantidad_adultos + IFNULL(r.reserva_cantidad_ninos, 0)), 0) as pasajeros_confirmados'),
                         DB::raw('IF(v.vehiculo_capacidad > 0,
-                                   ROUND((IFNULL(SUM(r.reserva_cantidad_adultos + IFNULL(r.reserva_cantidad_ninos, 0)), 0) / v.vehiculo_capacidad) * 100, 1),
-                                   0) as porcentaje_ocupacion')
+                               ROUND((IFNULL(SUM(r.reserva_cantidad_adultos + IFNULL(r.reserva_cantidad_ninos, 0)), 0) / v.vehiculo_capacidad) * 100, 1),
+                               0) as porcentaje_ocupacion')
                     ])
                     ->where('ra.ruta_activada_situacion', 1)
                     ->groupBy('ra.vehiculo_id', 'v.vehiculo_placa', 'v.vehiculo_capacidad')
@@ -234,7 +242,26 @@ class EstadisticaController extends Controller
             }
 
             if ($ocupacion->isEmpty()) {
-                return response()->json(['error' => 'No hay vehículos con rutas asignadas'], 404);
+                return response()->json([
+                    'type' => 'bar',
+                    'data' => [
+                        'labels' => ['Sin datos'],
+                        'datasets' => [[
+                            'label' => 'Ocupación (%)',
+                            'data' => [0],
+                            'backgroundColor' => 'rgba(75, 192, 192, 0.8)',
+                        ]]
+                    ],
+                    'options' => [
+                        'responsive' => true,
+                        'plugins' => [
+                            'title' => [
+                                'display' => true,
+                                'text' => 'No hay datos de ocupación disponibles'
+                            ]
+                        ]
+                    ]
+                ]);
             }
 
             $labels = [];
@@ -242,16 +269,16 @@ class EstadisticaController extends Controller
             $colores = [];
 
             foreach ($ocupacion as $item) {
-                $labels[] = $item->vehiculo_placa ?? 'Sin placa';
+                $labels[] = $item->placa ?? 'Sin placa';
                 $porcentaje = floatval($item->porcentaje_ocupacion ?? 0);
                 $datos[] = $porcentaje;
 
                 if ($porcentaje >= 90) {
-                    $colores[] = 'rgba(255, 99, 132, 0.8)';
-                } elseif ($porcentaje >= 80) {
-                    $colores[] = 'rgba(255, 206, 86, 0.8)';
+                    $colores[] = 'rgba(239, 68, 68, 0.8)';   // Rojo
+                } elseif ($porcentaje >= 70) {
+                    $colores[] = 'rgba(249, 115, 22, 0.8)';  // Naranja
                 } else {
-                    $colores[] = 'rgba(75, 192, 192, 0.8)';
+                    $colores[] = 'rgba(34, 197, 94, 0.8)';   // Verde
                 }
             }
 
@@ -263,22 +290,31 @@ class EstadisticaController extends Controller
                         'label' => 'Ocupación (%)',
                         'data' => $datos,
                         'backgroundColor' => $colores,
+                        'borderColor' => array_map(function ($color) {
+                            return str_replace('0.8)', '1)', $color);
+                        }, $colores),
                         'borderWidth' => 1
                     ]]
                 ],
                 'options' => [
-                    'indexAxis' => 'y',
                     'responsive' => true,
+                    'maintainAspectRatio' => false,
                     'plugins' => [
                         'title' => [
                             'display' => true,
-                            'text' => 'Ocupación de Vehículos - Datos Reales'
+                            'text' => 'Ocupación de Vehículos'
+                        ],
+                        'legend' => [
+                            'display' => false
                         ]
                     ],
                     'scales' => [
-                        'x' => [
+                        'y' => [
                             'beginAtZero' => true,
-                            'max' => 100
+                            'max' => 100,
+                            'ticks' => [
+                                'callback' => "function(value) { return value + '%'; }"
+                            ]
                         ]
                     ]
                 ]
@@ -286,6 +322,7 @@ class EstadisticaController extends Controller
 
             return response()->json($chartData);
         } catch (\Exception $e) {
+            \Log::error('Error en graficoOcupacionVehiculos: ' . $e->getMessage());
             return response()->json([
                 'error' => 'Error al generar ocupación',
                 'message' => $e->getMessage()
@@ -294,37 +331,71 @@ class EstadisticaController extends Controller
     }
 
     /**
-     * DATOS JSON: Reservas por estado - SIN FILTRO DE FECHA ESTRICTO
+     * DATOS JSON: Reservas por estado - CORREGIDO
      */
     public function graficoReservasPorEstado(Request $request)
     {
         try {
-            // Buscar todas las reservas activas sin filtro de fecha estricto
+            $fechaInicio = $request->get('fecha_inicio', now()->subDays(30)->format('Y-m-d'));
+            $fechaFin = $request->get('fecha_fin', now()->format('Y-m-d'));
+
+            // Usar los nombres originales de tabla (singular)
             $estados = DB::table('reserva as r')
                 ->join('estado as e', 'r.estado_id', '=', 'e.estado_id')
+                ->whereBetween('r.created_at', [$fechaInicio . ' 00:00:00', $fechaFin . ' 23:59:59'])
                 ->where('r.reserva_situacion', 1)
-                ->select('e.estado_estado', DB::raw('COUNT(*) as cantidad'))
+                ->select('e.estado_estado as estado', DB::raw('COUNT(*) as cantidad'))
                 ->groupBy('e.estado_id', 'e.estado_estado')
                 ->orderByDesc('cantidad')
                 ->get();
 
+            // Si no hay datos con filtro de fecha, buscar todas las reservas
             if ($estados->isEmpty()) {
-                return response()->json(['error' => 'No hay reservas registradas'], 404);
+                $estados = DB::table('reserva as r')
+                    ->join('estado as e', 'r.estado_id', '=', 'e.estado_id')
+                    ->where('r.reserva_situacion', 1)
+                    ->select('e.estado_estado as estado', DB::raw('COUNT(*) as cantidad'))
+                    ->groupBy('e.estado_id', 'e.estado_estado')
+                    ->orderByDesc('cantidad')
+                    ->get();
+            }
+
+            if ($estados->isEmpty()) {
+                return response()->json([
+                    'type' => 'doughnut',
+                    'data' => [
+                        'labels' => ['Sin datos'],
+                        'datasets' => [[
+                            'data' => [1],
+                            'backgroundColor' => ['rgba(156, 163, 175, 0.8)'],
+                            'borderWidth' => 1
+                        ]]
+                    ],
+                    'options' => [
+                        'responsive' => true,
+                        'plugins' => [
+                            'title' => [
+                                'display' => true,
+                                'text' => 'No hay reservas en el período seleccionado'
+                            ]
+                        ]
+                    ]
+                ]);
             }
 
             $labels = [];
             $datos = [];
             $colores = [
-                'rgba(54, 162, 235, 0.8)',
-                'rgba(255, 99, 132, 0.8)',
-                'rgba(255, 206, 86, 0.8)',
-                'rgba(75, 192, 192, 0.8)',
-                'rgba(153, 102, 255, 0.8)',
-                'rgba(255, 159, 64, 0.8)'
+                'rgba(34, 197, 94, 0.8)',   // Verde - Confirmada
+                'rgba(59, 130, 246, 0.8)',  // Azul - Pendiente
+                'rgba(249, 115, 22, 0.8)',  // Naranja - En proceso
+                'rgba(239, 68, 68, 0.8)',   // Rojo - Cancelada
+                'rgba(168, 85, 247, 0.8)',  // Morado - Completada
+                'rgba(156, 163, 175, 0.8)'  // Gris - Otros
             ];
 
             foreach ($estados as $index => $estado) {
-                $labels[] = $estado->estado_estado;
+                $labels[] = $estado->estado;
                 $datos[] = intval($estado->cantidad);
             }
 
@@ -333,13 +404,16 @@ class EstadisticaController extends Controller
                 'data' => [
                     'labels' => $labels,
                     'datasets' => [[
+                        'label' => 'Reservas',
                         'data' => $datos,
                         'backgroundColor' => array_slice($colores, 0, count($labels)),
+                        'borderColor' => '#ffffff',
                         'borderWidth' => 2
                     ]]
                 ],
                 'options' => [
                     'responsive' => true,
+                    'maintainAspectRatio' => false,
                     'plugins' => [
                         'title' => [
                             'display' => true,
@@ -354,21 +428,26 @@ class EstadisticaController extends Controller
 
             return response()->json($chartData);
         } catch (\Exception $e) {
+            \Log::error('Error en graficoReservasPorEstado: ' . $e->getMessage());
             return response()->json([
                 'error' => 'Error al generar estados',
                 'message' => $e->getMessage()
             ], 500);
         }
     }
-
     /**
-     * DATOS JSON: Ventas por agencia vs directas - TODAS LAS RESERVAS
+     * DATOS JSON: Ventas por agencia vs directas - CORREGIDO
      */
     public function graficoVentasPorAgencia(Request $request)
     {
         try {
+            $fechaInicio = $request->get('fecha_inicio', now()->subDays(30)->format('Y-m-d'));
+            $fechaFin = $request->get('fecha_fin', now()->format('Y-m-d'));
+
+            // Usar los nombres originales de tabla (singular)
             $ventas = DB::table('reserva as r')
                 ->leftJoin('agencia as a', 'r.agencia_id', '=', 'a.agencia_id')
+                ->whereBetween('r.created_at', [$fechaInicio . ' 00:00:00', $fechaFin . ' 23:59:59'])
                 ->where('r.reserva_situacion', 1)
                 ->select([
                     DB::raw('CASE WHEN a.agencia_razon_social IS NULL THEN "VENTA DIRECTA" ELSE a.agencia_razon_social END as tipo'),
@@ -379,16 +458,59 @@ class EstadisticaController extends Controller
                 ->orderByDesc('total')
                 ->get();
 
+            // Si no hay datos con filtro de fecha, buscar todas las ventas
             if ($ventas->isEmpty()) {
-                return response()->json(['error' => 'No hay ventas registradas'], 404);
+                $ventas = DB::table('reserva as r')
+                    ->leftJoin('agencia as a', 'r.agencia_id', '=', 'a.agencia_id')
+                    ->where('r.reserva_situacion', 1)
+                    ->select([
+                        DB::raw('CASE WHEN a.agencia_razon_social IS NULL THEN "VENTA DIRECTA" ELSE a.agencia_razon_social END as tipo'),
+                        DB::raw('SUM(r.reserva_monto) as total'),
+                        DB::raw('COUNT(*) as cantidad_reservas')
+                    ])
+                    ->groupBy('a.agencia_id', 'a.agencia_razon_social')
+                    ->orderByDesc('total')
+                    ->get();
+            }
+
+            if ($ventas->isEmpty()) {
+                return response()->json([
+                    'type' => 'bar',
+                    'data' => [
+                        'labels' => ['Sin datos'],
+                        'datasets' => [[
+                            'label' => 'Ingresos (Q)',
+                            'data' => [0],
+                            'backgroundColor' => 'rgba(156, 163, 175, 0.8)',
+                        ]]
+                    ],
+                    'options' => [
+                        'responsive' => true,
+                        'plugins' => [
+                            'title' => [
+                                'display' => true,
+                                'text' => 'No hay ventas en el período seleccionado'
+                            ]
+                        ]
+                    ]
+                ]);
             }
 
             $labels = [];
             $datos = [];
+            $colores = [];
 
-            foreach ($ventas as $venta) {
-                $labels[] = strlen($venta->tipo) > 20 ? substr($venta->tipo, 0, 20) . '...' : $venta->tipo;
+            foreach ($ventas as $index => $venta) {
+                $nombre = strlen($venta->tipo) > 15 ? substr($venta->tipo, 0, 15) . '...' : $venta->tipo;
+                $labels[] = $nombre;
                 $datos[] = floatval($venta->total);
+
+                // Color diferente para ventas directas vs agencias
+                if ($venta->tipo === 'VENTA DIRECTA') {
+                    $colores[] = 'rgba(34, 197, 94, 0.8)';  // Verde para directas
+                } else {
+                    $colores[] = 'rgba(59, 130, 246, 0.8)'; // Azul para agencias
+                }
             }
 
             $chartData = [
@@ -398,22 +520,31 @@ class EstadisticaController extends Controller
                     'datasets' => [[
                         'label' => 'Ingresos (Q)',
                         'data' => $datos,
-                        'backgroundColor' => 'rgba(54, 162, 235, 0.6)',
-                        'borderColor' => 'rgba(54, 162, 235, 1)',
+                        'backgroundColor' => $colores,
+                        'borderColor' => array_map(function ($color) {
+                            return str_replace('0.8)', '1)', $color);
+                        }, $colores),
                         'borderWidth' => 1
                     ]]
                 ],
                 'options' => [
                     'responsive' => true,
+                    'maintainAspectRatio' => false,
                     'plugins' => [
                         'title' => [
                             'display' => true,
-                            'text' => 'Ventas: Agencias vs Directas'
+                            'text' => 'Ventas por Canal de Distribución'
+                        ],
+                        'legend' => [
+                            'display' => false
                         ]
                     ],
                     'scales' => [
                         'y' => [
-                            'beginAtZero' => true
+                            'beginAtZero' => true,
+                            'ticks' => [
+                                'callback' => "function(value) { return 'Q' + value.toLocaleString(); }"
+                            ]
                         ]
                     ]
                 ]
@@ -421,13 +552,13 @@ class EstadisticaController extends Controller
 
             return response()->json($chartData);
         } catch (\Exception $e) {
+            \Log::error('Error en graficoVentasPorAgencia: ' . $e->getMessage());
             return response()->json([
                 'error' => 'Error al generar ventas',
                 'message' => $e->getMessage()
             ], 500);
         }
     }
-
     /**
      * DATOS JSON: Top rutas más rentables - TODAS LAS RUTAS
      */
@@ -452,7 +583,26 @@ class EstadisticaController extends Controller
                 ->get();
 
             if ($rutas->isEmpty()) {
-                return response()->json(['error' => 'No hay rutas con reservas'], 404);
+                return response()->json([
+                    'type' => 'bar',
+                    'data' => [
+                        'labels' => ['Sin datos'],
+                        'datasets' => [[
+                            'label' => 'Ingresos (Q)',
+                            'data' => [0],
+                            'backgroundColor' => 'rgba(153, 102, 255, 0.6)',
+                        ]]
+                    ],
+                    'options' => [
+                        'responsive' => true,
+                        'plugins' => [
+                            'title' => [
+                                'display' => true,
+                                'text' => 'No hay datos disponibles'
+                            ]
+                        ]
+                    ]
+                ]);
             }
 
             $labels = [];

@@ -519,6 +519,34 @@ return new class extends Migration
             ORDER BY res.created_at DESC
         ");
 
+        // VISTA 4: Ingresos diarios (NUEVA) - RUTAS Y TOURS UNIFICADOS
+        DB::statement("
+            CREATE VIEW v_ingresos_diarios AS
+            SELECT
+                DATE(res.created_at) as fecha,
+                COUNT(res.reserva_id) as total_reservas,
+                SUM(res.reserva_cantidad_adultos + IFNULL(res.reserva_cantidad_ninos, 0)) as total_pasajeros,
+                SUM(IFNULL(res.reserva_monto, 0)) as ingresos_brutos,
+                SUM(CASE WHEN res.agencia_id IS NOT NULL
+                         THEN IFNULL(res.reserva_monto, 0) * 0.10
+                         ELSE 0 END) as comisiones_agencias,
+                SUM(IFNULL(res.reserva_monto, 0)) - SUM(CASE WHEN res.agencia_id IS NOT NULL
+                                                  THEN IFNULL(res.reserva_monto, 0) * 0.10
+                                                  ELSE 0 END) as ingresos_netos,
+                COUNT(CASE WHEN res.agencia_id IS NOT NULL THEN 1 END) as reservas_agencia,
+                COUNT(CASE WHEN res.agencia_id IS NULL THEN 1 END) as reservas_directas,
+                GROUP_CONCAT(DISTINCT s.servicio_servicio SEPARATOR ', ') as servicios_vendidos
+            FROM reserva res
+            LEFT JOIN ruta_activada ra ON res.ruta_activada_id = ra.ruta_activada_id
+            LEFT JOIN tour_activado ta ON res.tour_activado_id = ta.tour_activado_id
+            LEFT JOIN servicio s ON (ra.servicio_id = s.servicio_id OR ta.servicio_id = s.servicio_id)
+            JOIN estado er ON res.estado_id = er.estado_id
+            WHERE res.reserva_situacion = 1
+              AND DATE(res.created_at) >= CURDATE() - INTERVAL 30 DAY
+            GROUP BY DATE(res.created_at)
+            ORDER BY fecha DESC
+        ");
+
         // VISTA 5: Dashboard unificado (NUEVA) - RUTAS Y TOURS
         DB::statement("
             CREATE VIEW v_dashboard_unificado AS

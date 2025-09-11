@@ -11,6 +11,8 @@ import TableControls from '../../common/TableControls';
 import TablePagination from '../../common/TablePagination';
 import { rutasServiciosConfig } from './rutasServiciosConfig';
 
+import apiHelper from '../../../utils/apiHelper';
+
 const { createElement: e, useState, useEffect } = React;
 
 function GestionRutasServicios() {
@@ -51,39 +53,31 @@ function GestionRutasServicios() {
     const cargarDatos = async () => {
         try {
             setLoading(true);
+
+            // Usar Promise.all con apiHelper
             const [rutasRes, serviciosRes] = await Promise.all([
-                fetch('/api/magic/rutas', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                }),
-                fetch('/api/magic/servicios', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
+                apiHelper.rutas.getAll(),
+                apiHelper.servicios.getAll()
             ]);
 
-            if (rutasRes.ok) {
-                const rutasData = await rutasRes.json();
+            // Procesar rutas
+            try {
+                const rutasData = await apiHelper.handleResponse(rutasRes);
                 setRutas(rutasData);
                 console.log('Rutas cargadas:', rutasData.length, 'items');
-            } else {
-                console.error('Error al cargar rutas:', rutasRes.status);
-                Notifications.error(`Error al cargar rutas: ${rutasRes.status}`);
+            } catch (rutasError) {
+                console.error('Error al cargar rutas:', rutasError);
+                Notifications.error(`Error al cargar rutas: ${rutasError.message}`);
             }
 
-            if (serviciosRes.ok) {
-                const serviciosData = await serviciosRes.json();
+            // Procesar servicios
+            try {
+                const serviciosData = await apiHelper.handleResponse(serviciosRes);
                 setServicios(serviciosData);
                 console.log('Servicios cargados:', serviciosData.length, 'items');
-            } else {
-                console.error('Error al cargar servicios:', serviciosRes.status);
-                Notifications.error(`Error al cargar servicios: ${serviciosRes.status}`);
+            } catch (serviciosError) {
+                console.error('Error al cargar servicios:', serviciosError);
+                Notifications.error(`Error al cargar servicios: ${serviciosError.message}`);
             }
 
         } catch (error) {

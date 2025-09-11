@@ -1,6 +1,7 @@
 // src/resources/js/components/layouts/Dashboard.js
 import React from 'react';
 import Icons from '../../utils/Icons';
+import apiHelper from '../../utils/apiHelper';
 const { createElement: e, useState, useEffect } = React;
 
 function Dashboard({ onNavigate }) {
@@ -40,12 +41,8 @@ function Dashboard({ onNavigate }) {
         try {
             setDashboardData(prev => ({ ...prev, loading: true, error: null }));
 
-            const response = await fetch('/api/magic/estadisticas/dashboard');
-            if (!response.ok) {
-                throw new Error('Error al cargar datos del dashboard');
-            }
-
-            const data = await response.json();
+            const response = await apiHelper.get('/estadisticas/dashboard');
+            const data = await apiHelper.handleResponse(response);
 
             setDashboardData(prev => ({
                 ...prev,
@@ -59,8 +56,8 @@ function Dashboard({ onNavigate }) {
 
             // Fallback: intentar cargar stats generales
             try {
-                const fallbackResponse = await fetch('/api/magic/stats-generales');
-                const fallbackData = await fallbackResponse.json();
+                const fallbackResponse = await apiHelper.get('/stats-generales');
+                const fallbackData = await apiHelper.handleResponse(fallbackResponse);
 
                 setDashboardData(prev => ({
                     ...prev,

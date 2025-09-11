@@ -13,7 +13,10 @@ function Login({ onLoginSuccess }) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
-    // Verificar si ya está autenticado al cargar
+    // MODO PRODUCCIÓN - Sin bypass de desarrollo
+    const DESARROLLO_MODE = false;
+
+    // Verificar si ya esta autenticado al cargar
     useEffect(() => {
         if (AuthService.isAuthenticated()) {
             onLoginSuccess(AuthService.getUser());
@@ -140,6 +143,50 @@ function Login({ onLoginSuccess }) {
                     padding: '2rem'
                 }
             }, [
+                // Panel informativo con credenciales por defecto
+                e('div', {
+                    key: 'credentials-info',
+                    style: {
+                        marginBottom: '1.5rem',
+                        padding: '1rem',
+                        backgroundColor: '#f0f9ff',
+                        border: '1px solid #bae6fd',
+                        borderRadius: '8px',
+                        fontSize: '14px'
+                    }
+                }, [
+                    e('div', {
+                        key: 'info-title',
+                        style: {
+                            fontWeight: '600',
+                            color: '#0369a1',
+                            marginBottom: '0.5rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                        }
+                    }, [
+                        Icons.info(),
+                        'Credenciales por defecto'
+                    ]),
+                    e('div', {
+                        key: 'credentials',
+                        style: {
+                            color: '#0c4a6e',
+                            lineHeight: '1.4'
+                        }
+                    }, [
+                        e('div', { key: 'user' }, [
+                            e('strong', {}, 'Usuario: '),
+                            'DEV-ADMIN-001'
+                        ]),
+                        e('div', { key: 'pass' }, [
+                            e('strong', {}, 'Contraseña: '),
+                            'MagicTravel2025!'
+                        ])
+                    ])
+                ]),
+
                 e('form', {
                     key: 'login-form',
                     onSubmit: handleSubmit,
@@ -187,7 +234,7 @@ function Login({ onLoginSuccess }) {
                                 value: formData.usuario_codigo,
                                 onChange: (e) => handleInputChange('usuario_codigo', e.target.value),
                                 onKeyPress: handleKeyPress,
-                                placeholder: 'Ej: USR-001',
+                                placeholder: 'DEV-ADMIN-001',
                                 disabled: loading,
                                 style: {
                                     width: '100%',
@@ -250,7 +297,7 @@ function Login({ onLoginSuccess }) {
                                 value: formData.password,
                                 onChange: (e) => handleInputChange('password', e.target.value),
                                 onKeyPress: handleKeyPress,
-                                placeholder: 'Ingrese su contraseña',
+                                placeholder: 'MagicTravel2025!',
                                 disabled: loading,
                                 style: {
                                     width: '100%',
@@ -359,7 +406,7 @@ function Login({ onLoginSuccess }) {
                         color: '#6b7280',
                         margin: 0
                     }
-                }, '© 2025 Magic Travel Guatemala - Sistema de Gestión Turística')
+                }, 'Copyright 2025 Magic Travel Guatemala - Sistema de Gestión Turística')
             ])
         ])
     ]);
