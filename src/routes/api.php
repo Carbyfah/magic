@@ -129,8 +129,8 @@ Route::prefix('magic')->group(function () {
         });
     });
 
-    // RUTAS ACTIVADAS - Administrador + Operador
-    Route::prefix('rutas-activadas')->middleware(['role:administrador,operador'])->group(function () {
+    // RUTAS ACTIVADAS - Administrador + Operador + Vendedor
+    Route::prefix('rutas-activadas')->middleware(['role:administrador,operador,vendedor'])->group(function () {
         Route::get('/', [RutaActivadaController::class, 'index']);
         Route::post('/', [RutaActivadaController::class, 'store']);
         Route::get('/{rutaActivada}', [RutaActivadaController::class, 'show']);
@@ -155,8 +155,8 @@ Route::prefix('magic')->group(function () {
         });
     });
 
-    // TOURS ACTIVADOS - Administrador + Operador
-    Route::prefix('tours-activados')->middleware(['role:administrador,operador'])->group(function () {
+    // TOURS ACTIVADOS - Administrador + Operador + Vendedor
+    Route::prefix('tours-activados')->middleware(['role:administrador,operador,vendedor'])->group(function () {
         Route::get('/', [TourActivadoController::class, 'index']);
         Route::post('/', [TourActivadoController::class, 'store']);
         Route::post('/verificar-codigo', [TourActivadoController::class, 'verificarCodigo']);
@@ -177,26 +177,26 @@ Route::prefix('magic')->group(function () {
         });
     });
 
-    // VEHÍCULOS - Administrador + Operador
-    Route::prefix('vehiculos')->middleware(['role:administrador,operador'])->group(function () {
+    // VEHÍCULOS - Administrador + Operador + Vendedor
+    Route::prefix('vehiculos')->middleware(['role:administrador,operador,vendedor'])->group(function () {
         Route::get('/', [VehiculoController::class, 'index']);
+        Route::post('/', [VehiculoController::class, 'store']);
         Route::get('/{vehiculo}', [VehiculoController::class, 'show']);
+        Route::put('/{vehiculo}', [VehiculoController::class, 'update']);
         Route::post('/verificar-placa', [VehiculoController::class, 'verificarPlaca']);
         Route::get('/estado/{estadoId}', [VehiculoController::class, 'porEstado']);
         Route::get('/{vehiculo}/rutas-activas', [VehiculoController::class, 'rutasActivas']);
+        Route::patch('/{vehiculo}/activate', [VehiculoController::class, 'activate']);
+        Route::patch('/{vehiculo}/deactivate', [VehiculoController::class, 'deactivate']);
 
-        // Solo Administrador puede crear, modificar y eliminar vehículos
+        // Solo Administrador puede eliminar
         Route::middleware(['role:administrador'])->group(function () {
-            Route::post('/', [VehiculoController::class, 'store']);
-            Route::put('/{vehiculo}', [VehiculoController::class, 'update']);
             Route::delete('/{vehiculo}', [VehiculoController::class, 'destroy']);
-            Route::patch('/{vehiculo}/activate', [VehiculoController::class, 'activate']);
-            Route::patch('/{vehiculo}/deactivate', [VehiculoController::class, 'deactivate']);
         });
     });
 
     // =====================================================
-    // MÓDULOS COMERCIALES - Administrador + Vendedor + Operador
+    // MÓDULOS COMERCIALES - Administrador + Vendedor
     // =====================================================
 
     // AGENCIAS - Todos pueden ver, solo Administrador modifica
@@ -215,23 +215,22 @@ Route::prefix('magic')->group(function () {
         });
     });
 
-    // CONTACTOS AGENCIA - Todos pueden ver, solo Administrador modifica
-    Route::prefix('contactos-agencia')->group(function () {
-        Route::middleware(['role:administrador,operador,vendedor'])->group(function () {
-            Route::get('/', [ContactoAgenciaController::class, 'index']);
-            Route::get('/{contacto}', [ContactoAgenciaController::class, 'show']);
-            Route::get('/agencia/{agenciaId}', [ContactoAgenciaController::class, 'porAgencia']);
-            Route::get('/agencia/{agenciaId}/principal', [ContactoAgenciaController::class, 'contactoPrincipal']);
-            Route::get('/cargo/{cargo}', [ContactoAgenciaController::class, 'porCargo']);
-        });
+    // CONTACTOS AGENCIA - Administrador + Vendedor
+    Route::prefix('contactos-agencia')->middleware(['role:administrador,vendedor'])->group(function () {
+        Route::get('/', [ContactoAgenciaController::class, 'index']);
+        Route::post('/', [ContactoAgenciaController::class, 'store']);
+        Route::get('/{contacto}', [ContactoAgenciaController::class, 'show']);
+        Route::put('/{contacto}', [ContactoAgenciaController::class, 'update']);
+        Route::get('/agencia/{agenciaId}', [ContactoAgenciaController::class, 'porAgencia']);
+        Route::get('/agencia/{agenciaId}/principal', [ContactoAgenciaController::class, 'contactoPrincipal']);
+        Route::get('/cargo/{cargo}', [ContactoAgenciaController::class, 'porCargo']);
+        Route::patch('/{contacto}/activate', [ContactoAgenciaController::class, 'activate']);
+        Route::patch('/{contacto}/deactivate', [ContactoAgenciaController::class, 'deactivate']);
+        Route::post('/verificar-telefono', [ContactoAgenciaController::class, 'verificarTelefono']);
 
+        // Solo Administrador puede eliminar
         Route::middleware(['role:administrador'])->group(function () {
-            Route::post('/', [ContactoAgenciaController::class, 'store']);
-            Route::put('/{contacto}', [ContactoAgenciaController::class, 'update']);
             Route::delete('/{contacto}', [ContactoAgenciaController::class, 'destroy']);
-            Route::patch('/{contacto}/activate', [ContactoAgenciaController::class, 'activate']);
-            Route::patch('/{contacto}/deactivate', [ContactoAgenciaController::class, 'deactivate']);
-            Route::post('/verificar-telefono', [ContactoAgenciaController::class, 'verificarTelefono']);
         });
     });
 
@@ -244,6 +243,79 @@ Route::prefix('magic')->group(function () {
         Route::get('top-vendedores', [DashboardVentasController::class, 'topVendedores']);
         Route::get('rutas-mas-vendidas', [DashboardVentasController::class, 'rutasMasVendidas']);
         Route::get('resumen-general', [DashboardVentasController::class, 'resumenGeneral']);
+    });
+
+    // =====================================================
+    // MÓDULOS ACCESIBLES PARA OPERADOR (SOLO CONSULTA)
+    // =====================================================
+
+    // SERVICIOS - OPERADOR puede consultar, ADMIN puede modificar
+    Route::prefix('servicios')->group(function () {
+        Route::middleware(['role:administrador,operador'])->group(function () {
+            Route::get('/', [ServicioController::class, 'index']);
+            Route::get('/{servicio}', [ServicioController::class, 'show']);
+        });
+
+        Route::middleware(['role:administrador'])->group(function () {
+            Route::post('/', [ServicioController::class, 'store']);
+            Route::put('/{servicio}', [ServicioController::class, 'update']);
+            Route::delete('/{servicio}', [ServicioController::class, 'destroy']);
+            Route::patch('/{servicio}/activate', [ServicioController::class, 'activate']);
+            Route::patch('/{servicio}/deactivate', [ServicioController::class, 'deactivate']);
+        });
+    });
+
+    // RUTAS - OPERADOR puede consultar, ADMIN puede modificar
+    Route::prefix('rutas')->group(function () {
+        Route::middleware(['role:administrador,operador'])->group(function () {
+            Route::get('/', [RutaController::class, 'index']);
+            Route::get('/{ruta}', [RutaController::class, 'show']);
+        });
+
+        Route::middleware(['role:administrador'])->group(function () {
+            Route::post('/', [RutaController::class, 'store']);
+            Route::put('/{ruta}', [RutaController::class, 'update']);
+            Route::delete('/{ruta}', [RutaController::class, 'destroy']);
+            Route::patch('/{ruta}/activate', [RutaController::class, 'activate']);
+            Route::patch('/{ruta}/deactivate', [RutaController::class, 'deactivate']);
+        });
+    });
+
+    // PERSONAL - OPERADOR puede consultar, ADMIN puede modificar
+    Route::prefix('personas')->group(function () {
+        Route::middleware(['role:administrador,operador'])->group(function () {
+            Route::get('/', [PersonaController::class, 'index']);
+            Route::get('/{persona}', [PersonaController::class, 'show']);
+            Route::get('/tipo/{tipoPersonaId}', [PersonaController::class, 'porTipo']);
+        });
+
+        Route::middleware(['role:administrador'])->group(function () {
+            Route::post('/', [PersonaController::class, 'store']);
+            Route::put('/{persona}', [PersonaController::class, 'update']);
+            Route::delete('/{persona}', [PersonaController::class, 'destroy']);
+            Route::patch('/{persona}/activate', [PersonaController::class, 'activate']);
+            Route::patch('/{persona}/deactivate', [PersonaController::class, 'deactivate']);
+            Route::post('/verificar-email', [PersonaController::class, 'verificarEmail']);
+        });
+    });
+
+    // USUARIOS - OPERADOR Y VENDEDOR pueden consultar, ADMIN puede modificar
+    Route::prefix('usuarios')->group(function () {
+        Route::middleware(['role:administrador,operador,vendedor'])->group(function () {
+            Route::get('/', [UsuarioController::class, 'index']);
+            Route::get('/{usuario}', [UsuarioController::class, 'show']);
+            Route::get('/rol/{rolId}', [UsuarioController::class, 'porRol']);
+            Route::get('/persona/{personaId}', [UsuarioController::class, 'porPersona']);
+        });
+
+        Route::middleware(['role:administrador'])->group(function () {
+            Route::post('/', [UsuarioController::class, 'store']);
+            Route::put('/{usuario}', [UsuarioController::class, 'update']);
+            Route::delete('/{usuario}', [UsuarioController::class, 'destroy']);
+            Route::patch('/{usuario}/activate', [UsuarioController::class, 'activate']);
+            Route::patch('/{usuario}/deactivate', [UsuarioController::class, 'deactivate']);
+            Route::post('/verificar-codigo', [UsuarioController::class, 'verificarCodigo']);
+        });
     });
 
     // =====================================================
@@ -291,55 +363,6 @@ Route::prefix('magic')->group(function () {
             Route::get('/contexto/ruta-activada', [EstadoController::class, 'paraRutaActivada']);
             Route::get('/contexto/tour-activado', [EstadoController::class, 'paraTourActivado']);
             Route::get('/contexto/factura', [EstadoController::class, 'paraFactura']);
-        });
-
-        // SERVICIOS
-        Route::prefix('servicios')->group(function () {
-            Route::get('/', [ServicioController::class, 'index']);
-            Route::post('/', [ServicioController::class, 'store']);
-            Route::get('/{servicio}', [ServicioController::class, 'show']);
-            Route::put('/{servicio}', [ServicioController::class, 'update']);
-            Route::delete('/{servicio}', [ServicioController::class, 'destroy']);
-            Route::patch('/{servicio}/activate', [ServicioController::class, 'activate']);
-            Route::patch('/{servicio}/deactivate', [ServicioController::class, 'deactivate']);
-        });
-
-        // RUTAS
-        Route::prefix('rutas')->group(function () {
-            Route::get('/', [RutaController::class, 'index']);
-            Route::post('/', [RutaController::class, 'store']);
-            Route::get('/{ruta}', [RutaController::class, 'show']);
-            Route::put('/{ruta}', [RutaController::class, 'update']);
-            Route::delete('/{ruta}', [RutaController::class, 'destroy']);
-            Route::patch('/{ruta}/activate', [RutaController::class, 'activate']);
-            Route::patch('/{ruta}/deactivate', [RutaController::class, 'deactivate']);
-        });
-
-        // PERSONAL
-        Route::prefix('personas')->group(function () {
-            Route::get('/', [PersonaController::class, 'index']);
-            Route::post('/', [PersonaController::class, 'store']);
-            Route::get('/{persona}', [PersonaController::class, 'show']);
-            Route::put('/{persona}', [PersonaController::class, 'update']);
-            Route::delete('/{persona}', [PersonaController::class, 'destroy']);
-            Route::patch('/{persona}/activate', [PersonaController::class, 'activate']);
-            Route::patch('/{persona}/deactivate', [PersonaController::class, 'deactivate']);
-            Route::post('/verificar-email', [PersonaController::class, 'verificarEmail']);
-            Route::get('/tipo/{tipoPersonaId}', [PersonaController::class, 'porTipo']);
-        });
-
-        // USUARIOS
-        Route::prefix('usuarios')->group(function () {
-            Route::get('/', [UsuarioController::class, 'index']);
-            Route::post('/', [UsuarioController::class, 'store']);
-            Route::get('/{usuario}', [UsuarioController::class, 'show']);
-            Route::put('/{usuario}', [UsuarioController::class, 'update']);
-            Route::delete('/{usuario}', [UsuarioController::class, 'destroy']);
-            Route::patch('/{usuario}/activate', [UsuarioController::class, 'activate']);
-            Route::patch('/{usuario}/deactivate', [UsuarioController::class, 'deactivate']);
-            Route::post('/verificar-codigo', [UsuarioController::class, 'verificarCodigo']);
-            Route::get('/rol/{rolId}', [UsuarioController::class, 'porRol']);
-            Route::get('/persona/{personaId}', [UsuarioController::class, 'porPersona']);
         });
     });
 

@@ -274,7 +274,7 @@ const AuthService = {
         if (this.isSeller()) {
             return [
                 'dashboard',
-                'rutas-activas', 'tours-activados', 'reservaciones',
+                'control-flota', 'rutas-activas', 'tours-activados', 'reservaciones',  // Agregar control-flota
                 'contactos-agencia', 'dashboard-ventas'
             ];
         }
