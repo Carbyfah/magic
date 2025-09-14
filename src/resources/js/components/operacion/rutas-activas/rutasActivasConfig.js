@@ -201,27 +201,39 @@ export const configRutasActivadas = {
 
     // DETECCIÓN DE ESTADOS ESPECÍFICOS
     stateDetection: {
-        activada: (estado) => estado.estado_estado && (
-            estado.estado_estado.toLowerCase().includes('activada') ||
-            estado.estado_estado.toLowerCase().includes('programada') ||
-            estado.estado_estado.toLowerCase().includes('pendiente')
-        ),
-        llena: (estado) => estado.estado_estado && (
-            estado.estado_estado.toLowerCase().includes('llena') ||
-            estado.estado_estado.toLowerCase().includes('completa') ||
-            estado.estado_estado.toLowerCase().includes('ocupada')
-        ),
-        ejecucion: (estado) => estado.estado_estado && (
-            estado.estado_estado.toLowerCase().includes('ejecución') ||
-            estado.estado_estado.toLowerCase().includes('ejecutando') ||
-            estado.estado_estado.toLowerCase().includes('en ruta') ||
-            estado.estado_estado.toLowerCase().includes('viajando')
-        ),
-        cerrada: (estado) => estado.estado_estado && (
-            estado.estado_estado.toLowerCase().includes('cerrada') ||
-            estado.estado_estado.toLowerCase().includes('completada') ||
-            estado.estado_estado.toLowerCase().includes('finalizada')
-        )
+        activada: (estado) => {
+            if (!estado) return false;
+            const estadoTexto = estado.estado_estado || estado.nombre || '';
+            return estadoTexto.toLowerCase().includes('activada') ||
+                estadoTexto.toLowerCase().includes('programada') ||
+                estadoTexto.toLowerCase().includes('pendiente') ||
+                estadoTexto.toLowerCase().includes('activ');
+        },
+        llena: (estado) => {
+            if (!estado) return false;
+            const estadoTexto = estado.estado_estado || estado.nombre || '';
+            return estadoTexto.toLowerCase().includes('llena') ||
+                estadoTexto.toLowerCase().includes('completa') ||
+                estadoTexto.toLowerCase().includes('ocupada') ||
+                estadoTexto.toLowerCase().includes('llen');
+        },
+        ejecucion: (estado) => {
+            if (!estado) return false;
+            const estadoTexto = estado.estado_estado || estado.nombre || '';
+            return estadoTexto.toLowerCase().includes('ejecución') ||
+                estadoTexto.toLowerCase().includes('ejecutando') ||
+                estadoTexto.toLowerCase().includes('en ruta') ||
+                estadoTexto.toLowerCase().includes('viajando') ||
+                estadoTexto.toLowerCase().includes('ejecuc');
+        },
+        cerrada: (estado) => {
+            if (!estado) return false;
+            const estadoTexto = estado.estado_estado || estado.nombre || '';
+            return estadoTexto.toLowerCase().includes('cerrada') ||
+                estadoTexto.toLowerCase().includes('completada') ||
+                estadoTexto.toLowerCase().includes('finalizada') ||
+                estadoTexto.toLowerCase().includes('cerr');
+        }
     },
 
     // OBTENER ESTADO POR TIPO
@@ -326,31 +338,6 @@ export const configRutasActivadas = {
             } catch (error) {
                 console.error('Error verificando capacidad:', error);
                 return { valido: false, mensaje: 'Error verificando capacidad' };
-            }
-        },
-
-        // Validar cierre de ruta (vehículo debe estar disponible)
-        canCloseRoute: async (rutaActivada) => {
-            try {
-                if (!rutaActivada.vehiculo_id) {
-                    return { valido: false, mensaje: 'Ruta no tiene vehículo asignado' };
-                }
-
-                const response = await apiHelper.get(`/vehiculos/${rutaActivada.vehiculo_id}`);
-                const vehiculo = await apiHelper.handleResponse(response);
-
-                // Verificar que el vehículo ya esté disponible (regresó)
-                if (!vehiculo.caracteristicas?.es_disponible) {
-                    return {
-                        valido: false,
-                        mensaje: 'No se puede cerrar la ruta: el vehículo aún no ha regresado (debe estar "Disponible")'
-                    };
-                }
-
-                return { valido: true };
-            } catch (error) {
-                console.error('Error validando cierre de ruta:', error);
-                return { valido: false, mensaje: 'Error de conexión' };
             }
         }
     },

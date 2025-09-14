@@ -43,6 +43,9 @@ function GestionRutasActivas() {
     const [formulario, setFormulario] = useState({});
     const [errores, setErrores] = useState({});
 
+    // NUEVO: Estado para filtro por tipo de estado
+    const [filtroEstadoActivo, setFiltroEstadoActivo] = useState(null);
+
     // NUEVO: Estados para notificaciones inteligentes
     const [notificacionesRutas, setNotificacionesRutas] = useState({});
     const [loadingNotificaciones, setLoadingNotificaciones] = useState(false);
@@ -244,28 +247,27 @@ function GestionRutasActivas() {
         return ruta.estado.nombre || ruta.estado.estado_estado || 'Estado desconocido';
     };
 
-    // NUEVO: Función para cerrar ruta con validación
+    // ACTUALIZADO: Función para cerrar ruta - NUEVA LÓGICA
     const intentarCerrarRuta = async (ruta) => {
         try {
             setLoadingAction(true);
 
-            // Validar si se puede cerrar la ruta
-            const validacion = await currentConfig.businessLogic.canCloseRoute(ruta);
-
-            if (!validacion.valido) {
-                Notifications.warning(validacion.mensaje);
-                setLoadingAction(false);
-                return;
-            }
-
-            // Si la validación es exitosa, cerrar la ruta
+            // Llamar directamente al endpoint que cierra la ruta Y libera el vehículo
             const response = await apiHelper.post(`/rutas-activadas/${ruta.id}/cerrar`);
 
             if (response.ok) {
-                Notifications.success('Ruta cerrada exitosamente');
+                const data = await apiHelper.handleResponse(response);
+
+                // Mostrar mensaje del backend que confirma el cierre y liberación del vehículo
+                Notifications.success(data.message || 'Ruta cerrada exitosamente');
+
+                if (data.vehiculo_liberado) {
+                    Notifications.info('Vehículo liberado automáticamente y puesto en estado "Disponible"');
+                }
+
                 cargarDatos();
             } else {
-                const errorData = await response.json();
+                const errorData = await apiHelper.handleResponse(response);
                 Notifications.error(errorData.message || 'Error al cerrar la ruta');
             }
 
@@ -852,7 +854,14 @@ function GestionRutasActivas() {
     };
 
     // USAR DATOS DEL NUEVO SISTEMA REUTILIZABLE
-    const datosActuales = tableData.data;
+    // const datosActuales = tableData.data;
+    // NUEVO: Aplicar filtro por estado si está activo
+    const datosActuales = filtroEstadoActivo
+        ? tableData.data.filter(ruta => {
+            if (!ruta.estado) return false;
+            return currentConfig.stateDetection[filtroEstadoActivo](ruta.estado);
+        })
+        : tableData.data;
     const totalDatos = currentRawData.length;
 
     // Función para descargar lista conductor
@@ -948,6 +957,137 @@ function GestionRutasActivas() {
                 texto: 'Nueva Ruta Activada',
                 loading: loading
             })
+        ]),
+
+        // NUEVO: Tarjetas de estadísticas por estado (con filtro)
+        e('div', {
+            key: 'targets-estados',
+            style: {
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                gap: '1rem',
+                marginBottom: '2rem'
+            }
+        }, [
+            // Target: Activada
+            e('div', {
+                onClick: () => setFiltroEstadoActivo(filtroEstadoActivo === 'activada' ? null : 'activada'),
+                style: {
+                    backgroundColor: filtroEstadoActivo === 'activada' ? '#dbeafe' : 'white',
+                    padding: '1.5rem',
+                    borderRadius: '12px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                    borderLeft: '4px solid #3b82f6',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    border: filtroEstadoActivo === 'activada' ? '2px solid #3b82f6' : '1px solid #e5e7eb'
+                }
+            }, [
+                e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' } }, [
+                    e('h3', { style: { fontSize: '1rem', fontWeight: '600', color: '#1f2937', margin: '0' } }, 'Activada'),
+                    e('span', {
+                        style: {
+                            fontSize: '2rem',
+                            fontWeight: '700',
+                            color: '#3b82f6'
+                        }
+                    }, (filtroEstadoActivo === 'activada' ? datosActuales : rutasActivadas.filter(r => r.estado && currentConfig.stateDetection.activada(r.estado))).length)
+                ]),
+                e('p', { style: { fontSize: '0.875rem', color: '#6b7280', margin: '0' } }, 'Puede recibir reservas'),
+                filtroEstadoActivo === 'activada' && e('p', {
+                    style: { fontSize: '0.75rem', color: '#3b82f6', margin: '0.25rem 0 0 0', fontWeight: '500' }
+                }, 'Filtro activo - Click para quitar')
+            ]),
+
+            // Target: Llena
+            e('div', {
+                onClick: () => setFiltroEstadoActivo(filtroEstadoActivo === 'llena' ? null : 'llena'),
+                style: {
+                    backgroundColor: filtroEstadoActivo === 'llena' ? '#fef3c7' : 'white',
+                    padding: '1.5rem',
+                    borderRadius: '12px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                    borderLeft: '4px solid #f59e0b',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    border: filtroEstadoActivo === 'llena' ? '2px solid #f59e0b' : '1px solid #e5e7eb'
+                }
+            }, [
+                e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' } }, [
+                    e('h3', { style: { fontSize: '1rem', fontWeight: '600', color: '#1f2937', margin: '0' } }, 'Llena'),
+                    e('span', {
+                        style: {
+                            fontSize: '2rem',
+                            fontWeight: '700',
+                            color: '#f59e0b'
+                        }
+                    }, (filtroEstadoActivo === 'llena' ? datosActuales : rutasActivadas.filter(r => r.estado && currentConfig.stateDetection.llena(r.estado))).length)
+                ]),
+                e('p', { style: { fontSize: '0.875rem', color: '#6b7280', margin: '0' } }, 'Capacidad completa'),
+                filtroEstadoActivo === 'llena' && e('p', {
+                    style: { fontSize: '0.75rem', color: '#f59e0b', margin: '0.25rem 0 0 0', fontWeight: '500' }
+                }, 'Filtro activo - Click para quitar')
+            ]),
+
+            // Target: Ejecución
+            e('div', {
+                onClick: () => setFiltroEstadoActivo(filtroEstadoActivo === 'ejecucion' ? null : 'ejecucion'),
+                style: {
+                    backgroundColor: filtroEstadoActivo === 'ejecucion' ? '#dcfce7' : 'white',
+                    padding: '1.5rem',
+                    borderRadius: '12px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                    borderLeft: '4px solid #10b981',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    border: filtroEstadoActivo === 'ejecucion' ? '2px solid #10b981' : '1px solid #e5e7eb'
+                }
+            }, [
+                e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' } }, [
+                    e('h3', { style: { fontSize: '1rem', fontWeight: '600', color: '#1f2937', margin: '0' } }, 'Ejecución'),
+                    e('span', {
+                        style: {
+                            fontSize: '2rem',
+                            fontWeight: '700',
+                            color: '#10b981'
+                        }
+                    }, (filtroEstadoActivo === 'ejecucion' ? datosActuales : rutasActivadas.filter(r => r.estado && currentConfig.stateDetection.ejecucion(r.estado))).length)
+                ]),
+                e('p', { style: { fontSize: '0.875rem', color: '#6b7280', margin: '0' } }, 'En viaje'),
+                filtroEstadoActivo === 'ejecucion' && e('p', {
+                    style: { fontSize: '0.75rem', color: '#10b981', margin: '0.25rem 0 0 0', fontWeight: '500' }
+                }, 'Filtro activo - Click para quitar')
+            ]),
+
+            // Target: Cerrada
+            e('div', {
+                onClick: () => setFiltroEstadoActivo(filtroEstadoActivo === 'cerrada' ? null : 'cerrada'),
+                style: {
+                    backgroundColor: filtroEstadoActivo === 'cerrada' ? '#f3f4f6' : 'white',
+                    padding: '1.5rem',
+                    borderRadius: '12px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                    borderLeft: '4px solid #6b7280',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    border: filtroEstadoActivo === 'cerrada' ? '2px solid #6b7280' : '1px solid #e5e7eb'
+                }
+            }, [
+                e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' } }, [
+                    e('h3', { style: { fontSize: '1rem', fontWeight: '600', color: '#1f2937', margin: '0' } }, 'Cerrada'),
+                    e('span', {
+                        style: {
+                            fontSize: '2rem',
+                            fontWeight: '700',
+                            color: '#6b7280'
+                        }
+                    }, (filtroEstadoActivo === 'cerrada' ? datosActuales : rutasActivadas.filter(r => r.estado && currentConfig.stateDetection.cerrada(r.estado))).length)
+                ]),
+                e('p', { style: { fontSize: '0.875rem', color: '#6b7280', margin: '0' } }, 'Completada'),
+                filtroEstadoActivo === 'cerrada' && e('p', {
+                    style: { fontSize: '0.75rem', color: '#6b7280', margin: '0.25rem 0 0 0', fontWeight: '500' }
+                }, 'Filtro activo - Click para quitar')
+            ])
         ]),
 
         // USAR EL NUEVO COMPONENTE DE CONTROLES
@@ -1058,7 +1198,8 @@ function GestionRutasActivas() {
                                         item: item,
                                         onVer: () => abrirModalDetalles(item),
                                         onEditar: () => abrirModalFormulario(item),
-                                        onDuplicar: () => abrirModalConfirmacion(item, 'duplicar'),
+                                        // onDuplicar: () => abrirModalConfirmacion(item, 'duplicar'),
+                                        mostrarDuplicar: false,
                                         onActivar: () => abrirModalConfirmacion(
                                             item,
                                             esActivo ? 'desactivar' : 'activar'

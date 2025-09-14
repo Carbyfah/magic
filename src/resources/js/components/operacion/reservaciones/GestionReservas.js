@@ -980,7 +980,6 @@ function GestionReservas() {
                 default:
                     return;
             }
-
             if (response && response.ok) {
                 const mensajes = {
                     confirmar: 'Reserva confirmada exitosamente',

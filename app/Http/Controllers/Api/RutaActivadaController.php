@@ -276,45 +276,22 @@ class RutaActivadaController extends Controller
      */
     public function cerrarRuta(RutaActivada $rutaActivada)
     {
-        // Validar que el vehículo ya esté disponible (regresó)
-        $vehiculo = $rutaActivada->vehiculo()->with('estado')->first();
+        // Usar el nuevo método que cierra la ruta Y libera el vehículo automáticamente
+        $resultado = $rutaActivada->cerrarYLiberarVehiculo();
 
-        if (!$vehiculo) {
+        if (!$resultado['success']) {
             return response()->json([
-                'message' => 'No se puede cerrar: ruta no tiene vehículo asignado'
+                'message' => $resultado['mensaje']
             ], 409);
-        }
-
-        $esVehiculoDisponible = $vehiculo->estado &&
-            (stripos($vehiculo->estado->estado_estado, 'disponible') !== false);
-
-        if (!$esVehiculoDisponible) {
-            return response()->json([
-                'message' => 'No se puede cerrar la ruta: el vehículo aún no ha regresado (debe estar "Disponible")',
-                'detalles' => [
-                    'vehiculo_placa' => $vehiculo->vehiculo_placa,
-                    'estado_actual' => $vehiculo->estado->estado_estado ?? 'Sin estado',
-                    'instruccion' => 'Cambie manualmente el estado del vehículo a "Disponible" antes de cerrar la ruta'
-                ]
-            ], 409);
-        }
-
-        // Cambiar estado de la ruta a "Cerrada"
-        $estadoCerrada = Estado::where('estado_codigo', 'LIKE', 'RUT-%')
-            ->where(function ($query) {
-                $query->where('estado_estado', 'LIKE', '%cerrada%')
-                    ->orWhere('estado_estado', 'LIKE', '%completada%')
-                    ->orWhere('estado_estado', 'LIKE', '%finalizada%');
-            })
-            ->first();
-
-        if ($estadoCerrada) {
-            $rutaActivada->update(['estado_id' => $estadoCerrada->estado_id]);
         }
 
         $rutaActivada->load(['persona', 'estado', 'servicio', 'ruta', 'vehiculo']);
 
-        return new RutaActivadaResource($rutaActivada);
+        return response()->json([
+            'message' => $resultado['mensaje'],
+            'vehiculo_liberado' => $resultado['vehiculo_liberado'],
+            'ruta' => new RutaActivadaResource($rutaActivada)
+        ]);
     }
 
     /**

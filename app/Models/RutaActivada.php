@@ -426,13 +426,6 @@ class RutaActivada extends Model
             return $validacion;
         }
 
-        // Validar que el vehículo esté disponible (haya regresado)
-        if ($this->vehiculo->estaAsignado()) {
-            $validacion['mensaje'] = "No se puede cerrar la ruta. El vehículo {$this->vehiculo->vehiculo_placa} aún está asignado y no ha retornado a la empresa.";
-            $validacion['tipo_notificacion'] = 'warning';
-            return $validacion;
-        }
-
         $validacion['puede_cerrar'] = true;
         $validacion['mensaje'] = "La ruta puede cerrarse. Vehículo ha retornado a la empresa.";
         $validacion['tipo_notificacion'] = 'success';
@@ -609,5 +602,44 @@ class RutaActivada extends Model
                     ->where('estado_estado', 'NOT LIKE', '%eliminada%');
             })
             ->count();
+    }
+
+    /**
+     * CERRAR RUTA Y LIBERAR VEHÍCULO AUTOMÁTICAMENTE
+     */
+    public function cerrarYLiberarVehiculo()
+    {
+        $resultado = [
+            'success' => false,
+            'mensaje' => '',
+            'vehiculo_liberado' => false
+        ];
+
+        // Cambiar estado de la ruta a cerrada
+        $estadoCerrada = \App\Models\Estado::where('estado_estado', 'cerrada')->first();
+
+        if (!$estadoCerrada) {
+            $resultado['mensaje'] = 'Error del sistema: Estado "cerrada" no encontrado.';
+            return $resultado;
+        }
+
+        $this->estado_id = $estadoCerrada->estado_id;
+        $this->save();
+
+        // Liberar vehículo automáticamente
+        if ($this->vehiculo) {
+            $estadoDisponible = \App\Models\Estado::where('estado_estado', 'disponible')->first();
+
+            if ($estadoDisponible) {
+                $this->vehiculo->estado_id = $estadoDisponible->estado_id;
+                $this->vehiculo->save();
+                $resultado['vehiculo_liberado'] = true;
+            }
+        }
+
+        $resultado['success'] = true;
+        $resultado['mensaje'] = "Ruta {$this->ruta_activada_codigo} cerrada exitosamente. Vehículo liberado automáticamente.";
+
+        return $resultado;
     }
 }
