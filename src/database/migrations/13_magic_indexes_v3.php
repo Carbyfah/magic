@@ -6,10 +6,11 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     /**
-     * MIGRACIÓN ÍNDICES MAGIC TRAVEL v3.0 - ESTRUCTURA NUEVA
+     * MIGRACIÓN ÍNDICES MAGIC TRAVEL v3.0 - SIN CAMPOS SITUACIÓN
      * Índices optimizados para la nueva estructura v3
      * Adaptados a nombres de tabla y campos actuales
      * CON SOPORTE COMPLETO PARA TOURS Y RUTAS
+     * ELIMINADOS: todos los campos *_situacion (soft delete hace este trabajo)
      */
     public function up()
     {
@@ -24,93 +25,92 @@ return new class extends Migration
         // =====================================================
         // ÍNDICES DE REPORTES Y DASHBOARD
         // =====================================================
-        DB::statement('CREATE INDEX idx_reservas_ingresos ON reservas(created_at, reservas_situacion, reservas_cobrar_a_pax)');
-        DB::statement('CREATE INDEX idx_reservas_fecha_creacion ON reservas(created_at, reservas_situacion)');
-        DB::statement('CREATE INDEX idx_reservas_fecha_ruta ON reservas(id_ruta_activa, created_at, reservas_situacion)');
-        DB::statement('CREATE INDEX idx_reservas_fecha_tour ON reservas(id_tour_activo, created_at, reservas_situacion)');
-        DB::statement('CREATE INDEX idx_ruta_activa_ocupacion ON ruta_activa(ruta_activa_fecha, estado_id, ruta_activa_situacion)');
-        DB::statement('CREATE INDEX idx_tour_activo_ocupacion ON tour_activo(tour_activo_fecha, estado_id, tour_situacion)');
+        DB::statement('CREATE INDEX idx_reservas_ingresos ON reservas(created_at, deleted_at, reservas_cobrar_a_pax)');
+        DB::statement('CREATE INDEX idx_reservas_fecha_creacion ON reservas(created_at, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_fecha_ruta ON reservas(id_ruta_activa, created_at, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_fecha_tour ON reservas(id_tour_activo, created_at, deleted_at)');
+        DB::statement('CREATE INDEX idx_ruta_activa_ocupacion ON ruta_activa(ruta_activa_fecha, estado_id, deleted_at)');
+        DB::statement('CREATE INDEX idx_tour_activo_ocupacion ON tour_activo(tour_activo_fecha, estado_id, deleted_at)');
 
         // =====================================================
         // ÍNDICES DE PERFORMANCE PARA JOINS
         // =====================================================
-        DB::statement('CREATE INDEX idx_usuarios_empleados ON usuarios(id_empleados, usuarios_situacion)');
-        DB::statement('CREATE INDEX idx_empleados_agencia ON empleados(id_agencias, empleados_situacion)');
-        DB::statement('CREATE INDEX idx_empleados_cargo ON empleados(id_cargo, empleados_situacion)');
-        DB::statement('CREATE INDEX idx_reservas_ruta_join ON reservas(id_ruta_activa, reservas_situacion, estado_id)');
-        DB::statement('CREATE INDEX idx_reservas_tour_join ON reservas(id_tour_activo, reservas_situacion, estado_id)');
-        DB::statement('CREATE INDEX idx_reservas_servicio_join ON reservas(id_servicio, reservas_situacion)');
-        DB::statement('CREATE INDEX idx_ruta_activa_vehiculo ON ruta_activa(id_vehiculo, ruta_activa_situacion)');
-        DB::statement('CREATE INDEX idx_ruta_activa_rutas ON ruta_activa(id_rutas, ruta_activa_situacion)');
-        DB::statement('CREATE INDEX idx_tour_activo_tours ON tour_activo(id_tour, tour_situacion)');
-        DB::statement('CREATE INDEX idx_servicio_ruta_activa ON servicio(id_ruta_activa, servicio_situacion)');
-        DB::statement('CREATE INDEX idx_servicio_tour_activo ON servicio(id_tour_activo, servicio_situacion)');
+        DB::statement('CREATE INDEX idx_usuarios_empleados ON usuarios(id_empleados, deleted_at)');
+        DB::statement('CREATE INDEX idx_empleados_agencia ON empleados(id_agencias, deleted_at)');
+        DB::statement('CREATE INDEX idx_empleados_cargo ON empleados(id_cargo, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_ruta_join ON reservas(id_ruta_activa, deleted_at, estado_id)');
+        DB::statement('CREATE INDEX idx_reservas_tour_join ON reservas(id_tour_activo, deleted_at, estado_id)');
+        DB::statement('CREATE INDEX idx_reservas_servicio_join ON reservas(id_servicio, deleted_at)');
+        DB::statement('CREATE INDEX idx_ruta_activa_vehiculo ON ruta_activa(id_vehiculo, deleted_at)');
+        DB::statement('CREATE INDEX idx_ruta_activa_rutas ON ruta_activa(id_rutas, deleted_at)');
+        DB::statement('CREATE INDEX idx_tour_activo_tours ON tour_activo(id_tour, deleted_at)');
+        DB::statement('CREATE INDEX idx_servicio_ruta_activa ON servicio(id_ruta_activa, deleted_at)');
+        DB::statement('CREATE INDEX idx_servicio_tour_activo ON servicio(id_tour_activo, deleted_at)');
 
         // =====================================================
         // ÍNDICES DE BÚSQUEDA Y FILTRADO
         // =====================================================
-        DB::statement('CREATE INDEX idx_reservas_cliente ON reservas(reservas_nombres_cliente, reservas_apellidos_cliente, reservas_situacion)');
+        DB::statement('CREATE INDEX idx_reservas_cliente ON reservas(reservas_nombres_cliente, reservas_apellidos_cliente, deleted_at)');
         DB::statement('CREATE INDEX idx_reservas_telefono ON reservas(reservas_telefono_cliente)');
-        DB::statement('CREATE INDEX idx_empleados_nombres ON empleados(empleados_nombres, empleados_apellidos, empleados_situacion)');
+        DB::statement('CREATE INDEX idx_empleados_nombres ON empleados(empleados_nombres, empleados_apellidos, deleted_at)');
         DB::statement('CREATE INDEX idx_empleados_dpi ON empleados(empleados_dpi)');
-        DB::statement('CREATE INDEX idx_vehiculo_placa ON vehiculo(vehiculo_placa, vehiculo_situacion)');
-        DB::statement('CREATE INDEX idx_vehiculo_marca ON vehiculo(vehiculo_marca, vehiculo_situacion)');
-        DB::statement('CREATE INDEX idx_vehiculo_capacidad ON vehiculo(vehiculo_capacidad, vehiculo_situacion)');
-        DB::statement('CREATE INDEX idx_rutas_origen_destino ON rutas(rutas_origen, rutas_destino, rutas_situacion)');
-        DB::statement('CREATE INDEX idx_tours_nombre ON tours(tours_nombre, tours_situacion)');
+        DB::statement('CREATE INDEX idx_vehiculo_placa ON vehiculo(vehiculo_placa, deleted_at)');
+        DB::statement('CREATE INDEX idx_vehiculo_marca ON vehiculo(vehiculo_marca, deleted_at)');
+        DB::statement('CREATE INDEX idx_vehiculo_capacidad ON vehiculo(vehiculo_capacidad, deleted_at)');
+        DB::statement('CREATE INDEX idx_rutas_origen_destino ON rutas(rutas_origen, rutas_destino, deleted_at)');
+        DB::statement('CREATE INDEX idx_tours_nombre ON tours(tours_nombre, deleted_at)');
 
         // =====================================================
         // ÍNDICES PARA ESTADOS Y RELACIONES FK
         // =====================================================
-        DB::statement('CREATE INDEX idx_estado_nombre ON estado(estado_nombre, estado_situacion)');
-        DB::statement('CREATE INDEX idx_cargo_nombre ON cargo(cargo_nombre, cargo_situacion)');
-        DB::statement('CREATE INDEX idx_agencias_nombre ON agencias(agencias_nombre, agencias_situacion)');
-        DB::statement('CREATE INDEX idx_vehiculo_estado ON vehiculo(estado_id, vehiculo_situacion)');
-        DB::statement('CREATE INDEX idx_vehiculo_agencia ON vehiculo(id_agencias, vehiculo_situacion)');
-        DB::statement('CREATE INDEX idx_rutas_agencia ON rutas(id_agencias, rutas_situacion)');
-        DB::statement('CREATE INDEX idx_tours_agencia ON tours(id_agencias, tours_situacion)');
+        DB::statement('CREATE INDEX idx_estado_nombre ON estado(estado_nombre, deleted_at)');
+        DB::statement('CREATE INDEX idx_cargo_nombre ON cargo(cargo_nombre, deleted_at)');
+        DB::statement('CREATE INDEX idx_agencias_nombre ON agencias(agencias_nombre, deleted_at)');
+        DB::statement('CREATE INDEX idx_vehiculo_estado ON vehiculo(estado_id, deleted_at)');
+        DB::statement('CREATE INDEX idx_vehiculo_agencia ON vehiculo(id_agencias, deleted_at)');
+        DB::statement('CREATE INDEX idx_rutas_agencia ON rutas(id_agencias, deleted_at)');
+        DB::statement('CREATE INDEX idx_tours_agencia ON tours(id_agencias, deleted_at)');
 
         // =====================================================
         // ÍNDICES ESPECÍFICOS PARA RUTA ACTIVA
         // =====================================================
-        DB::statement('CREATE INDEX idx_ruta_activa_fecha ON ruta_activa(ruta_activa_fecha, ruta_activa_situacion)');
-        DB::statement('CREATE INDEX idx_ruta_activa_estado ON ruta_activa(estado_id, ruta_activa_situacion)');
-        DB::statement('CREATE INDEX idx_ruta_activa_completo ON ruta_activa(ruta_activa_situacion, estado_id, ruta_activa_fecha, id_vehiculo)');
+        DB::statement('CREATE INDEX idx_ruta_activa_fecha ON ruta_activa(ruta_activa_fecha, deleted_at)');
+        DB::statement('CREATE INDEX idx_ruta_activa_estado ON ruta_activa(estado_id, deleted_at)');
+        DB::statement('CREATE INDEX idx_ruta_activa_completo ON ruta_activa(deleted_at, estado_id, ruta_activa_fecha, id_vehiculo)');
 
         // =====================================================
         // ÍNDICES ESPECÍFICOS PARA TOUR ACTIVO
         // =====================================================
-        DB::statement('CREATE INDEX idx_tour_activo_fecha ON tour_activo(tour_activo_fecha, tour_situacion)');
-        DB::statement('CREATE INDEX idx_tour_activo_tipo ON tour_activo(tour_activo_tipo, tour_situacion)');
-        DB::statement('CREATE INDEX idx_tour_activo_estado ON tour_activo(estado_id, tour_situacion)');
-        DB::statement('CREATE INDEX idx_tour_activo_completo ON tour_activo(tour_situacion, estado_id, tour_activo_fecha)');
+        DB::statement('CREATE INDEX idx_tour_activo_fecha ON tour_activo(tour_activo_fecha, deleted_at)');
+        DB::statement('CREATE INDEX idx_tour_activo_tipo ON tour_activo(tour_activo_tipo, deleted_at)');
+        DB::statement('CREATE INDEX idx_tour_activo_estado ON tour_activo(estado_id, deleted_at)');
+        DB::statement('CREATE INDEX idx_tour_activo_completo ON tour_activo(deleted_at, estado_id, tour_activo_fecha)');
 
         // =====================================================
         // ÍNDICES PARA SERVICIO Y PRECIOS
         // =====================================================
-        DB::statement('CREATE INDEX idx_servicio_tipo ON servicio(tipo_servicio, servicio_situacion)');
-        DB::statement('CREATE INDEX idx_servicio_precio ON servicio(precio_servicio, servicio_situacion)');
+        DB::statement('CREATE INDEX idx_servicio_tipo ON servicio(tipo_servicio, deleted_at)');
+        DB::statement('CREATE INDEX idx_servicio_precio ON servicio(precio_servicio, deleted_at)');
         DB::statement('CREATE INDEX idx_servicio_descuento ON servicio(servicio_descuento_porcentaje, servicio_precio_descuento)');
 
         // =====================================================
         // ÍNDICES PARA RESERVAS Y CAPACIDAD
         // =====================================================
-        DB::statement('CREATE INDEX idx_reservas_pasajeros ON reservas(reservas_cantidad_adultos, reservas_cantidad_ninos, reservas_situacion)');
-        DB::statement('CREATE INDEX idx_reservas_monto ON reservas(reservas_cobrar_a_pax, reservas_situacion)');
-        DB::statement('CREATE INDEX idx_reservas_transferido ON reservas(reservas_transferido_por, reservas_situacion)');
+        DB::statement('CREATE INDEX idx_reservas_pasajeros ON reservas(reservas_cantidad_adultos, reservas_cantidad_ninos, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_monto ON reservas(reservas_cobrar_a_pax, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_transferido ON reservas(reservas_transferido_por, deleted_at)');
         DB::statement('CREATE INDEX idx_reservas_nit ON reservas(reservas_cliente_nit)');
-        DB::statement('CREATE INDEX idx_reservas_agencia_transferida ON reservas(id_agencia_transferida, reservas_situacion)');
-
+        DB::statement('CREATE INDEX idx_reservas_agencia_transferida ON reservas(id_agencia_transferida, deleted_at)');
 
         // =====================================================
         // ÍNDICES COMPUESTOS PARA REPORTES AVANZADOS
         // =====================================================
-        DB::statement('CREATE INDEX idx_reservas_agencia_fecha ON reservas(created_at, reservas_situacion, reservas_cobrar_a_pax)');
-        DB::statement('CREATE INDEX idx_reservas_tipo_servicio ON reservas(id_ruta_activa, id_tour_activo, reservas_situacion)');
-        DB::statement('CREATE INDEX idx_ruta_vehiculo_fecha ON ruta_activa(id_vehiculo, ruta_activa_fecha, ruta_activa_situacion)');
-        DB::statement('CREATE INDEX idx_tour_fecha_tipo ON tour_activo(tour_activo_fecha, tour_activo_tipo, tour_situacion)');
-        DB::statement('CREATE INDEX idx_reservas_transferencias ON reservas(id_agencia_transferida, created_at, reservas_situacion)');
-        DB::statement('CREATE INDEX idx_reservas_transferidas_monto ON reservas(id_agencia_transferida, reservas_cobrar_a_pax, reservas_situacion)');
+        DB::statement('CREATE INDEX idx_reservas_agencia_fecha ON reservas(created_at, deleted_at, reservas_cobrar_a_pax)');
+        DB::statement('CREATE INDEX idx_reservas_tipo_servicio ON reservas(id_ruta_activa, id_tour_activo, deleted_at)');
+        DB::statement('CREATE INDEX idx_ruta_vehiculo_fecha ON ruta_activa(id_vehiculo, ruta_activa_fecha, deleted_at)');
+        DB::statement('CREATE INDEX idx_tour_fecha_tipo ON tour_activo(tour_activo_fecha, tour_activo_tipo, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_transferencias ON reservas(id_agencia_transferida, created_at, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_transferidas_monto ON reservas(id_agencia_transferida, reservas_cobrar_a_pax, deleted_at)');
 
         // =====================================================
         // ÍNDICES DE TIMESTAMPS Y AUDITORÍA
@@ -149,7 +149,7 @@ return new class extends Migration
         // =====================================================
         // ÍNDICES PARA DATOS RESERVAS CLIENTES
         // =====================================================
-        DB::statement('CREATE INDEX idx_datos_clientes_reserva ON datos_reservas_clientes(id_reservas, datos_reservas_clientes_situacion)');
+        DB::statement('CREATE INDEX idx_datos_clientes_reserva ON datos_reservas_clientes(id_reservas, deleted_at)');
         DB::statement('CREATE INDEX idx_datos_clientes_nombres ON datos_reservas_clientes(datos_reservas_clientes_nombres, datos_reservas_clientes_apellidos)');
 
         // =====================================================
@@ -172,10 +172,10 @@ return new class extends Migration
         // =====================================================
         // ÍNDICES PARA OPTIMIZAR VISTAS DE LA MIGRACIÓN 12
         // =====================================================
-        DB::statement('CREATE INDEX idx_reservas_activas ON reservas(reservas_situacion, created_at)');
-        DB::statement('CREATE INDEX idx_vehiculo_ruta_capacidad ON vehiculo(id_vehiculo, vehiculo_capacidad, vehiculo_situacion)');
-        DB::statement('CREATE INDEX idx_servicio_precios_descuento ON servicio(precio_servicio, servicio_precio_descuento, servicio_situacion)');
-        DB::statement('CREATE INDEX idx_reservas_monto_fecha ON reservas(reservas_cobrar_a_pax, created_at, reservas_situacion)');
+        DB::statement('CREATE INDEX idx_reservas_activas ON reservas(deleted_at, created_at)');
+        DB::statement('CREATE INDEX idx_vehiculo_ruta_capacidad ON vehiculo(id_vehiculo, vehiculo_capacidad, deleted_at)');
+        DB::statement('CREATE INDEX idx_servicio_precios_descuento ON servicio(precio_servicio, servicio_precio_descuento, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_monto_fecha ON reservas(reservas_cobrar_a_pax, created_at, deleted_at)');
     }
 
     /**

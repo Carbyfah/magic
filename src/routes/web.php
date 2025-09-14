@@ -2,12 +2,24 @@
 
 use Illuminate\Support\Facades\Route;
 
-// Ruta principal que sirve la SPA React
+/*
+|--------------------------------------------------------------------------
+| Web Routes
+|--------------------------------------------------------------------------
+*/
+
+// Ruta raíz simple
 Route::get('/', function () {
-    return view('app');
+    return response()->json([
+        'app' => 'Magic Travel API',
+        'version' => '1.0',
+        'status' => 'active'
+    ]);
 });
 
-// Todas las rutas del SPA (catch-all para React Router)
-Route::get('/{any}', function () {
-    return view('app');
-})->where('any', '.*');
+// Ruta login requerida por Laravel (para redirecciones de auth)
+Route::get('/login', function () {
+    return response()->json([
+        'error' => 'Use /api/auth/login for authentication'
+    ], 401);
+})->name('login');

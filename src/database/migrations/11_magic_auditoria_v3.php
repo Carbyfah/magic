@@ -7,9 +7,10 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * MIGRACIÓN AUDITORÍA MAGIC TRAVEL v3.0 - ESTRUCTURA COMPLETA
+     * MIGRACIÓN AUDITORÍA MAGIC TRAVEL v3.0 - SIN CAMPOS SITUACIÓN
      * Tablas de auditoría paralelas para todas las tablas del sistema
      * Orden: Nivel 1 → Nivel 2 → Nivel 3 → Nivel 4
+     * ELIMINADOS: todos los campos *_situacion (soft delete hace este trabajo)
      */
     public function up()
     {
@@ -22,7 +23,6 @@ return new class extends Migration
             $table->id('auditoria_id');
             $table->unsignedBigInteger('id_agencias');
             $table->string('agencias_nombre', 45);
-            $table->boolean('agencias_situacion');
             $table->timestamp('original_created_at')->nullable();
             $table->timestamp('original_updated_at')->nullable();
             $table->unsignedBigInteger('original_created_by')->nullable();
@@ -42,7 +42,6 @@ return new class extends Migration
             $table->unsignedBigInteger('estado_id');
             $table->string('estado_nombre', 45);
             $table->string('estado_descripcion', 45)->nullable();
-            $table->boolean('estado_situacion');
             $table->timestamp('original_created_at')->nullable();
             $table->timestamp('original_updated_at')->nullable();
             $table->unsignedBigInteger('original_created_by')->nullable();
@@ -61,7 +60,6 @@ return new class extends Migration
             $table->id('auditoria_id');
             $table->unsignedBigInteger('id_cargo');
             $table->string('cargo_nombre', 45)->nullable();
-            $table->boolean('cargo_situacion');
             $table->timestamp('original_created_at')->nullable();
             $table->timestamp('original_updated_at')->nullable();
             $table->unsignedBigInteger('original_created_by')->nullable();
@@ -85,7 +83,6 @@ return new class extends Migration
             $table->unsignedBigInteger('id_rutas');
             $table->string('rutas_origen', 45);
             $table->string('rutas_destino', 45);
-            $table->boolean('rutas_situacion');
             $table->unsignedBigInteger('id_agencias');
             $table->timestamp('original_created_at')->nullable();
             $table->timestamp('original_updated_at')->nullable();
@@ -105,7 +102,6 @@ return new class extends Migration
             $table->id('auditoria_id');
             $table->unsignedBigInteger('id_tour');
             $table->string('tours_nombre', 45);
-            $table->boolean('tours_situacion');
             $table->unsignedBigInteger('id_agencias');
             $table->timestamp('original_created_at')->nullable();
             $table->timestamp('original_updated_at')->nullable();
@@ -127,7 +123,6 @@ return new class extends Migration
             $table->string('vehiculo_marca', 45)->nullable();
             $table->string('vehiculo_placa', 45)->nullable();
             $table->integer('vehiculo_capacidad')->nullable();
-            $table->boolean('vehiculo_situacion');
             $table->unsignedBigInteger('estado_id');
             $table->unsignedBigInteger('id_agencias');
             $table->timestamp('original_created_at')->nullable();
@@ -150,7 +145,6 @@ return new class extends Migration
             $table->string('empleados_nombres', 45);
             $table->string('empleados_apellidos', 45);
             $table->string('empleados_dpi', 45)->nullable();
-            $table->boolean('empleados_situacion');
             $table->unsignedBigInteger('id_agencias');
             $table->unsignedBigInteger('id_cargo');
             $table->timestamp('original_created_at')->nullable();
@@ -175,8 +169,8 @@ return new class extends Migration
             $table->id('auditoria_id');
             $table->unsignedBigInteger('id_usuarios');
             $table->string('usuarios_nombre', 45)->nullable();
+            $table->string('usuarios_correo', 100)->nullable();
             $table->string('usuario_password', 500);
-            $table->boolean('usuarios_situacion');
             $table->unsignedBigInteger('id_empleados');
             $table->timestamp('original_created_at')->nullable();
             $table->timestamp('original_updated_at')->nullable();
@@ -196,9 +190,9 @@ return new class extends Migration
             $table->id('auditoria_id');
             $table->unsignedBigInteger('id_ruta_activa');
             $table->dateTime('ruta_activa_fecha');
-            $table->boolean('ruta_activa_situacion');
             $table->unsignedBigInteger('estado_id');
             $table->unsignedBigInteger('id_rutas');
+            $table->unsignedBigInteger('id_vehiculo');
             $table->timestamp('original_created_at')->nullable();
             $table->timestamp('original_updated_at')->nullable();
             $table->unsignedBigInteger('original_created_by')->nullable();
@@ -218,7 +212,6 @@ return new class extends Migration
             $table->unsignedBigInteger('id_tour_activo');
             $table->dateTime('tour_activo_fecha');
             $table->string('tour_activo_tipo', 45);
-            $table->boolean('tour_situacion');
             $table->unsignedBigInteger('estado_id');
             $table->unsignedBigInteger('id_tour');
             $table->timestamp('original_created_at')->nullable();
@@ -244,9 +237,8 @@ return new class extends Migration
             $table->unsignedBigInteger('id_servicio');
             $table->enum('tipo_servicio', ['COLECTIVO', 'PRIVADO']);
             $table->decimal('precio_servicio', 10, 2);
-            $table->decimal('servicio_precio_descuento', 10, 2)->nullable(); // Precio con descuento ya calculado
-            $table->integer('servicio_descuento_porcentaje')->nullable(); // % que se aplicó
-            $table->boolean('servicio_situacion');
+            $table->integer('servicio_descuento_porcentaje')->nullable();
+            $table->decimal('servicio_precio_descuento', 10, 2)->nullable();
             $table->unsignedBigInteger('id_tour_activo')->nullable();
             $table->unsignedBigInteger('id_ruta_activa')->nullable();
             $table->timestamp('original_created_at')->nullable();
@@ -267,7 +259,7 @@ return new class extends Migration
             $table->id('auditoria_id');
             $table->unsignedBigInteger('id_reservas');
             $table->integer('reservas_cantidad_adultos');
-            $table->integer('reservas_cantidad_ninos')->nullable(); // CORREGIDO: integer en lugar de string
+            $table->integer('reservas_cantidad_ninos')->nullable();
             $table->string('reservas_nombres_cliente', 45);
             $table->string('reservas_apellidos_cliente', 45);
             $table->string('reservas_direccion_abordaje', 45);
@@ -278,7 +270,6 @@ return new class extends Migration
             $table->string('reservas_notas', 45)->nullable();
             $table->decimal('reservas_cobrar_a_pax', 10, 2);
             $table->unsignedBigInteger('id_agencia_transferida')->nullable();
-            $table->boolean('reservas_situacion');
             $table->unsignedBigInteger('id_servicio');
             $table->unsignedBigInteger('estado_id');
             $table->unsignedBigInteger('id_ruta_activa')->nullable();
@@ -302,8 +293,7 @@ return new class extends Migration
             $table->unsignedBigInteger('id_datos_reservas_clientes');
             $table->string('datos_reservas_clientes_nombres', 45)->nullable();
             $table->string('datos_reservas_clientes_apellidos', 45)->nullable();
-            $table->boolean('datos_reservas_clientes_situacion');
-            $table->unsignedBigInteger('id_reservas'); // CORREGIDO: no nullable
+            $table->unsignedBigInteger('id_reservas');
             $table->timestamp('original_created_at')->nullable();
             $table->timestamp('original_updated_at')->nullable();
             $table->unsignedBigInteger('original_created_by')->nullable();

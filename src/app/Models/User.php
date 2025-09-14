@@ -2,47 +2,58 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, SoftDeletes, HasApiTokens;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
+    protected $table = 'usuarios';
+    protected $primaryKey = 'id_usuarios';
+
     protected $fillable = [
-        'name',
-        'email',
-        'password',
+        'usuarios_nombre',
+        'usuarios_correo',
+        'usuario_password',
+        'id_empleados',
+        'created_by'
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
-        'password',
+        'usuario_password',
         'remember_token',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
-    protected function casts(): array
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+        'usuario_password' => 'hashed',
+    ];
+
+    public function getAuthPassword()
     {
-        return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-        ];
+        return $this->usuario_password;
+    }
+
+    public function getEmailAttribute()
+    {
+        return $this->usuarios_correo;
+    }
+
+    // Relación con empleado
+    public function empleado()
+    {
+        return $this->belongsTo(Empleado::class, 'id_empleados', 'id_empleados');
+    }
+
+    // Nombre completo del usuario
+    public function getNameAttribute()
+    {
+        return $this->empleado ?
+            $this->empleado->nombre_completo
+            : $this->usuarios_nombre;
     }
 }

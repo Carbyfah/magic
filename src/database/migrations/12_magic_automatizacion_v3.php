@@ -166,7 +166,7 @@ return new class extends Migration
                         INTO ocupacion_actual
                         FROM reservas r
                         WHERE r.id_ruta_activa = NEW.id_ruta_activa
-                        AND r.reservas_situacion = 1;
+                        AND r.deleted_at IS NULL;
 
                         -- Calcular nueva ocupación
                         SET nueva_ocupacion = ocupacion_actual + (NEW.reservas_cantidad_adultos + IFNULL(NEW.reservas_cantidad_ninos, 0));
@@ -207,7 +207,7 @@ return new class extends Migration
                     INTO capacidad_vehiculo, ocupacion_actual
                     FROM ruta_activa ra
                     JOIN vehiculo v ON ra.id_vehiculo = v.id_vehiculo
-                    LEFT JOIN reservas r ON r.id_ruta_activa = ra.id_ruta_activa AND r.reservas_situacion = 1
+                    LEFT JOIN reservas r ON r.id_ruta_activa = ra.id_ruta_activa AND r.deleted_at IS NULL
                     WHERE ra.id_ruta_activa = NEW.id_ruta_activa
                     GROUP BY v.vehiculo_capacidad;
 
@@ -292,7 +292,7 @@ return new class extends Migration
                 INTO v_capacidad, v_ocupado
                 FROM ruta_activa ra
                 JOIN vehiculo v ON ra.id_vehiculo = v.id_vehiculo
-                LEFT JOIN reservas r ON r.id_ruta_activa = ra.id_ruta_activa AND r.reservas_situacion = 1
+                LEFT JOIN reservas r ON r.id_ruta_activa = ra.id_ruta_activa AND r.deleted_at IS NULL
                 WHERE ra.id_ruta_activa = p_ruta_activa_id
                 GROUP BY v.vehiculo_capacidad;
 
@@ -330,7 +330,7 @@ return new class extends Migration
                 INTO v_total_reservas, v_total_pasajeros
                 FROM reservas r
                 WHERE r.id_tour_activo = p_tour_activo_id
-                AND r.reservas_situacion = 1;
+                AND r.deleted_at IS NULL;
 
                 -- Crear resultado como JSON string
                 SET v_resultado = CONCAT('{',
@@ -360,7 +360,7 @@ return new class extends Migration
                 INTO v_tour_activo_id
                 FROM tour_activo ta
                 WHERE DATE(ta.tour_activo_fecha) = p_fecha
-                  AND ta.tour_situacion = 1
+                  AND ta.deleted_at IS NULL
                 ORDER BY ta.tour_activo_fecha ASC
                 LIMIT 1;
 
@@ -401,8 +401,8 @@ return new class extends Migration
             JOIN vehiculo v ON ra.id_vehiculo = v.id_vehiculo
             JOIN estado e ON ra.estado_id = e.estado_id
             LEFT JOIN servicio s ON ra.id_ruta_activa = s.id_ruta_activa
-            LEFT JOIN reservas res ON s.id_servicio = res.id_servicio AND res.reservas_situacion = 1
-            WHERE ra.ruta_activa_situacion = 1
+            LEFT JOIN reservas res ON s.id_servicio = res.id_servicio AND res.deleted_at IS NULL
+            WHERE ra.deleted_at IS NULL
             GROUP BY ra.id_ruta_activa, ra.ruta_activa_fecha, r.rutas_origen, r.rutas_destino,
                      v.vehiculo_placa, v.vehiculo_capacidad, e.estado_nombre
             ORDER BY ra.ruta_activa_fecha
@@ -422,8 +422,8 @@ return new class extends Migration
                 'SIEMPRE_DISPONIBLE' as status_disponibilidad
             FROM tour_activo ta
             LEFT JOIN servicio s ON ta.id_tour_activo = s.id_tour_activo
-            LEFT JOIN reservas res ON s.id_servicio = res.id_servicio AND res.reservas_situacion = 1
-            WHERE ta.tour_situacion = 1
+            LEFT JOIN reservas res ON s.id_servicio = res.id_servicio AND res.deleted_at IS NULL
+            WHERE ta.deleted_at IS NULL
             GROUP BY ta.id_tour_activo, ta.tour_activo_fecha, ta.tour_activo_tipo
             ORDER BY ta.tour_activo_fecha
         ");
@@ -484,7 +484,7 @@ return new class extends Migration
             LEFT JOIN rutas r ON ra.id_rutas = r.id_rutas
             LEFT JOIN vehiculo v ON ra.id_vehiculo = v.id_vehiculo
 
-            WHERE res.reservas_situacion = 1
+            WHERE res.deleted_at IS NULL
             ORDER BY res.created_at DESC
         ");
 
@@ -501,7 +501,7 @@ return new class extends Migration
                 COUNT(CASE WHEN res.id_tour_activo IS NOT NULL THEN 1 END) as reservas_tours
             FROM reservas res
             JOIN estado er ON res.estado_id = er.estado_id
-            WHERE res.reservas_situacion = 1
+            WHERE res.deleted_at IS NULL
               AND DATE(res.created_at) >= CURDATE() - INTERVAL 30 DAY
             GROUP BY DATE(res.created_at)
             ORDER BY fecha DESC
@@ -527,8 +527,8 @@ return new class extends Migration
             JOIN vehiculo v ON ra.id_vehiculo = v.id_vehiculo
             JOIN estado e ON ra.estado_id = e.estado_id
             LEFT JOIN servicio s ON ra.id_ruta_activa = s.id_ruta_activa
-            LEFT JOIN reservas res ON s.id_servicio = res.id_servicio AND res.reservas_situacion = 1
-            WHERE ra.ruta_activa_situacion = 1
+            LEFT JOIN reservas res ON s.id_servicio = res.id_servicio AND res.deleted_at IS NULL
+            WHERE ra.deleted_at IS NULL
             GROUP BY ra.id_ruta_activa, ra.ruta_activa_fecha, r.rutas_origen, r.rutas_destino,
                      v.vehiculo_placa, v.vehiculo_capacidad, e.estado_nombre
 
@@ -548,8 +548,8 @@ return new class extends Migration
                 'Activo' as estado
             FROM tour_activo ta
             LEFT JOIN servicio s ON ta.id_tour_activo = s.id_tour_activo
-            LEFT JOIN reservas res ON s.id_servicio = res.id_servicio AND res.reservas_situacion = 1
-            WHERE ta.tour_situacion = 1
+            LEFT JOIN reservas res ON s.id_servicio = res.id_servicio AND res.deleted_at IS NULL
+            WHERE ta.deleted_at IS NULL
             GROUP BY ta.id_tour_activo, ta.tour_activo_fecha, ta.tour_activo_tipo
 
             ORDER BY fecha, hora
@@ -578,7 +578,7 @@ return new class extends Migration
     JOIN ruta_activa ra ON r.id_rutas = ra.id_rutas
     JOIN servicio s ON ra.id_ruta_activa = s.id_ruta_activa
     JOIN reservas res ON s.id_servicio = res.id_servicio
-    WHERE res.reservas_situacion = 1
+    WHERE res.deleted_at IS NULL
       AND res.id_agencia_transferida IS NULL
       AND DATE(res.created_at) = CURDATE()
     GROUP BY a.id_agencias, a.agencias_nombre
@@ -605,7 +605,7 @@ return new class extends Migration
     JOIN tour_activo ta ON t.id_tour = ta.id_tour
     JOIN servicio s ON ta.id_tour_activo = s.id_tour_activo
     JOIN reservas res ON s.id_servicio = res.id_servicio
-    WHERE res.reservas_situacion = 1
+    WHERE res.deleted_at IS NULL
       AND res.id_agencia_transferida IS NULL
       AND DATE(res.created_at) = CURDATE()
     GROUP BY a.id_agencias, a.agencias_nombre
@@ -635,7 +635,7 @@ return new class extends Migration
     JOIN ruta_activa ra ON r.id_rutas = ra.id_rutas
     JOIN servicio s ON ra.id_ruta_activa = s.id_ruta_activa
     JOIN reservas res ON s.id_servicio = res.id_servicio
-    WHERE res.reservas_situacion = 1
+    WHERE res.deleted_at IS NULL
       AND res.id_agencia_transferida IS NOT NULL
       AND DATE(res.created_at) = CURDATE()
     GROUP BY a.id_agencias, a.agencias_nombre
@@ -667,7 +667,7 @@ return new class extends Migration
     FROM agencias a
     JOIN reservas res ON a.id_agencias = res.id_agencia_transferida
     JOIN servicio s ON res.id_servicio = s.id_servicio
-    WHERE res.reservas_situacion = 1
+    WHERE res.deleted_at IS NULL
       AND res.id_agencia_transferida IS NOT NULL
       AND DATE(res.created_at) = CURDATE()
     GROUP BY a.id_agencias, a.agencias_nombre
@@ -698,7 +698,7 @@ return new class extends Migration
     JOIN ruta_activa ra ON r.id_rutas = ra.id_rutas
     JOIN servicio s ON ra.id_ruta_activa = s.id_ruta_activa
     JOIN reservas res ON s.id_servicio = res.id_servicio
-    WHERE res.reservas_situacion = 1
+    WHERE res.deleted_at IS NULL
       AND res.id_agencia_transferida IS NULL
       AND WEEK(res.created_at) = WEEK(CURDATE())
       AND YEAR(res.created_at) = YEAR(CURDATE())
@@ -726,7 +726,7 @@ return new class extends Migration
     JOIN tour_activo ta ON t.id_tour = ta.id_tour
     JOIN servicio s ON ta.id_tour_activo = s.id_tour_activo
     JOIN reservas res ON s.id_servicio = res.id_servicio
-    WHERE res.reservas_situacion = 1
+    WHERE res.deleted_at IS NULL
       AND res.id_agencia_transferida IS NULL
       AND WEEK(res.created_at) = WEEK(CURDATE())
       AND YEAR(res.created_at) = YEAR(CURDATE())
@@ -755,7 +755,7 @@ return new class extends Migration
     JOIN ruta_activa ra ON r.id_rutas = ra.id_rutas
     JOIN servicio s ON ra.id_ruta_activa = s.id_ruta_activa
     JOIN reservas res ON s.id_servicio = res.id_servicio
-    WHERE res.reservas_situacion = 1
+    WHERE res.deleted_at IS NULL
       AND res.id_agencia_transferida IS NOT NULL
       AND WEEK(res.created_at) = WEEK(CURDATE())
       AND YEAR(res.created_at) = YEAR(CURDATE())
@@ -786,7 +786,7 @@ return new class extends Migration
     FROM agencias a
     JOIN reservas res ON a.id_agencias = res.id_agencia_transferida
     JOIN servicio s ON res.id_servicio = s.id_servicio
-    WHERE res.reservas_situacion = 1
+    WHERE res.deleted_at IS NULL
       AND res.id_agencia_transferida IS NOT NULL
       AND WEEK(res.created_at) = WEEK(CURDATE())
       AND YEAR(res.created_at) = YEAR(CURDATE())
@@ -818,7 +818,7 @@ return new class extends Migration
     JOIN ruta_activa ra ON r.id_rutas = ra.id_rutas
     JOIN servicio s ON ra.id_ruta_activa = s.id_ruta_activa
     JOIN reservas res ON s.id_servicio = res.id_servicio
-    WHERE res.reservas_situacion = 1
+    WHERE res.deleted_at IS NULL
       AND res.id_agencia_transferida IS NULL
       AND MONTH(res.created_at) = MONTH(CURDATE())
       AND YEAR(res.created_at) = YEAR(CURDATE())
@@ -846,7 +846,7 @@ return new class extends Migration
     JOIN tour_activo ta ON t.id_tour = ta.id_tour
     JOIN servicio s ON ta.id_tour_activo = s.id_tour_activo
     JOIN reservas res ON s.id_servicio = res.id_servicio
-    WHERE res.reservas_situacion = 1
+    WHERE res.deleted_at IS NULL
       AND res.id_agencia_transferida IS NULL
       AND MONTH(res.created_at) = MONTH(CURDATE())
       AND YEAR(res.created_at) = YEAR(CURDATE())
@@ -875,7 +875,7 @@ return new class extends Migration
     JOIN ruta_activa ra ON r.id_rutas = ra.id_rutas
     JOIN servicio s ON ra.id_ruta_activa = s.id_ruta_activa
     JOIN reservas res ON s.id_servicio = res.id_servicio
-    WHERE res.reservas_situacion = 1
+    WHERE res.deleted_at IS NULL
       AND res.id_agencia_transferida IS NOT NULL
       AND MONTH(res.created_at) = MONTH(CURDATE())
       AND YEAR(res.created_at) = YEAR(CURDATE())
@@ -906,7 +906,7 @@ return new class extends Migration
     FROM agencias a
     JOIN reservas res ON a.id_agencias = res.id_agencia_transferida
     JOIN servicio s ON res.id_servicio = s.id_servicio
-    WHERE res.reservas_situacion = 1
+    WHERE res.deleted_at IS NULL
       AND res.id_agencia_transferida IS NOT NULL
       AND MONTH(res.created_at) = MONTH(CURDATE())
       AND YEAR(res.created_at) = YEAR(CURDATE())
@@ -945,7 +945,7 @@ return new class extends Migration
             JOIN ruta_activa ra ON r.id_rutas = ra.id_rutas
             JOIN servicio s ON ra.id_ruta_activa = s.id_ruta_activa
             JOIN reservas res ON s.id_servicio = res.id_servicio
-            WHERE res.reservas_situacion = 1
+            WHERE res.deleted_at IS NULL
               AND res.id_agencia_transferida IS NULL
               AND DATE(res.created_at) = fecha_especifica
             GROUP BY a.id_agencias, a.agencias_nombre
@@ -965,7 +965,7 @@ return new class extends Migration
             JOIN tour_activo ta ON t.id_tour = ta.id_tour
             JOIN servicio s ON ta.id_tour_activo = s.id_tour_activo
             JOIN reservas res ON s.id_servicio = res.id_servicio
-            WHERE res.reservas_situacion = 1
+            WHERE res.deleted_at IS NULL
               AND res.id_agencia_transferida IS NULL
               AND DATE(res.created_at) = fecha_especifica
             GROUP BY a.id_agencias, a.agencias_nombre
@@ -990,7 +990,7 @@ return new class extends Migration
             JOIN ruta_activa ra ON r.id_rutas = ra.id_rutas
             JOIN servicio s ON ra.id_ruta_activa = s.id_ruta_activa
             JOIN reservas res ON s.id_servicio = res.id_servicio
-            WHERE res.reservas_situacion = 1
+            WHERE res.deleted_at IS NULL
               AND res.id_agencia_transferida IS NOT NULL
               AND DATE(res.created_at) = fecha_especifica
             GROUP BY a.id_agencias, a.agencias_nombre
@@ -1013,7 +1013,7 @@ return new class extends Migration
             FROM agencias a
             JOIN reservas res ON a.id_agencias = res.id_agencia_transferida
             JOIN servicio s ON res.id_servicio = s.id_servicio
-            WHERE res.reservas_situacion = 1
+            WHERE res.deleted_at IS NULL
               AND res.id_agencia_transferida IS NOT NULL
               AND DATE(res.created_at) = fecha_especifica
             GROUP BY a.id_agencias, a.agencias_nombre;

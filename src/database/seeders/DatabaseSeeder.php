@@ -25,7 +25,6 @@ class DatabaseSeeder extends Seeder
     {
         DB::table('agencias')->insert([
             'agencias_nombre' => 'Magic Travel',
-            'agencias_situacion' => 1,
             'created_at' => now(),
             'updated_at' => now()
         ]);
@@ -62,7 +61,6 @@ class DatabaseSeeder extends Seeder
             DB::table('estado')->insert([
                 'estado_nombre' => $estado['estado'],
                 'estado_descripcion' => $estado['descripcion'],
-                'estado_situacion' => 1,
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
@@ -74,7 +72,6 @@ class DatabaseSeeder extends Seeder
     {
         DB::table('cargo')->insert([
             'cargo_nombre' => 'Desarrollador',
-            'cargo_situacion' => 1,
             'created_at' => now(),
             'updated_at' => now()
         ]);
@@ -89,7 +86,6 @@ class DatabaseSeeder extends Seeder
         DB::table('empleados')->insert([
             'empleados_nombres' => 'Desarrollador',
             'empleados_apellidos' => 'Magic Travel',
-            'empleados_situacion' => 1,
             'id_agencias' => $agenciaMagicTravel,
             'id_cargo' => $cargoDesarrollador,
             'created_at' => now(),
@@ -104,8 +100,8 @@ class DatabaseSeeder extends Seeder
 
         DB::table('usuarios')->insert([
             'usuarios_nombre' => 'Desarrollador',
+            'usuarios_correo' => 'carbyfah@gmail.com',
             'usuario_password' => Hash::make('Desarrollador2025!'),
-            'usuarios_situacion' => 1,
             'id_empleados' => $empleadoDesarrollador,
             'created_at' => now(),
             'updated_at' => now()
@@ -113,7 +109,8 @@ class DatabaseSeeder extends Seeder
 
         echo "\n" . str_repeat("=", 60) . "\n";
         echo "USUARIO CREADO:\n";
-        echo "Usuario: Desarrollador / Desarrollador2025!\n";
+        echo "Email: carbyfah@gmail.com\n";
+        echo "Password: Desarrollador2025!\n";
         echo str_repeat("=", 60) . "\n";
     }
 }
