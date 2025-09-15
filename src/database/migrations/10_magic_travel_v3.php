@@ -8,10 +8,11 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     /**
-     * MIGRACIÓN MAGIC TRAVEL v3.0 - SIN CAMPOS SITUACIÓN
+     * MIGRACIÓN MAGIC TRAVEL v3.0 - CON SISTEMA DE PERMISOS
      * Base de datos ordenada jerárquicamente para evitar errores de FK
      * Orden: Independientes → Intermedias → Dependientes
      * ELIMINADOS: todos los campos *_situacion (soft delete hace este trabajo)
+     * AGREGADO: Sistema de permisos granulares por usuario
      */
     public function up()
     {
@@ -126,7 +127,27 @@ return new class extends Migration
             $table->foreign('id_empleados')->references('id_empleados')->on('empleados');
         });
 
-        // 9. Ruta Activa
+        // 9. Usuarios Permisos (NUEVA TABLA)
+        Schema::create('usuarios_permisos', function (Blueprint $table) {
+            $table->id('id_usuarios_permisos');
+            $table->unsignedBigInteger('id_usuarios');
+            $table->string('modulo', 50); // 'reservas', 'rutas', 'tours', 'vehiculos', 'empleados', 'reportes', 'configuracion'
+            $table->boolean('puede_ver')->default(false);
+            $table->boolean('puede_crear')->default(false);
+            $table->boolean('puede_editar')->default(false);
+            $table->boolean('puede_eliminar')->default(false);
+            $table->timestamps();
+            $table->unsignedBigInteger('created_by')->nullable();
+            $table->softDeletes();
+
+            $table->foreign('id_usuarios')->references('id_usuarios')->on('usuarios')
+                ->onDelete('cascade');
+
+            // Índice único para evitar duplicados usuario-módulo
+            $table->unique(['id_usuarios', 'modulo'], 'unique_usuario_modulo');
+        });
+
+        // 10. Ruta Activa
         Schema::create('ruta_activa', function (Blueprint $table) {
             $table->id('id_ruta_activa');
             $table->dateTime('ruta_activa_fecha');
@@ -142,7 +163,7 @@ return new class extends Migration
             $table->foreign('id_vehiculo')->references('id_vehiculo')->on('vehiculo');
         });
 
-        // 10. Tour Activo
+        // 11. Tour Activo
         Schema::create('tour_activo', function (Blueprint $table) {
             $table->id('id_tour_activo');
             $table->dateTime('tour_activo_fecha');
@@ -161,7 +182,7 @@ return new class extends Migration
         // NIVEL 4: TABLAS FINALES (Dependen de Nivel 3)
         // =====================================================
 
-        // 11. Servicio
+        // 12. Servicio
         Schema::create('servicio', function (Blueprint $table) {
             $table->id('id_servicio');
             $table->enum('tipo_servicio', ['COLECTIVO', 'PRIVADO']);
@@ -178,7 +199,7 @@ return new class extends Migration
             $table->foreign('id_ruta_activa')->references('id_ruta_activa')->on('ruta_activa');
         });
 
-        // 12. Reservas
+        // 13. Reservas
         Schema::create('reservas', function (Blueprint $table) {
             $table->id('id_reservas');
             $table->integer('reservas_cantidad_adultos');
@@ -208,7 +229,7 @@ return new class extends Migration
             $table->foreign('id_agencia_transferida')->references('id_agencias')->on('agencias');
         });
 
-        // 13. Datos Reservas Clientes
+        // 14. Datos Reservas Clientes
         Schema::create('datos_reservas_clientes', function (Blueprint $table) {
             $table->id('id_datos_reservas_clientes');
             $table->string('datos_reservas_clientes_nombres', 45)->nullable();
@@ -247,6 +268,11 @@ return new class extends Migration
             reservas_cantidad_ninos IS NULL OR reservas_cantidad_ninos >= 0
         )');
 
+        // Constraint: Módulos válidos para permisos
+        DB::statement("ALTER TABLE usuarios_permisos ADD CONSTRAINT chk_modulo_valido CHECK (
+            modulo IN ('reservas', 'rutas', 'tours', 'vehiculos', 'empleados', 'reportes', 'configuracion', 'agencias')
+        )");
+
         // =====================================================
         // NOTA: Las FKs de auditoría (created_by)
         // se agregan en migración separada DESPUÉS de seeders
@@ -263,6 +289,7 @@ return new class extends Migration
         Schema::dropIfExists('servicio');
         Schema::dropIfExists('tour_activo');
         Schema::dropIfExists('ruta_activa');
+        Schema::dropIfExists('usuarios_permisos');
         Schema::dropIfExists('usuarios');
         Schema::dropIfExists('empleados');
         Schema::dropIfExists('vehiculo');

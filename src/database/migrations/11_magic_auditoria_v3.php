@@ -7,10 +7,11 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * MIGRACIÓN AUDITORÍA MAGIC TRAVEL v3.0 - SIN CAMPOS SITUACIÓN
+     * MIGRACIÓN AUDITORÍA MAGIC TRAVEL v3.0 - CON PERMISOS
      * Tablas de auditoría paralelas para todas las tablas del sistema
      * Orden: Nivel 1 → Nivel 2 → Nivel 3 → Nivel 4
      * ELIMINADOS: todos los campos *_situacion (soft delete hace este trabajo)
+     * AGREGADO: Auditoría para usuarios_permisos
      */
     public function up()
     {
@@ -185,7 +186,31 @@ return new class extends Migration
             $table->index('usuario_modificacion', 'idx_usuarios_user');
         });
 
-        // 9. Auditoría Ruta Activa
+        // 9. Auditoría Usuarios Permisos (NUEVA TABLA)
+        Schema::create('usuarios_permisos_auditoria', function (Blueprint $table) {
+            $table->id('auditoria_id');
+            $table->unsignedBigInteger('id_usuarios_permisos');
+            $table->unsignedBigInteger('id_usuarios');
+            $table->string('modulo', 50);
+            $table->boolean('puede_ver');
+            $table->boolean('puede_crear');
+            $table->boolean('puede_editar');
+            $table->boolean('puede_eliminar');
+            $table->timestamp('original_created_at')->nullable();
+            $table->timestamp('original_updated_at')->nullable();
+            $table->unsignedBigInteger('original_created_by')->nullable();
+            $table->timestamp('original_deleted_at')->nullable();
+            $table->enum('accion', ['INSERT', 'UPDATE', 'DELETE']);
+            $table->unsignedBigInteger('usuario_modificacion');
+            $table->timestamp('fecha_modificacion')->useCurrent();
+            $table->string('ip_modificacion', 45)->nullable();
+
+            $table->index(['id_usuarios_permisos', 'fecha_modificacion'], 'idx_usuarios_permisos_audit');
+            $table->index(['id_usuarios', 'modulo'], 'idx_usuarios_permisos_user_mod');
+            $table->index('usuario_modificacion', 'idx_usuarios_permisos_user');
+        });
+
+        // 10. Auditoría Ruta Activa
         Schema::create('ruta_activa_auditoria', function (Blueprint $table) {
             $table->id('auditoria_id');
             $table->unsignedBigInteger('id_ruta_activa');
@@ -206,7 +231,7 @@ return new class extends Migration
             $table->index('usuario_modificacion', 'idx_ruta_activa_user');
         });
 
-        // 10. Auditoría Tour Activo
+        // 11. Auditoría Tour Activo
         Schema::create('tour_activo_auditoria', function (Blueprint $table) {
             $table->id('auditoria_id');
             $table->unsignedBigInteger('id_tour_activo');
@@ -231,7 +256,7 @@ return new class extends Migration
         // NIVEL 4: AUDITORÍA TABLAS FINALES
         // =====================================================
 
-        // 11. Auditoría Servicio
+        // 12. Auditoría Servicio
         Schema::create('servicio_auditoria', function (Blueprint $table) {
             $table->id('auditoria_id');
             $table->unsignedBigInteger('id_servicio');
@@ -254,7 +279,7 @@ return new class extends Migration
             $table->index('usuario_modificacion', 'idx_servicio_user');
         });
 
-        // 12. Auditoría Reservas
+        // 13. Auditoría Reservas
         Schema::create('reservas_auditoria', function (Blueprint $table) {
             $table->id('auditoria_id');
             $table->unsignedBigInteger('id_reservas');
@@ -287,7 +312,7 @@ return new class extends Migration
             $table->index('usuario_modificacion', 'idx_reservas_user');
         });
 
-        // 13. Auditoría Datos Reservas Clientes
+        // 14. Auditoría Datos Reservas Clientes
         Schema::create('datos_reservas_clientes_auditoria', function (Blueprint $table) {
             $table->id('auditoria_id');
             $table->unsignedBigInteger('id_datos_reservas_clientes');
@@ -318,6 +343,7 @@ return new class extends Migration
         Schema::dropIfExists('servicio_auditoria');
         Schema::dropIfExists('tour_activo_auditoria');
         Schema::dropIfExists('ruta_activa_auditoria');
+        Schema::dropIfExists('usuarios_permisos_auditoria');
         Schema::dropIfExists('usuarios_auditoria');
         Schema::dropIfExists('empleados_auditoria');
         Schema::dropIfExists('vehiculo_auditoria');
