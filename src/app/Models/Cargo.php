@@ -21,12 +21,23 @@ class Cargo extends Model
     protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
-        'deleted_at' => 'datetime',
+        'deleted_at' => 'datetime'
     ];
 
-    // Relación con empleados
+    // Relaciones
     public function empleados()
     {
         return $this->hasMany(Empleado::class, 'id_cargo', 'id_cargo');
+    }
+
+    public function createdBy()
+    {
+        return $this->belongsTo(User::class, 'created_by', 'id_usuarios');
+    }
+
+    // Scopes
+    public function scopePorNombre($query, $nombre)
+    {
+        return $query->where('cargo_nombre', 'like', "%{$nombre}%");
     }
 }

@@ -8,11 +8,14 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     /**
-     * MIGRACIÓN MAGIC TRAVEL v3.0 - CON SISTEMA DE PERMISOS
+     * MIGRACIÓN MAGIC TRAVEL v3.0 - CON SISTEMA DE PERMISOS Y MÓDULOS VENTAS/CONTABILIDAD
      * Base de datos ordenada jerárquicamente para evitar errores de FK
      * Orden: Independientes → Intermedias → Dependientes
-     * ELIMINADOS: todos los campos *_situacion (soft delete hace este trabajo)
+     * AGREGADO: vehiculo_pago_conductor y reservas_voucher
      * AGREGADO: Sistema de permisos granulares por usuario
+     * AGREGADO: Módulo de Ventas con caja diaria y facturación SAT
+     * AGREGADO: Módulo de Contabilidad mejorado con vouchers
+     * AGREGADO: Control de egresos por ruta activa
      */
     public function up()
     {
@@ -77,12 +80,13 @@ return new class extends Migration
             $table->foreign('id_agencias')->references('id_agencias')->on('agencias');
         });
 
-        // 6. Vehículo
+        // 6. Vehículo (CORREGIDO - con vehiculo_pago_conductor)
         Schema::create('vehiculo', function (Blueprint $table) {
             $table->id('id_vehiculo');
             $table->string('vehiculo_marca', 45)->nullable();
             $table->string('vehiculo_placa', 45)->nullable();
             $table->integer('vehiculo_capacidad')->nullable();
+            $table->decimal('vehiculo_pago_conductor', 10, 2)->nullable(); // CAMPO AGREGADO
             $table->unsignedBigInteger('estado_id');
             $table->unsignedBigInteger('id_agencias');
             $table->timestamps();
@@ -199,7 +203,7 @@ return new class extends Migration
             $table->foreign('id_ruta_activa')->references('id_ruta_activa')->on('ruta_activa');
         });
 
-        // 13. Reservas
+        // 13. Reservas (CORREGIDO - con reservas_voucher)
         Schema::create('reservas', function (Blueprint $table) {
             $table->id('id_reservas');
             $table->integer('reservas_cantidad_adultos');
@@ -213,6 +217,7 @@ return new class extends Migration
             $table->string('reservas_transferido_por', 30);
             $table->string('reservas_notas', 45)->nullable();
             $table->decimal('reservas_cobrar_a_pax', 10, 2);
+            $table->text('reservas_voucher')->nullable(); // CAMPO AGREGADO
             $table->unsignedBigInteger('id_agencia_transferida')->nullable();
             $table->unsignedBigInteger('id_servicio');
             $table->unsignedBigInteger('estado_id');
@@ -243,6 +248,71 @@ return new class extends Migration
         });
 
         // =====================================================
+        // NIVEL 5: MÓDULOS VENTAS Y CONTABILIDAD
+        // =====================================================
+
+        // 15. Egresos Ruta Activa (NUEVA TABLA)
+        Schema::create('egresos_ruta_activa', function (Blueprint $table) {
+            $table->id('id_egresos_ruta_activa');
+            $table->text('motivo_egreso');
+            $table->decimal('cantidad_egreso', 10, 2);
+            $table->text('descripcion_egreso')->nullable();
+            $table->unsignedBigInteger('id_ruta_activa');
+            $table->timestamps();
+            $table->unsignedBigInteger('created_by')->nullable();
+            $table->softDeletes();
+
+            $table->foreign('id_ruta_activa')->references('id_ruta_activa')->on('ruta_activa');
+        });
+
+        // 16. Caja (NUEVA TABLA)
+        Schema::create('caja', function (Blueprint $table) {
+            $table->id('id_caja');
+            $table->string('numero_voucher', 50)->nullable();
+            $table->string('origen', 100);
+            $table->string('destino', 100);
+            $table->dateTime('fecha_servicio');
+            $table->integer('pax_adultos');
+            $table->integer('pax_ninos')->nullable();
+            $table->integer('total_pax');
+            $table->decimal('precio_unitario', 10, 2);
+            $table->decimal('precio_total', 10, 2);
+            $table->string('direccion', 200);
+            $table->decimal('servicio_cobrar_pax', 10, 2);
+            $table->decimal('servicio_precio_descuento', 10, 2);
+            $table->string('voucher_caja', 50)->nullable();
+            $table->string('enlace_sat', 500)->nullable();
+            $table->unsignedBigInteger('id_reservas');
+            $table->unsignedBigInteger('estado_id');
+            $table->timestamps();
+            $table->unsignedBigInteger('created_by')->nullable();
+            $table->softDeletes();
+
+            $table->foreign('id_reservas')->references('id_reservas')->on('reservas');
+            $table->foreign('estado_id')->references('estado_id')->on('estado');
+        });
+
+        // 17. Facturas SAT (NUEVA TABLA)
+        Schema::create('facturas_sat', function (Blueprint $table) {
+            $table->id('id_facturas_sat');
+            $table->string('numero_documento', 50);
+            $table->decimal('gran_total', 10, 2);
+            $table->string('serie', 50)->nullable();
+            $table->string('numero_uuid', 100)->nullable();
+            $table->datetime('fecha_emision')->nullable();
+            $table->string('nit_receptor', 20)->nullable();
+            $table->string('nombre_receptor', 200)->nullable();
+            $table->text('enlace_consulta')->nullable();
+            $table->json('datos_completos')->nullable();
+            $table->unsignedBigInteger('id_caja');
+            $table->timestamps();
+            $table->unsignedBigInteger('created_by')->nullable();
+            $table->softDeletes();
+
+            $table->foreign('id_caja')->references('id_caja')->on('caja');
+        });
+
+        // =====================================================
         // CONSTRAINTS ADICIONALES
         // =====================================================
 
@@ -270,8 +340,18 @@ return new class extends Migration
 
         // Constraint: Módulos válidos para permisos
         DB::statement("ALTER TABLE usuarios_permisos ADD CONSTRAINT chk_modulo_valido CHECK (
-            modulo IN ('reservas', 'rutas', 'tours', 'vehiculos', 'empleados', 'reportes', 'configuracion', 'agencias')
+            modulo IN ('reservas', 'rutas', 'tours', 'vehiculos', 'empleados', 'reportes', 'configuracion', 'agencias', 'ventas', 'contabilidad')
         )");
+
+        // Constraint: Egreso debe ser positivo
+        DB::statement('ALTER TABLE egresos_ruta_activa ADD CONSTRAINT chk_egreso_positivo CHECK (
+            cantidad_egreso > 0
+        )');
+
+        // Constraint: Total pax debe coincidir con suma de adultos y niños
+        DB::statement('ALTER TABLE caja ADD CONSTRAINT chk_caja_total_pax CHECK (
+            total_pax = pax_adultos + IFNULL(pax_ninos, 0)
+        )');
 
         // =====================================================
         // NOTA: Las FKs de auditoría (created_by)
@@ -284,6 +364,9 @@ return new class extends Migration
      */
     public function down()
     {
+        Schema::dropIfExists('facturas_sat');
+        Schema::dropIfExists('caja');
+        Schema::dropIfExists('egresos_ruta_activa');
         Schema::dropIfExists('datos_reservas_clientes');
         Schema::dropIfExists('reservas');
         Schema::dropIfExists('servicio');

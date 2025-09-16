@@ -1,0 +1,15 @@
+[Usuario] → llena formulario de reserva
+↓
+[Frontend] → POST /api/precio/calcular
+↓
+[Laravel Route] → PrecioController@calcularPrecio
+↓
+[Controller] → valida datos → llama a PrecioService
+↓
+[PrecioService] → accede a Servicio → calcula precio
+↓
+[Model] → usa accessor precio_final
+↓
+[Controller] → arma respuesta JSON
+↓
+[Frontend] ← recibe precio_total y desglose

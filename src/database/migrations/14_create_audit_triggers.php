@@ -6,10 +6,11 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     /**
-     * TRIGGERS DE AUDITORÍA MAGIC TRAVEL v3.0 - SIN CAMPOS SITUACIÓN
+     * TRIGGERS DE AUDITORÍA MAGIC TRAVEL v3.0 - COMPLETO CON TODAS LAS TABLAS
      * Triggers automáticos para capturar INSERT, UPDATE, DELETE
      * en todas las tablas principales y guardar en tablas *_auditoria
-     * ELIMINADOS: todos los campos *_situacion (soft delete hace este trabajo)
+     * AGREGADO: Triggers para usuarios_permisos, caja, egresos_ruta_activa, facturas_sat
+     * CORREGIDO: vehiculo_pago_conductor y reservas_voucher incluidos
      */
     public function up()
     {
@@ -21,11 +22,15 @@ return new class extends Migration
         $this->createVehiculoAuditTriggers();
         $this->createEmpleadosAuditTriggers();
         $this->createUsuariosAuditTriggers();
+        $this->createUsuariosPermisosAuditTriggers(); // NUEVO
         $this->createRutaActivaAuditTriggers();
         $this->createTourActivoAuditTriggers();
         $this->createServicioAuditTriggers();
         $this->createReservasAuditTriggers();
         $this->createDatosReservasClientesAuditTriggers();
+        $this->createEgresosRutaActivaAuditTriggers(); // NUEVO
+        $this->createCajaAuditTriggers(); // NUEVO
+        $this->createFacturasSatAuditTriggers(); // NUEVO
     }
 
     // 1. AGENCIAS
@@ -353,7 +358,7 @@ return new class extends Migration
         ");
     }
 
-    // 6. VEHICULO
+    // 6. VEHICULO (CORREGIDO - con vehiculo_pago_conductor)
     private function createVehiculoAuditTriggers()
     {
         // INSERT
@@ -364,11 +369,13 @@ return new class extends Migration
             BEGIN
                 INSERT INTO vehiculo_auditoria (
                     id_vehiculo, vehiculo_marca, vehiculo_placa, vehiculo_capacidad,
+                    vehiculo_pago_conductor,
                     estado_id, id_agencias,
                     original_created_at, original_updated_at, original_created_by,
                     accion, usuario_modificacion, fecha_modificacion, ip_modificacion
                 ) VALUES (
                     NEW.id_vehiculo, NEW.vehiculo_marca, NEW.vehiculo_placa, NEW.vehiculo_capacidad,
+                    NEW.vehiculo_pago_conductor,
                     NEW.estado_id, NEW.id_agencias,
                     NEW.created_at, NEW.updated_at, NEW.created_by,
                     'INSERT', IFNULL(NEW.created_by, 1), NOW(),
@@ -385,12 +392,14 @@ return new class extends Migration
             BEGIN
                 INSERT INTO vehiculo_auditoria (
                     id_vehiculo, vehiculo_marca, vehiculo_placa, vehiculo_capacidad,
+                    vehiculo_pago_conductor,
                     estado_id, id_agencias,
                     original_created_at, original_updated_at, original_created_by,
                     original_deleted_at,
                     accion, usuario_modificacion, fecha_modificacion, ip_modificacion
                 ) VALUES (
                     OLD.id_vehiculo, OLD.vehiculo_marca, OLD.vehiculo_placa, OLD.vehiculo_capacidad,
+                    OLD.vehiculo_pago_conductor,
                     OLD.estado_id, OLD.id_agencias,
                     OLD.created_at, OLD.updated_at, OLD.created_by,
                     OLD.deleted_at,
@@ -408,12 +417,14 @@ return new class extends Migration
             BEGIN
                 INSERT INTO vehiculo_auditoria (
                     id_vehiculo, vehiculo_marca, vehiculo_placa, vehiculo_capacidad,
+                    vehiculo_pago_conductor,
                     estado_id, id_agencias,
                     original_created_at, original_updated_at, original_created_by,
                     original_deleted_at,
                     accion, usuario_modificacion, fecha_modificacion, ip_modificacion
                 ) VALUES (
                     OLD.id_vehiculo, OLD.vehiculo_marca, OLD.vehiculo_placa, OLD.vehiculo_capacidad,
+                    OLD.vehiculo_pago_conductor,
                     OLD.estado_id, OLD.id_agencias,
                     OLD.created_at, OLD.updated_at, OLD.created_by,
                     OLD.deleted_at,
@@ -566,7 +577,78 @@ return new class extends Migration
         ");
     }
 
-    // 9. RUTA ACTIVA
+    // 9. USUARIOS PERMISOS (NUEVA TABLA)
+    private function createUsuariosPermisosAuditTriggers()
+    {
+        // INSERT
+        DB::unprepared("
+            CREATE TRIGGER tr_usuarios_permisos_audit_insert
+            AFTER INSERT ON usuarios_permisos
+            FOR EACH ROW
+            BEGIN
+                INSERT INTO usuarios_permisos_auditoria (
+                    id_usuarios_permisos, id_usuarios, modulo,
+                    puede_ver, puede_crear, puede_editar, puede_eliminar,
+                    original_created_at, original_updated_at, original_created_by,
+                    accion, usuario_modificacion, fecha_modificacion, ip_modificacion
+                ) VALUES (
+                    NEW.id_usuarios_permisos, NEW.id_usuarios, NEW.modulo,
+                    NEW.puede_ver, NEW.puede_crear, NEW.puede_editar, NEW.puede_eliminar,
+                    NEW.created_at, NEW.updated_at, NEW.created_by,
+                    'INSERT', IFNULL(NEW.created_by, 1), NOW(),
+                    IFNULL(@audit_ip, SUBSTRING_INDEX(USER(), '@', -1))
+                );
+            END
+        ");
+
+        // UPDATE
+        DB::unprepared("
+            CREATE TRIGGER tr_usuarios_permisos_audit_update
+            AFTER UPDATE ON usuarios_permisos
+            FOR EACH ROW
+            BEGIN
+                INSERT INTO usuarios_permisos_auditoria (
+                    id_usuarios_permisos, id_usuarios, modulo,
+                    puede_ver, puede_crear, puede_editar, puede_eliminar,
+                    original_created_at, original_updated_at, original_created_by,
+                    original_deleted_at,
+                    accion, usuario_modificacion, fecha_modificacion, ip_modificacion
+                ) VALUES (
+                    OLD.id_usuarios_permisos, OLD.id_usuarios, OLD.modulo,
+                    OLD.puede_ver, OLD.puede_crear, OLD.puede_editar, OLD.puede_eliminar,
+                    OLD.created_at, OLD.updated_at, OLD.created_by,
+                    OLD.deleted_at,
+                    'UPDATE', IFNULL(NEW.created_by, 1), NOW(),
+                    IFNULL(@audit_ip, SUBSTRING_INDEX(USER(), '@', -1))
+                );
+            END
+        ");
+
+        // DELETE
+        DB::unprepared("
+            CREATE TRIGGER tr_usuarios_permisos_audit_delete
+            BEFORE DELETE ON usuarios_permisos
+            FOR EACH ROW
+            BEGIN
+                INSERT INTO usuarios_permisos_auditoria (
+                    id_usuarios_permisos, id_usuarios, modulo,
+                    puede_ver, puede_crear, puede_editar, puede_eliminar,
+                    original_created_at, original_updated_at, original_created_by,
+                    original_deleted_at,
+                    accion, usuario_modificacion, fecha_modificacion, ip_modificacion
+                ) VALUES (
+                    OLD.id_usuarios_permisos, OLD.id_usuarios, OLD.modulo,
+                    OLD.puede_ver, OLD.puede_crear, OLD.puede_editar, OLD.puede_eliminar,
+                    OLD.created_at, OLD.updated_at, OLD.created_by,
+                    OLD.deleted_at,
+                    'DELETE', IFNULL(OLD.created_by, 1), NOW(),
+                    IFNULL(@audit_ip, SUBSTRING_INDEX(USER(), '@', -1))
+                );
+            END
+        ");
+    }
+
+    // 10. RUTA ACTIVA
     private function createRutaActivaAuditTriggers()
     {
         // INSERT
@@ -637,7 +719,7 @@ return new class extends Migration
         ");
     }
 
-    // 10. TOUR ACTIVO
+    // 11. TOUR ACTIVO
     private function createTourActivoAuditTriggers()
     {
         // INSERT
@@ -708,7 +790,7 @@ return new class extends Migration
         ");
     }
 
-    // 11. SERVICIO
+    // 12. SERVICIO
     private function createServicioAuditTriggers()
     {
         // INSERT
@@ -785,7 +867,7 @@ return new class extends Migration
         ");
     }
 
-    // 12. RESERVAS
+    // 13. RESERVAS (CORREGIDO - con reservas_voucher)
     private function createReservasAuditTriggers()
     {
         // INSERT
@@ -800,6 +882,7 @@ return new class extends Migration
                     reservas_direccion_abordaje, reservas_telefono_cliente,
                     reservas_cliente_nit, reservas_habitacion_pax,
                     reservas_transferido_por, reservas_notas, reservas_cobrar_a_pax,
+                    reservas_voucher,
                     id_agencia_transferida,
                     id_servicio, estado_id, id_ruta_activa, id_tour_activo,
                     original_created_at, original_updated_at, original_created_by,
@@ -810,6 +893,7 @@ return new class extends Migration
                     NEW.reservas_direccion_abordaje, NEW.reservas_telefono_cliente,
                     NEW.reservas_cliente_nit, NEW.reservas_habitacion_pax,
                     NEW.reservas_transferido_por, NEW.reservas_notas, NEW.reservas_cobrar_a_pax,
+                    NEW.reservas_voucher,
                     NEW.id_agencia_transferida,
                     NEW.id_servicio, NEW.estado_id, NEW.id_ruta_activa, NEW.id_tour_activo,
                     NEW.created_at, NEW.updated_at, NEW.created_by,
@@ -831,6 +915,7 @@ return new class extends Migration
                     reservas_direccion_abordaje, reservas_telefono_cliente,
                     reservas_cliente_nit, reservas_habitacion_pax,
                     reservas_transferido_por, reservas_notas, reservas_cobrar_a_pax,
+                    reservas_voucher,
                     id_agencia_transferida,
                     id_servicio, estado_id, id_ruta_activa, id_tour_activo,
                     original_created_at, original_updated_at, original_created_by,
@@ -842,6 +927,7 @@ return new class extends Migration
                     OLD.reservas_direccion_abordaje, OLD.reservas_telefono_cliente,
                     OLD.reservas_cliente_nit, OLD.reservas_habitacion_pax,
                     OLD.reservas_transferido_por, OLD.reservas_notas, OLD.reservas_cobrar_a_pax,
+                    OLD.reservas_voucher,
                     OLD.id_agencia_transferida,
                     OLD.id_servicio, OLD.estado_id, OLD.id_ruta_activa, OLD.id_tour_activo,
                     OLD.created_at, OLD.updated_at, OLD.created_by,
@@ -864,6 +950,7 @@ return new class extends Migration
                     reservas_direccion_abordaje, reservas_telefono_cliente,
                     reservas_cliente_nit, reservas_habitacion_pax,
                     reservas_transferido_por, reservas_notas, reservas_cobrar_a_pax,
+                    reservas_voucher,
                     id_agencia_transferida,
                     id_servicio, estado_id, id_ruta_activa, id_tour_activo,
                     original_created_at, original_updated_at, original_created_by,
@@ -875,6 +962,7 @@ return new class extends Migration
                     OLD.reservas_direccion_abordaje, OLD.reservas_telefono_cliente,
                     OLD.reservas_cliente_nit, OLD.reservas_habitacion_pax,
                     OLD.reservas_transferido_por, OLD.reservas_notas, OLD.reservas_cobrar_a_pax,
+                    OLD.reservas_voucher,
                     OLD.id_agencia_transferida,
                     OLD.id_servicio, OLD.estado_id, OLD.id_ruta_activa, OLD.id_tour_activo,
                     OLD.created_at, OLD.updated_at, OLD.created_by,
@@ -886,7 +974,7 @@ return new class extends Migration
         ");
     }
 
-    // 13. DATOS RESERVAS CLIENTES
+    // 14. DATOS RESERVAS CLIENTES
     private function createDatosReservasClientesAuditTriggers()
     {
         // INSERT
@@ -963,11 +1051,255 @@ return new class extends Migration
         ");
     }
 
+    // 15. EGRESOS RUTA ACTIVA (NUEVA TABLA)
+    private function createEgresosRutaActivaAuditTriggers()
+    {
+        // INSERT
+        DB::unprepared("
+            CREATE TRIGGER tr_egresos_ruta_activa_audit_insert
+            AFTER INSERT ON egresos_ruta_activa
+            FOR EACH ROW
+            BEGIN
+                INSERT INTO egresos_ruta_activa_auditoria (
+                    id_egresos_ruta_activa, motivo_egreso, cantidad_egreso,
+                    descripcion_egreso, id_ruta_activa,
+                    original_created_at, original_updated_at, original_created_by,
+                    accion, usuario_modificacion, fecha_modificacion, ip_modificacion
+                ) VALUES (
+                    NEW.id_egresos_ruta_activa, NEW.motivo_egreso, NEW.cantidad_egreso,
+                    NEW.descripcion_egreso, NEW.id_ruta_activa,
+                    NEW.created_at, NEW.updated_at, NEW.created_by,
+                    'INSERT', IFNULL(NEW.created_by, 1), NOW(),
+                    IFNULL(@audit_ip, SUBSTRING_INDEX(USER(), '@', -1))
+                );
+            END
+        ");
+
+        // UPDATE
+        DB::unprepared("
+            CREATE TRIGGER tr_egresos_ruta_activa_audit_update
+            AFTER UPDATE ON egresos_ruta_activa
+            FOR EACH ROW
+            BEGIN
+                INSERT INTO egresos_ruta_activa_auditoria (
+                    id_egresos_ruta_activa, motivo_egreso, cantidad_egreso,
+                    descripcion_egreso, id_ruta_activa,
+                    original_created_at, original_updated_at, original_created_by,
+                    original_deleted_at,
+                    accion, usuario_modificacion, fecha_modificacion, ip_modificacion
+                ) VALUES (
+                    OLD.id_egresos_ruta_activa, OLD.motivo_egreso, OLD.cantidad_egreso,
+                    OLD.descripcion_egreso, OLD.id_ruta_activa,
+                    OLD.created_at, OLD.updated_at, OLD.created_by,
+                    OLD.deleted_at,
+                    'UPDATE', IFNULL(NEW.created_by, 1), NOW(),
+                    IFNULL(@audit_ip, SUBSTRING_INDEX(USER(), '@', -1))
+                );
+            END
+        ");
+
+        // DELETE
+        DB::unprepared("
+            CREATE TRIGGER tr_egresos_ruta_activa_audit_delete
+            BEFORE DELETE ON egresos_ruta_activa
+            FOR EACH ROW
+            BEGIN
+                INSERT INTO egresos_ruta_activa_auditoria (
+                    id_egresos_ruta_activa, motivo_egreso, cantidad_egreso,
+                    descripcion_egreso, id_ruta_activa,
+                    original_created_at, original_updated_at, original_created_by,
+                    original_deleted_at,
+                    accion, usuario_modificacion, fecha_modificacion, ip_modificacion
+                ) VALUES (
+                    OLD.id_egresos_ruta_activa, OLD.motivo_egreso, OLD.cantidad_egreso,
+                    OLD.descripcion_egreso, OLD.id_ruta_activa,
+                    OLD.created_at, OLD.updated_at, OLD.created_by,
+                    OLD.deleted_at,
+                    'DELETE', IFNULL(OLD.created_by, 1), NOW(),
+                    IFNULL(@audit_ip, SUBSTRING_INDEX(USER(), '@', -1))
+                );
+            END
+        ");
+    }
+
+    // 16. CAJA (NUEVA TABLA)
+    private function createCajaAuditTriggers()
+    {
+        // INSERT
+        DB::unprepared("
+            CREATE TRIGGER tr_caja_audit_insert
+            AFTER INSERT ON caja
+            FOR EACH ROW
+            BEGIN
+                INSERT INTO caja_auditoria (
+                    id_caja, numero_voucher, origen, destino, fecha_servicio,
+                    pax_adultos, pax_ninos, total_pax, precio_unitario, precio_total,
+                    direccion, servicio_cobrar_pax, servicio_precio_descuento,
+                    voucher_caja, enlace_sat, id_reservas, estado_id,
+                    original_created_at, original_updated_at, original_created_by,
+                    accion, usuario_modificacion, fecha_modificacion, ip_modificacion
+                ) VALUES (
+                    NEW.id_caja, NEW.numero_voucher, NEW.origen, NEW.destino, NEW.fecha_servicio,
+                    NEW.pax_adultos, NEW.pax_ninos, NEW.total_pax, NEW.precio_unitario, NEW.precio_total,
+                    NEW.direccion, NEW.servicio_cobrar_pax, NEW.servicio_precio_descuento,
+                    NEW.voucher_caja, NEW.enlace_sat, NEW.id_reservas, NEW.estado_id,
+                    NEW.created_at, NEW.updated_at, NEW.created_by,
+                    'INSERT', IFNULL(NEW.created_by, 1), NOW(),
+                    IFNULL(@audit_ip, SUBSTRING_INDEX(USER(), '@', -1))
+                );
+            END
+        ");
+
+        // UPDATE
+        DB::unprepared("
+            CREATE TRIGGER tr_caja_audit_update
+            AFTER UPDATE ON caja
+            FOR EACH ROW
+            BEGIN
+                INSERT INTO caja_auditoria (
+                    id_caja, numero_voucher, origen, destino, fecha_servicio,
+                    pax_adultos, pax_ninos, total_pax, precio_unitario, precio_total,
+                    direccion, servicio_cobrar_pax, servicio_precio_descuento,
+                    voucher_caja, enlace_sat, id_reservas, estado_id,
+                    original_created_at, original_updated_at, original_created_by,
+                    original_deleted_at,
+                    accion, usuario_modificacion, fecha_modificacion, ip_modificacion
+                ) VALUES (
+                    OLD.id_caja, OLD.numero_voucher, OLD.origen, OLD.destino, OLD.fecha_servicio,
+                    OLD.pax_adultos, OLD.pax_ninos, OLD.total_pax, OLD.precio_unitario, OLD.precio_total,
+                    OLD.direccion, OLD.servicio_cobrar_pax, OLD.servicio_precio_descuento,
+                    OLD.voucher_caja, OLD.enlace_sat, OLD.id_reservas, OLD.estado_id,
+                    OLD.created_at, OLD.updated_at, OLD.created_by,
+                    OLD.deleted_at,
+                    'UPDATE', IFNULL(NEW.created_by, 1), NOW(),
+                    IFNULL(@audit_ip, SUBSTRING_INDEX(USER(), '@', -1))
+                );
+            END
+        ");
+
+        // DELETE
+        DB::unprepared("
+            CREATE TRIGGER tr_caja_audit_delete
+            BEFORE DELETE ON caja
+            FOR EACH ROW
+            BEGIN
+                INSERT INTO caja_auditoria (
+                    id_caja, numero_voucher, origen, destino, fecha_servicio,
+                    pax_adultos, pax_ninos, total_pax, precio_unitario, precio_total,
+                    direccion, servicio_cobrar_pax, servicio_precio_descuento,
+                    voucher_caja, enlace_sat, id_reservas, estado_id,
+                    original_created_at, original_updated_at, original_created_by,
+                    original_deleted_at,
+                    accion, usuario_modificacion, fecha_modificacion, ip_modificacion
+                ) VALUES (
+                    OLD.id_caja, OLD.numero_voucher, OLD.origen, OLD.destino, OLD.fecha_servicio,
+                    OLD.pax_adultos, OLD.pax_ninos, OLD.total_pax, OLD.precio_unitario, OLD.precio_total,
+                    OLD.direccion, OLD.servicio_cobrar_pax, OLD.servicio_precio_descuento,
+                    OLD.voucher_caja, OLD.enlace_sat, OLD.id_reservas, OLD.estado_id,
+                    OLD.created_at, OLD.updated_at, OLD.created_by,
+                    OLD.deleted_at,
+                    'DELETE', IFNULL(OLD.created_by, 1), NOW(),
+                    IFNULL(@audit_ip, SUBSTRING_INDEX(USER(), '@', -1))
+                );
+            END
+        ");
+    }
+
+    // 17. FACTURAS SAT (NUEVA TABLA)
+    private function createFacturasSatAuditTriggers()
+    {
+        // INSERT
+        DB::unprepared("
+            CREATE TRIGGER tr_facturas_sat_audit_insert
+            AFTER INSERT ON facturas_sat
+            FOR EACH ROW
+            BEGIN
+                INSERT INTO facturas_sat_auditoria (
+                    id_facturas_sat, numero_documento, gran_total, serie,
+                    numero_uuid, fecha_emision, nit_receptor, nombre_receptor,
+                    enlace_consulta, datos_completos, id_caja,
+                    original_created_at, original_updated_at, original_created_by,
+                    accion, usuario_modificacion, fecha_modificacion, ip_modificacion
+                ) VALUES (
+                    NEW.id_facturas_sat, NEW.numero_documento, NEW.gran_total, NEW.serie,
+                    NEW.numero_uuid, NEW.fecha_emision, NEW.nit_receptor, NEW.nombre_receptor,
+                    NEW.enlace_consulta, NEW.datos_completos, NEW.id_caja,
+                    NEW.created_at, NEW.updated_at, NEW.created_by,
+                    'INSERT', IFNULL(NEW.created_by, 1), NOW(),
+                    IFNULL(@audit_ip, SUBSTRING_INDEX(USER(), '@', -1))
+                );
+            END
+        ");
+
+        // UPDATE
+        DB::unprepared("
+            CREATE TRIGGER tr_facturas_sat_audit_update
+            AFTER UPDATE ON facturas_sat
+            FOR EACH ROW
+            BEGIN
+                INSERT INTO facturas_sat_auditoria (
+                    id_facturas_sat, numero_documento, gran_total, serie,
+                    numero_uuid, fecha_emision, nit_receptor, nombre_receptor,
+                    enlace_consulta, datos_completos, id_caja,
+                    original_created_at, original_updated_at, original_created_by,
+                    original_deleted_at,
+                    accion, usuario_modificacion, fecha_modificacion, ip_modificacion
+                ) VALUES (
+                    OLD.id_facturas_sat, OLD.numero_documento, OLD.gran_total, OLD.serie,
+                    OLD.numero_uuid, OLD.fecha_emision, OLD.nit_receptor, OLD.nombre_receptor,
+                    OLD.enlace_consulta, OLD.datos_completos, OLD.id_caja,
+                    OLD.created_at, OLD.updated_at, OLD.created_by,
+                    OLD.deleted_at,
+                    'UPDATE', IFNULL(NEW.created_by, 1), NOW(),
+                    IFNULL(@audit_ip, SUBSTRING_INDEX(USER(), '@', -1))
+                );
+            END
+        ");
+
+        // DELETE
+        DB::unprepared("
+            CREATE TRIGGER tr_facturas_sat_audit_delete
+            BEFORE DELETE ON facturas_sat
+            FOR EACH ROW
+            BEGIN
+                INSERT INTO facturas_sat_auditoria (
+                    id_facturas_sat, numero_documento, gran_total, serie,
+                    numero_uuid, fecha_emision, nit_receptor, nombre_receptor,
+                    enlace_consulta, datos_completos, id_caja,
+                    original_created_at, original_updated_at, original_created_by,
+                    original_deleted_at,
+                    accion, usuario_modificacion, fecha_modificacion, ip_modificacion
+                ) VALUES (
+                    OLD.id_facturas_sat, OLD.numero_documento, OLD.gran_total, OLD.serie,
+                    OLD.numero_uuid, OLD.fecha_emision, OLD.nit_receptor, OLD.nombre_receptor,
+                    OLD.enlace_consulta, OLD.datos_completos, OLD.id_caja,
+                    OLD.created_at, OLD.updated_at, OLD.created_by,
+                    OLD.deleted_at,
+                    'DELETE', IFNULL(OLD.created_by, 1), NOW(),
+                    IFNULL(@audit_ip, SUBSTRING_INDEX(USER(), '@', -1))
+                );
+            END
+        ");
+    }
+
     /**
      * Rollback - Eliminar todos los triggers de auditoría
      */
     public function down()
     {
+        // Eliminar triggers de NUEVAS TABLAS (orden inverso)
+        DB::unprepared('DROP TRIGGER IF EXISTS tr_facturas_sat_audit_delete');
+        DB::unprepared('DROP TRIGGER IF EXISTS tr_facturas_sat_audit_update');
+        DB::unprepared('DROP TRIGGER IF EXISTS tr_facturas_sat_audit_insert');
+
+        DB::unprepared('DROP TRIGGER IF EXISTS tr_caja_audit_delete');
+        DB::unprepared('DROP TRIGGER IF EXISTS tr_caja_audit_update');
+        DB::unprepared('DROP TRIGGER IF EXISTS tr_caja_audit_insert');
+
+        DB::unprepared('DROP TRIGGER IF EXISTS tr_egresos_ruta_activa_audit_delete');
+        DB::unprepared('DROP TRIGGER IF EXISTS tr_egresos_ruta_activa_audit_update');
+        DB::unprepared('DROP TRIGGER IF EXISTS tr_egresos_ruta_activa_audit_insert');
+
         // Eliminar triggers de datos_reservas_clientes
         DB::unprepared('DROP TRIGGER IF EXISTS tr_datos_clientes_audit_delete');
         DB::unprepared('DROP TRIGGER IF EXISTS tr_datos_clientes_audit_update');
@@ -992,6 +1324,11 @@ return new class extends Migration
         DB::unprepared('DROP TRIGGER IF EXISTS tr_ruta_activa_audit_delete');
         DB::unprepared('DROP TRIGGER IF EXISTS tr_ruta_activa_audit_update');
         DB::unprepared('DROP TRIGGER IF EXISTS tr_ruta_activa_audit_insert');
+
+        // Eliminar triggers de usuarios_permisos
+        DB::unprepared('DROP TRIGGER IF EXISTS tr_usuarios_permisos_audit_delete');
+        DB::unprepared('DROP TRIGGER IF EXISTS tr_usuarios_permisos_audit_update');
+        DB::unprepared('DROP TRIGGER IF EXISTS tr_usuarios_permisos_audit_insert');
 
         // Eliminar triggers de usuarios
         DB::unprepared('DROP TRIGGER IF EXISTS tr_usuarios_audit_delete');

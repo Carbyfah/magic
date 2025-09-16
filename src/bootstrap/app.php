@@ -12,7 +12,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        //
+        // Registrar middleware personalizado
+        $middleware->alias([
+            'check.permissions' => \App\Http\Middleware\CheckUserPermissions::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

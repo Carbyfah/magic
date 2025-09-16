@@ -44,17 +44,26 @@ class DatabaseSeeder extends Seeder
             ['codigo' => 'RUT-LLEN', 'estado' => 'Llena', 'descripcion' => 'Capacidad completa'],
             ['codigo' => 'RUT-EJEC', 'estado' => 'Ejecución', 'descripcion' => 'En viaje'],
             ['codigo' => 'RUT-CERR', 'estado' => 'Cerrada', 'descripcion' => 'Completada'],
+            ['codigo' => 'RUT-LIQU', 'estado' => 'Liquidar Ruta', 'descripcion' => 'Lista para liquidar con egresos'],
 
             // Estados para RESERVAS
             ['codigo' => 'RES-PEND', 'estado' => 'Pendiente', 'descripcion' => 'Esperando confirmación'],
             ['codigo' => 'RES-CONF', 'estado' => 'Confirmada', 'descripcion' => 'Lista para ejecutar'],
             ['codigo' => 'RES-TRAN', 'estado' => 'Transferida', 'descripcion' => 'Se transfiere a una agencia'],
+            ['codigo' => 'RES-REUB', 'estado' => 'Reubicar', 'descripcion' => 'Mover a otra ruta misma empresa'],
             ['codigo' => 'RES-CANC', 'estado' => 'Cancelada', 'descripcion' => 'No se ejecutará'],
 
-            // Estados para FACTURAS
-            ['codigo' => 'FAC-PEND', 'estado' => 'Pendiente', 'descripcion' => 'Pendiente de pago'],
-            ['codigo' => 'FAC-PAGA', 'estado' => 'Pagada', 'descripcion' => 'Pago completado'],
-            ['codigo' => 'FAC-ANUL', 'estado' => 'Anulada', 'descripcion' => 'Factura anulada'],
+            // Estados para RESERVAS (pagos)
+            ['codigo' => 'RES-PAGA', 'estado' => 'Pagada', 'descripcion' => 'Cliente pagó en caja o conductor'],
+            ['codigo' => 'RES-CRCB', 'estado' => 'Confirmar Recibido', 'descripcion' => 'Conductor entregó - pendiente'],
+
+            // Estados para CONTABILIDAD (filtros)
+            ['codigo' => 'CON-COBR', 'estado' => 'Por Cobrar', 'descripcion' => 'Pendiente de cobro'],
+            ['codigo' => 'CON-CBRD', 'estado' => 'Cobrados', 'descripcion' => 'Ya cobrado'],
+
+            // Estados GENERALES
+            ['codigo' => 'GEN-ACTV', 'estado' => 'Activo', 'descripcion' => 'Elemento activo en el sistema'],
+            ['codigo' => 'GEN-INAC', 'estado' => 'Inactivo', 'descripcion' => 'Elemento inactivo'],
         ];
 
         foreach ($estados as $estado) {
@@ -65,17 +74,24 @@ class DatabaseSeeder extends Seeder
                 'updated_at' => now()
             ]);
         }
-        echo "Estados creados\n";
+        echo "Estados creados (incluidos nuevos para Ventas y Contabilidad)\n";
     }
 
     private function crearCargos()
     {
-        DB::table('cargo')->insert([
-            'cargo_nombre' => 'Desarrollador',
-            'created_at' => now(),
-            'updated_at' => now()
-        ]);
-        echo "Cargo Desarrollador creado\n";
+        $cargos = [
+            'Desarrollador',
+            'Administrador'
+        ];
+
+        foreach ($cargos as $cargo) {
+            DB::table('cargo')->insert([
+                'cargo_nombre' => $cargo,
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+        }
+        echo "Cargos básicos creados (Desarrollador y Administrador)\n";
     }
 
     private function crearEmpleados()

@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use App\Models\UsuarioPermiso;
 
 class AuthController extends Controller
 {
@@ -66,12 +67,27 @@ class AuthController extends Controller
     }
 
     /**
-     * Obtener usuario autenticado
+     * Obtener usuario autenticado con permisos
      * GET /api/me
      */
     public function me(Request $request)
     {
-        $user = $request->user();
+        $user = $request->user()->load(['empleado.agencia', 'empleado.cargo', 'permisos']);
+
+        // Obtener permisos organizados por módulo
+        $permisos = $user->obtenerPermisos();
+
+        // Si no tiene permisos configurados, devolver estructura vacía
+        if ($permisos->isEmpty()) {
+            $permisos = collect(UsuarioPermiso::$modulosDisponibles)->mapWithKeys(function ($nombre, $modulo) {
+                return [$modulo => [
+                    'ver' => false,
+                    'crear' => false,
+                    'editar' => false,
+                    'eliminar' => false
+                ]];
+            });
+        }
 
         return response()->json([
             'success' => true,
@@ -81,6 +97,8 @@ class AuthController extends Controller
                     'name' => $user->name,
                     'email' => $user->usuarios_correo,
                     'username' => $user->usuarios_nombre,
+                    'permisos' => $permisos,
+                    'modulos_disponibles' => UsuarioPermiso::$modulosDisponibles,
                     'empleado' => $user->empleado ? [
                         'id' => $user->empleado->id_empleados,
                         'nombres' => $user->empleado->empleados_nombres,

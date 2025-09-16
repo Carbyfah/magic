@@ -46,9 +46,31 @@ class Empleado extends Model
         return $this->hasOne(User::class, 'id_empleados', 'id_empleados');
     }
 
+    // Relación con quien creó el registro
+    public function createdBy()
+    {
+        return $this->belongsTo(User::class, 'created_by', 'id_usuarios');
+    }
+
     // Accessor para nombre completo
     public function getNombreCompletoAttribute()
     {
         return $this->empleados_nombres . ' ' . $this->empleados_apellidos;
+    }
+
+    // Scopes útiles
+    public function scopePorAgencia($query, $agenciaId)
+    {
+        return $query->where('id_agencias', $agenciaId);
+    }
+
+    public function scopePorCargo($query, $cargoId)
+    {
+        return $query->where('id_cargo', $cargoId);
+    }
+
+    public function scopeConUsuario($query)
+    {
+        return $query->whereHas('usuario');
     }
 }
