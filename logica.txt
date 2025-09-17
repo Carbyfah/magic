@@ -1,329 +1,283 @@
-# LÓGICA DE NEGOCIO COMPLETA - MAGIC TRAVEL
+# LÓGICA DE NEGOCIO MAGIC TRAVEL v4.0 - SISTEMA MODULAR
 
-## 1. GESTIÓN DE AGENCIAS Y OPERACIÓN
+## 1. GESTIÓN DE AGENCIAS Y OPERACIÓN v4.0
 
 ### 1.1 Modelo de Negocio Multi-Agencia
 - **Magic Travel** es la agencia principal que opera rutas y tours
 - **Otras agencias** pueden transferir clientes a Magic Travel
 - **Magic Travel** puede transferir clientes a otras agencias
-- **Sistema de comisiones** entre agencias por transferencias
+- **Relación many-to-many**: Agencias ↔ Rutas y Agencias ↔ Tours (via tablas pivote)
+- **Sistema de comisiones** calculado en `reservas_servicios_detalle`
 
-### 1.2 Estados del Sistema
+### 1.2 Estados del Sistema (Según seeders)
 - **Vehículos**: Disponible → Asignado → Mantenimiento
-- **Rutas**: Activada → Llena → Ejecución → Cerrada → Liquidar
+- **Rutas**: Activada → Llena → Ejecución → Cerrada → Liquidar Ruta
 - **Reservas**: Pendiente → Confirmada → Pagada → Transferida → Cancelada
-- **Pagos**: Por Cobrar → Cobrados → Confirmar Recibido
+- **Contabilidad**: Por Cobrar → Cobrados → Confirmar Recibido
 
-## 2. OPERACIÓN DE RUTAS Y TOURS
+## 2. SISTEMA MODULAR DE SERVICIOS v4.0
 
-### 2.1 Activación de Rutas
+### 2.1 Estructura del Catálogo
+```
+tipos_servicio (Transporte, Tour, etc.)
+    ↓
+servicios_catalogo (Transporte Antigua-Panajachel, Tour Atitlán)
+    ↓
+agencias_servicios_precios (Precio por agencia + descuentos)
+    ↓
+reservas_servicios_detalle (Los "platos" de cada reserva)
+```
+
+### 2.2 Modalidades de Servicio (Campo real DB)
+```
+MODALIDAD_SERVICIO:
+- 'COLECTIVO': Precio por persona
+- 'PRIVADO': Precio fijo total
+
+CÁLCULO AUTOMÁTICO:
+- Precio Adulto = precio_unitario_adulto
+- Precio Niño = precio_unitario_nino
+- Descuento = descuento_aplicado (0-100%)
+```
+
+### 2.3 Operación de Rutas y Tours
 ```
 Ruta Base + Fecha/Hora + Vehículo = Ruta Activa
-- Control de capacidad por vehículo
-- Asignación automática de estado "Activada"
-- Validación de disponibilidad del vehículo
-```
-
-### 2.2 Control de Capacidad
-```
-Capacidad Total = Asientos del Vehículo
-Ocupación Actual = Suma de (Adultos + Niños) en reservas confirmadas
-Espacios Disponibles = Capacidad - Ocupación
-Estado Ruta = Disponible | Casi Lleno (80%) | Completo
-```
-
-### 2.3 Gestión de Tours
-```
 Tour Base + Fecha/Hora + Tipo = Tour Activo
-- Sin restricción de capacidad (depende del tipo)
-- Precios pueden ser fijos o por persona
-- Control de estados similar a rutas
+
+CADA SERVICIO DE LA RESERVA:
+- Se asocia a ruta_activa O tour_activo
+- Tiene su propio precio y cantidad
+- Maneja su estado de pago independiente
 ```
 
-## 3. SISTEMA DE PRECIOS Y RESERVAS
+## 3. ESCENARIOS DE RESERVA v4.0 (5 TIPOS EXACTOS)
 
-### 3.1 Cálculo de Precios
+### 3.1 VENTA_DIRECTA
 ```
-SERVICIO COLECTIVO:
-- Precio Adulto = Precio Base del Servicio
-- Precio Niño = Precio Base × 0.75 (25% descuento)
-- Total = (Adultos × Precio Base) + (Niños × Precio Niño)
-
-SERVICIO PRIVADO:
-- Precio Total = Precio Fijo (sin importar cantidad de personas)
-```
-
-### 3.2 Sistema de Descuentos
-```
-Precio Final = Precio Base × (1 - Descuento%)
-- Descuentos aplicables del 0% al 100%
-- Cálculo automático en servicio_precio_descuento
-- Los niños siempre tienen 25% descuento adicional
-```
-
-### 3.3 Validaciones de Reserva
-```
-ANTES DE CREAR RESERVA:
-1. Verificar espacios disponibles en vehículo
-2. Validar que la ruta esté en estado "Activada"
-3. Calcular precio automáticamente
-4. Verificar permisos del usuario
-
-DESPUÉS DE CREAR RESERVA:
-1. Actualizar ocupación de la ruta
-2. Cambiar estado a "Llena" si se completa capacidad
-3. Crear registro en caja si es venta directa pagada
-```
-
-## 4. ESCENARIOS DE TRANSFERENCIA (4 TIPOS)
-
-### 4.1 VENTA_DIRECTA
-```
-- Agencia Servicio: Magic Travel
-- Agencia Transferida: NULL
-- Magic Travel vende directamente al cliente
+- escenario_reserva: 'VENTA_DIRECTA'
+- agencia_origen: NULL
+- id_agencia_transferida: NULL
+- Magic Travel vende y opera directamente
 - Cliente paga a Magic Travel
-- Magic Travel opera el servicio
 ```
 
-### 4.2 REUBICACION_INTERNA
+### 3.2 REUBICACION_INTERNA
 ```
-- Agencia Servicio: Magic Travel
-- Agencia Transferida: Magic Travel
-- Cliente se mueve entre rutas/tours de Magic Travel
+- escenario_reserva: 'REUBICACION_INTERNA'
+- agencia_origen: Magic Travel ID
+- id_agencia_transferida: Magic Travel ID
+- Cliente se mueve entre servicios de Magic Travel
 - No hay intercambio de dinero
-- Solo cambio de servicio
 ```
 
-### 4.3 MAGIC_TRANSFIERE
+### 3.3 MAGIC_TRANSFIERE
 ```
-- Agencia Servicio: Magic Travel
-- Agencia Transferida: Otra Agencia
-- Magic Travel recibe cliente pero transfiere a otra agencia
+- escenario_reserva: 'MAGIC_TRANSFIERE'
+- agencia_origen: Magic Travel ID
+- id_agencia_transferida: Otra Agencia ID
+- Magic Travel recibe pero transfiere operación
 - Magic Travel cobra comisión
-- Otra agencia opera el servicio
 ```
 
-### 4.4 MAGIC_RECIBE_OPERA
+### 3.4 MAGIC_RECIBE_OPERA
 ```
-- Agencia Servicio: Otra Agencia
-- Agencia Transferida: NULL
-- Otra agencia envía cliente a Magic Travel
-- Magic Travel opera el servicio
+- escenario_reserva: 'MAGIC_RECIBE_OPERA'
+- agencia_origen: Otra Agencia ID
+- id_agencia_transferida: NULL
+- Magic Travel opera servicio de otra agencia
 - Magic Travel cobra a la agencia origen
 ```
 
-## 5. SISTEMA DE PAGOS Y CAJA
-
-### 5.1 Formas de Pago
+### 3.5 MAGIC_RECIBE_TRANSFIERE
 ```
-PAGO_CAJA:
-- Cliente paga directamente en oficina
-- Se crea registro automático en tabla 'caja'
-- Estado reserva: "Pagada"
-
-PAGO_CONDUCTOR:
-- Cliente paga al conductor del vehículo
-- Estado reserva: "Confirmar Recibido"
-- Requiere confirmación posterior en sistema
-
-PENDIENTE:
-- Cliente no ha pagado
-- Estado reserva: "Pendiente" o "Confirmada"
+- escenario_reserva: 'MAGIC_RECIBE_TRANSFIERE'
+- agencia_origen: Otra Agencia ID
+- id_agencia_transferida: Tercera Agencia ID
+- Magic Travel recibe de una y transfiere a otra
+- Magic Travel NO gana comisión (solo intermediario)
+- comision_monto = 0, comision_porcentaje = 0
 ```
 
-### 5.2 Control de Caja Diaria
+## 4. ESTRUCTURA DE RESERVAS v4.0
+
+### 4.1 Tabla Principal: reservas
 ```
-SOLO para ventas directas Magic Travel:
-- Auto-creación cuando reserva se marca como "Pagada"
-- Registro de ingresos, descuentos y comisiones
+CAMPOS OBLIGATORIOS:
+- reservas_nombres_cliente, reservas_apellidos_cliente
+- reservas_direccion_abordaje, reservas_telefono_cliente
+- fecha_servicio (nueva v4.0)
+- escenario_reserva (enum con 5 opciones)
+- estado_id
+
+CAMPOS OPCIONALES:
+- reservas_cliente_nit, reservas_habitacion_pax
+- observaciones_generales
+- agencia_origen, id_agencia_transferida
+```
+
+### 4.2 Tabla Detalle: reservas_servicios_detalle
+```
+CADA SERVICIO INCLUYE:
+- id_servicio_catalogo (del catálogo modular)
+- id_ruta_activa O id_tour_activo (mutuamente excluyente)
+- cantidad_adultos, cantidad_ninos
+- precios individuales y totales
+- agencia_operadora (quién ejecuta)
+- estado_pago independiente
+- comisiones calculadas
+```
+
+### 4.3 Control de Vouchers: vouchers_sistema
+```
+CAMPOS:
+- codigo_voucher (único e inmutable)
+- id_reservas (relación con reserva)
+- fecha_generacion, es_valido
+```
+
+## 5. SISTEMA DE PAGOS Y CAJA v4.0
+
+### 5.1 Estados de Pago (Campo real DB)
+```
+estado_pago en reservas_servicios_detalle:
+- 'PENDIENTE': Sin pago
+- 'PAGADO_CAJA': Pago en oficina
+- 'PAGADO_CONDUCTOR': Pago al conductor
+- 'CONFIRMAR_RECIBIDO': Conductor entregó, pendiente confirmar
+```
+
+### 5.2 Tabla Caja (Solo ventas directas Magic Travel)
+```
+CREACIÓN AUTOMÁTICA cuando estado_pago = 'PAGADO_CAJA'
+- Registro de ingresos por servicio
 - Control de vouchers y facturas SAT
-- Integración con sistema de facturación
+- Relación directa con id_reservas
 ```
 
-## 6. CONTROL DE EGRESOS POR RUTA
+## 6. CONTROL FINANCIERO v4.0
 
-### 6.1 Gastos Operacionales
+### 6.1 Comisiones por Servicio
 ```
-Cada ruta activa puede tener egresos:
-- Combustible
-- Peajes
-- Comidas del conductor
-- Mantenimiento emergente
-- Otros gastos operacionales
-```
-
-### 6.2 Cálculo de Rentabilidad
-```
-Ganancia Ruta = Ingresos - Egresos - Pago Conductor
-Ingresos = Suma de reservas_cobrar_a_pax
-Egresos = Suma de cantidad_egreso
-Pago Conductor = vehiculo_pago_conductor
+EN reservas_servicios_detalle:
+- precio_venta_cliente (lo que paga el cliente)
+- precio_compra_agencia (costo para agencia origen)
+- comision_monto (ganancia Magic Travel)
+- comision_porcentaje (% aplicado)
 ```
 
-## 7. MÓDULO DE VENTAS
-
-### 7.1 Control de Ventas Directas
+### 6.2 Egresos por Ruta: egresos_ruta_activa
 ```
-FILTROS:
-- POR_COBRAR: Pendientes y confirmadas sin pago
-- COBRADOS: Con pago confirmado en caja
-- CONFIRMAR_RECIBIDO: Pagos pendientes de confirmar del conductor
+GASTOS OPERACIONALES:
+- motivo_egreso, cantidad_egreso
+- descripcion_egreso
+- id_ruta_activa (asociado a ruta específica)
 
-MÉTRICAS:
-- Total servicios del día
-- Ingresos confirmados vs pendientes
-- Porcentaje de pagos en caja vs conductor
+CÁLCULO RENTABILIDAD:
+Ganancia = Σ(comision_monto) - Σ(cantidad_egreso) - vehiculo_pago_conductor
+```
+
+## 7. MÓDULO DE VENTAS v4.0
+
+### 7.1 Filtros por Estado de Pago
+```
+POR_COBRAR: estado_pago IN ('PENDIENTE')
+COBRADOS: estado_pago IN ('PAGADO_CAJA', 'PAGADO_CONDUCTOR')
+CONFIRMAR_RECIBIDO: estado_pago = 'CONFIRMAR_RECIBIDO'
 ```
 
 ### 7.2 Liquidación de Rutas
 ```
-ESTADOS DE LIQUIDACIÓN:
-- PENDIENTE_PAGOS: Hay reservas sin cobrar
-- PENDIENTE_CONFIRMACION: Hay pagos de conductor sin confirmar
-- LISTO_LIQUIDAR: Todos los pagos confirmados
-- LIQUIDADA: Ruta cerrada contablemente
+VALIDACIONES:
+1. Todos los servicios con estado_pago != 'PENDIENTE'
+2. Todos los egresos registrados
+3. Estado ruta = 'Liquidar Ruta'
 
 PROCESO:
-1. Confirmar todos los pagos
-2. Registrar todos los egresos
-3. Calcular ganancia neta
-4. Cambiar estado a "Liquidar Ruta"
+1. Confirmar todos los pagos de conductor
+2. Validar egresos completos
+3. Calcular ganancia neta final
+4. Cerrar ruta contablemente
 ```
 
-## 8. MÓDULO DE CONTABILIDAD
+## 8. MÓDULO DE CONTABILIDAD v4.0
 
 ### 8.1 Estados de Cuenta por Agencia
 ```
 PARA CADA AGENCIA:
-- Servicios operados por Magic Travel
-- Servicios transferidos a Magic Travel
-- Comisiones ganadas/pagadas
-- Balance neto entre agencias
+- Servicios donde es agencia_origen (debe a Magic Travel)
+- Servicios donde es agencia_operadora (Magic Travel le debe)
+- Comisiones ganadas/pagadas por escenario
+- Balance neto calculado
 ```
 
 ### 8.2 Control de Vouchers
 ```
-VOUCHERS REQUERIDOS:
-- Para servicios transferidos entre agencias
-- Para servicios con pago diferido
-- Para control de comisiones
-
-ESTADOS:
-- CON_VOUCHER: Documentación completa
-- SIN_VOUCHER: Pendiente de documentar
-- PENDIENTE_LIQUIDACION: Servicio no liquidado
+vouchers_sistema:
+- Generación automática para transferencias
+- Validación de integridad (es_valido)
+- Trazabilidad completa por reserva
 ```
 
-## 9. SISTEMA DE PERMISOS GRANULARES
+## 9. VALIDACIONES DE NEGOCIO v4.0
 
-### 9.1 Módulos del Sistema
+### 9.1 Reservas
 ```
-MÓDULOS DISPONIBLES:
-- reservas, rutas, tours, vehiculos, empleados
-- reportes, configuracion, agencias, ventas, contabilidad
+OBLIGATORIAS:
+- Una reserva DEBE tener al menos un detalle en reservas_servicios_detalle
+- Cada detalle DEBE tener ruta_activa O tour_activo (no ambos)
+- cantidad_adultos > 0, cantidad_ninos >= 0
+- escenario_reserva debe ser uno de los 5 definidos
+```
+
+### 9.2 Servicios
+```
+OBLIGATORIAS:
+- precio_venta_cliente >= precio_compra_agencia
+- descuento_aplicado entre 0 y 100
+- comision_porcentaje entre 0 y 100
+- agencia_operadora debe existir y estar activa
+```
+
+### 9.3 Capacidad de Vehículos
+```
+CONTROL AUTOMÁTICO:
+- Suma de cantidad_adultos + cantidad_ninos por ruta_activa
+- No exceder vehiculo_capacidad
+- Cambio automático de estado a "Llena" al completarse
+```
+
+## 10. PERMISOS GRANULARES v4.0
+
+### 10.1 Módulos del Sistema (Campo real DB)
+```
+usuarios_permisos.modulo:
+'reservas', 'rutas', 'tours', 'vehiculos', 'empleados'
+'reportes', 'configuracion', 'agencias', 'ventas', 'contabilidad', 'servicios'
 
 PERMISOS POR MÓDULO:
-- puede_ver: Acceso de lectura
-- puede_crear: Crear nuevos registros
-- puede_editar: Modificar existentes
-- puede_eliminar: Soft delete
+- puede_ver, puede_crear, puede_editar, puede_eliminar
+- puede_exportar_excel, puede_exportar_pdf (nuevos v4.0)
 ```
 
-### 9.2 Control de Acceso
+## 11. FLUJO OPERACIONAL v4.0
+
+### 11.1 Proceso de Reserva Completo
 ```
-VALIDACIÓN POR REQUEST:
-- Verificar si usuario tiene permiso para el módulo
-- Validar acción específica (ver/crear/editar/eliminar)
-- Bloquear acceso si no tiene permisos
-```
-
-## 10. AUTOMATIZACIONES CRÍTICAS
-
-### 10.1 Triggers Automáticos (ahora en Backend)
-```
-SERVICIOS:
-- Auto-cálculo de precios con descuento
-- Validación de porcentajes 0-100%
-
-RESERVAS:
-- Auto-cálculo de precio por adultos/niños
-- Validación de capacidad del vehículo
-- Auto-creación en caja para ventas directas
-
-CAJA:
-- Auto-cálculo de total_pax = adultos + niños
-- Consistencia de datos financieros
+1. CREAR RESERVA (tabla reservas con escenario)
+2. AGREGAR SERVICIOS (tabla reservas_servicios_detalle)
+3. GENERAR VOUCHER (tabla vouchers_sistema)
+4. PROCESAR PAGOS (actualizar estado_pago)
+5. CREAR ENTRADA CAJA (si es venta directa pagada)
+6. LIQUIDAR SERVICIOS (confirmar pagos y egresos)
 ```
 
-### 10.2 Validaciones de Negocio
+### 11.2 Integración Completa v4.0
 ```
-RESERVAS:
-- Una reserva DEBE tener ruta O tour (no ambos)
-- Cantidad adultos > 0
-- Cantidad niños >= 0 o NULL
-- No exceder capacidad del vehículo
-
-SERVICIOS:
-- Descuento entre 0% y 100%
-- Precio > 0
-- Debe estar asociado a ruta O tour
-
-EGRESOS:
-- Cantidad > 0
-- Debe estar asociado a ruta activa válida
+reservas → reservas_servicios_detalle → caja → facturas_sat
+    ↓              ↓                        ↓
+vouchers_sistema  ruta_activa/tour_activo  egresos_ruta_activa
 ```
 
-## 11. REPORTES Y MÉTRICAS
-
-### 11.1 Dashboard Principal
-```
-MÉTRICAS DIARIAS:
-- Ocupación promedio de vehículos
-- Ingresos del día por módulo
-- Reservas pendientes de pago
-- Rutas pendientes de liquidar
-
-GRÁFICOS:
-- Tendencia de ventas por semana/mes
-- Ocupación por ruta
-- Balance por agencia
-```
-
-### 11.2 Exportaciones
-```
-FORMATOS DISPONIBLES:
-- Excel: Para análisis detallado
-- PDF: Para reportes ejecutivos
-
-DATOS EXPORTABLES:
-- Todas las entidades con filtros
-- Reportes consolidados
-- Estados de cuenta
-- Análisis de rentabilidad
-```
-
-## 12. FLUJO OPERACIONAL TÍPICO
-
-### 12.1 Proceso Diario
-```
-1. ACTIVAR RUTAS del día con vehículos disponibles
-2. RECIBIR RESERVAS de clientes directos y agencias
-3. CONTROLAR CAPACIDAD y cambiar estados automáticamente
-4. PROCESAR PAGOS en caja o marcar para conductor
-5. REGISTRAR EGRESOS durante operación
-6. LIQUIDAR RUTAS al final del día
-7. GENERAR REPORTES diarios
-```
-
-### 12.2 Proceso de Transferencia
-```
-1. AGENCIA EXTERNA contacta a Magic Travel
-2. CREAR RESERVA con id_agencia_transferida
-3. DEFINIR ESCENARIO automáticamente
-4. OPERAR SERVICIO según corresponda
-5. GENERAR VOUCHER para documentar
-6. LIQUIDAR con agencia mensualmente
-```
-
-Esta lógica de negocio debe estar completamente implementada en el backend Laravel, eliminando la dependencia de triggers y funciones de base de datos para mayor control y mantenibilidad.
+Esta lógica v4.0 elimina la dependencia de triggers de DB y 
+centraliza toda la lógica de negocio en el backend Laravel para máximo control y mantenibilidad.

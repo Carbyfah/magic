@@ -1,4 +1,7 @@
 <?php
+// =====================================================
+// MODELO AGENCIA v4.0 - SOLO LÓGICA REAL
+// =====================================================
 
 namespace App\Models;
 
@@ -25,82 +28,73 @@ class Agencia extends Model
     ];
 
     // =====================================================
-    // RELACIONES SEGÚN ESTRUCTURA DE BASE DE DATOS
+    // RELACIONES SEGÚN DB v4.0
     // =====================================================
 
-    // Relación con empleados
     public function empleados()
     {
         return $this->hasMany(Empleado::class, 'id_agencias', 'id_agencias');
     }
 
-    // Relación con rutas
     public function rutas()
     {
-        return $this->hasMany(Ruta::class, 'id_agencias', 'id_agencias');
+        return $this->belongsToMany(Ruta::class, 'agencias_rutas', 'id_agencias', 'id_rutas');
     }
 
-    // Relación con tours
     public function tours()
     {
-        return $this->hasMany(Tour::class, 'id_agencias', 'id_agencias');
+        return $this->belongsToMany(Tour::class, 'agencias_tours', 'id_agencias', 'id_tours');
     }
 
-    // Relación con vehiculos
     public function vehiculos()
     {
         return $this->hasMany(Vehiculo::class, 'id_agencias', 'id_agencias');
     }
 
-    // Relación con reservas transferidas (como agencia que recibe transferencias)
     public function reservasTransferidas()
     {
         return $this->hasMany(Reserva::class, 'id_agencia_transferida', 'id_agencias');
     }
 
-    // =====================================================
-    // SCOPES PARA LÓGICA DE NEGOCIO MAGIC TRAVEL
-    // =====================================================
-
-    /**
-     * Scope para obtener Magic Travel específicamente
-     */
-    public function scopeMagicTravel($query)
+    public function reservasOrigen()
     {
-        return $query->where('agencias_nombre', 'Magic Travel');
+        return $this->hasMany(Reserva::class, 'agencia_origen', 'id_agencias');
     }
 
-    /**
-     * Scope para obtener otras agencias (no Magic Travel)
-     */
-    public function scopeOtrasAgencias($query)
+    public function serviciosPrecios()
     {
-        return $query->where('agencias_nombre', '!=', 'Magic Travel');
-    }
-
-    /**
-     * Scope para agencias activas (no eliminadas)
-     */
-    public function scopeActivas($query)
-    {
-        return $query->whereNull('deleted_at');
+        return $this->hasMany(AgenciaServicioPrecio::class, 'id_agencias', 'id_agencias');
     }
 
     // =====================================================
-    // MÉTODOS HELPERS PARA LÓGICA DE TRANSFERENCIAS
+    // LÓGICA MAGIC TRAVEL - 5 ESCENARIOS
     // =====================================================
 
-    /**
-     * Verificar si es Magic Travel
-     */
     public function esMagicTravel()
     {
         return $this->agencias_nombre === 'Magic Travel';
     }
 
-    /**
-     * Obtener estadísticas básicas de la agencia
-     */
+    public function scopeMagicTravel($query)
+    {
+        return $query->where('agencias_nombre', 'Magic Travel');
+    }
+
+    public function scopeOtrasAgencias($query)
+    {
+        return $query->where('agencias_nombre', '!=', 'Magic Travel');
+    }
+
+    public function scopeActivas($query)
+    {
+        return $query->whereNull('deleted_at');
+    }
+
+    public function puedeRecibirTransferencias()
+    {
+        return !$this->trashed();
+    }
+
     public function estadisticas()
     {
         return [
@@ -112,38 +106,20 @@ class Agencia extends Model
         ];
     }
 
-    /**
-     * Verificar si puede recibir transferencias
-     * (todas las agencias pueden recibir transferencias)
-     */
-    public function puedeRecibirTransferencias()
-    {
-        return !$this->trashed();
-    }
-
     // =====================================================
-    // MÉTODOS ESTÁTICOS PARA CONSULTAS COMUNES
+    // MÉTODOS ESTÁTICOS PARA LOS 5 ESCENARIOS
     // =====================================================
 
-    /**
-     * Obtener instancia de Magic Travel
-     */
     public static function magicTravel()
     {
         return static::where('agencias_nombre', 'Magic Travel')->first();
     }
 
-    /**
-     * Obtener todas las agencias excepto Magic Travel para transferencias
-     */
     public static function paraTransferencias()
     {
         return static::otrasAgencias()->activas()->get();
     }
 
-    /**
-     * Obtener opciones para formularios (id => nombre)
-     */
     public static function opciones()
     {
         return static::activas()
@@ -151,14 +127,128 @@ class Agencia extends Model
             ->pluck('agencias_nombre', 'id_agencias');
     }
 
-    /**
-     * Obtener opciones para transferencias (excluyendo Magic Travel)
-     */
     public static function opcionesTransferencias()
     {
         return static::otrasAgencias()
             ->activas()
             ->orderBy('agencias_nombre')
             ->pluck('agencias_nombre', 'id_agencias');
+    }
+}
+
+// =====================================================
+// MODELO RUTA v4.0 - SOLO CAMPOS REALES
+// =====================================================
+
+class Ruta extends Model
+{
+    use HasFactory, SoftDeletes;
+
+    protected $table = 'rutas';
+    protected $primaryKey = 'id_rutas';
+
+    protected $fillable = [
+        'rutas_origen',
+        'rutas_destino',
+        'created_by'
+    ];
+
+    protected $casts = [
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime'
+    ];
+
+    // =====================================================
+    // RELACIONES SEGÚN DB v4.0
+    // =====================================================
+
+    public function agencias()
+    {
+        return $this->belongsToMany(Agencia::class, 'agencias_rutas', 'id_rutas', 'id_agencias');
+    }
+
+    public function rutasActivas()
+    {
+        return $this->hasMany(RutaActiva::class, 'id_rutas', 'id_rutas');
+    }
+
+    // =====================================================
+    // SOLO LÓGICA NECESARIA MAGIC TRAVEL
+    // =====================================================
+
+    public function getRutaCompletaAttribute()
+    {
+        return "{$this->rutas_origen} → {$this->rutas_destino}";
+    }
+
+    public function scopePorAgencia($query, $agenciaId)
+    {
+        return $query->whereHas('agencias', function ($q) use ($agenciaId) {
+            $q->where('agencias.id_agencias', $agenciaId);
+        });
+    }
+
+    public function scopePorOrigen($query, $origen)
+    {
+        return $query->where('rutas_origen', 'like', "%{$origen}%");
+    }
+
+    public function scopePorDestino($query, $destino)
+    {
+        return $query->where('rutas_destino', 'like', "%{$destino}%");
+    }
+}
+
+// =====================================================
+// MODELO TOUR v4.0 - SOLO CAMPOS REALES
+// =====================================================
+
+class Tour extends Model
+{
+    use HasFactory, SoftDeletes;
+
+    protected $table = 'tours';
+    protected $primaryKey = 'id_tours';
+
+    protected $fillable = [
+        'tours_nombre',
+        'created_by'
+    ];
+
+    protected $casts = [
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime'
+    ];
+
+    // =====================================================
+    // RELACIONES SEGÚN DB v4.0
+    // =====================================================
+
+    public function agencias()
+    {
+        return $this->belongsToMany(Agencia::class, 'agencias_tours', 'id_tours', 'id_agencias');
+    }
+
+    public function toursActivos()
+    {
+        return $this->hasMany(TourActivo::class, 'id_tours', 'id_tours');
+    }
+
+    // =====================================================
+    // SOLO LÓGICA NECESARIA MAGIC TRAVEL
+    // =====================================================
+
+    public function scopePorAgencia($query, $agenciaId)
+    {
+        return $query->whereHas('agencias', function ($q) use ($agenciaId) {
+            $q->where('agencias.id_agencias', $agenciaId);
+        });
+    }
+
+    public function scopePorNombre($query, $nombre)
+    {
+        return $query->where('tours_nombre', 'like', "%{$nombre}%");
     }
 }

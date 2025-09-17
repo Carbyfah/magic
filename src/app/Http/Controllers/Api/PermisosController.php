@@ -38,7 +38,7 @@ class PermisosController extends Controller
             'success' => true,
             'data' => [
                 'usuarios' => $usuarios,
-                'modulos_disponibles' => UsuarioPermiso::$modulosDisponibles
+                'modulos_disponibles' => UsuarioPermiso::getModulosDisponibles()
             ]
         ]);
     }
@@ -55,13 +55,15 @@ class PermisosController extends Controller
         $permisos = $usuario->obtenerPermisos();
 
         // Asegurar que todos los módulos estén presentes
-        $permisosCompletos = collect(UsuarioPermiso::$modulosDisponibles)->mapWithKeys(function ($nombre, $modulo) use ($permisos) {
+        $permisosCompletos = collect(UsuarioPermiso::getModulosDisponibles())->mapWithKeys(function ($nombre, $modulo) use ($permisos) {
             return [$modulo => [
                 'nombre_modulo' => $nombre,
                 'ver' => $permisos[$modulo]['ver'] ?? false,
                 'crear' => $permisos[$modulo]['crear'] ?? false,
                 'editar' => $permisos[$modulo]['editar'] ?? false,
-                'eliminar' => $permisos[$modulo]['eliminar'] ?? false
+                'eliminar' => $permisos[$modulo]['eliminar'] ?? false,
+                'exportar_excel' => $permisos[$modulo]['exportar_excel'] ?? false,  // AGREGAR
+                'exportar_pdf' => $permisos[$modulo]['exportar_pdf'] ?? false        // AGREGAR
             ]];
         });
 
@@ -93,7 +95,9 @@ class PermisosController extends Controller
             'permisos.*.ver' => 'boolean',
             'permisos.*.crear' => 'boolean',
             'permisos.*.editar' => 'boolean',
-            'permisos.*.eliminar' => 'boolean'
+            'permisos.*.eliminar' => 'boolean',
+            'permisos.*.exportar_excel' => 'boolean',
+            'permisos.*.exportar_pdf' => 'boolean'
         ]);
 
         $usuario = User::findOrFail($id);
@@ -102,22 +106,30 @@ class PermisosController extends Controller
         try {
             DB::beginTransaction();
 
-            // Eliminar permisos existentes
-            $usuario->permisos()->delete();
-
-            // Crear nuevos permisos
+            // Usar updateOrCreate en lugar de delete + create
             foreach ($request->permisos as $modulo => $acciones) {
-                // Solo crear registro si al menos una acción está habilitada
-                if ($acciones['ver'] || $acciones['crear'] || $acciones['editar'] || $acciones['eliminar']) {
-                    UsuarioPermiso::create([
-                        'id_usuarios' => $usuario->id_usuarios,
-                        'modulo' => $modulo,
-                        'puede_ver' => $acciones['ver'] ?? false,
-                        'puede_crear' => $acciones['crear'] ?? false,
-                        'puede_editar' => $acciones['editar'] ?? false,
-                        'puede_eliminar' => $acciones['eliminar'] ?? false,
-                        'created_by' => $usuarioAuth->id_usuarios
-                    ]);
+                // Solo crear/actualizar registro si al menos una acción está habilitada
+                if ($acciones['ver'] || $acciones['crear'] || $acciones['editar'] || $acciones['eliminar'] || $acciones['exportar_excel'] || $acciones['exportar_pdf']) {
+                    UsuarioPermiso::updateOrCreate(
+                        [
+                            'id_usuarios' => $usuario->id_usuarios,
+                            'modulo' => $modulo
+                        ],
+                        [
+                            'puede_ver' => $acciones['ver'] ?? false,
+                            'puede_crear' => $acciones['crear'] ?? false,
+                            'puede_editar' => $acciones['editar'] ?? false,
+                            'puede_eliminar' => $acciones['eliminar'] ?? false,
+                            'puede_exportar_excel' => $acciones['exportar_excel'] ?? false,
+                            'puede_exportar_pdf' => $acciones['exportar_pdf'] ?? false,
+                            'updated_by' => $usuarioAuth->id_usuarios
+                        ]
+                    );
+                } else {
+                    // Si todas las acciones están deshabilitadas, eliminar el registro
+                    UsuarioPermiso::where('id_usuarios', $usuario->id_usuarios)
+                        ->where('modulo', $modulo)
+                        ->delete();
                 }
             }
 
@@ -241,7 +253,7 @@ class PermisosController extends Controller
                 'usuarios_con_permisos' => $usuariosConPermisos,
                 'usuarios_sin_permisos' => $usuariosSinPermisos,
                 'permisos_por_modulo' => $permisosPorModulo,
-                'modulos_disponibles' => UsuarioPermiso::$modulosDisponibles
+                'modulos_disponibles' => UsuarioPermiso::getModulosDisponibles()
             ]
         ]);
     }

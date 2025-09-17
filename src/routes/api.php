@@ -355,6 +355,16 @@ Route::middleware('auth:sanctum')->prefix('auditoria')->group(function () {
     Route::get('/cumplimiento', [AuditoriaController::class, 'cumplimiento']);
 });
 
+// Ruta para sincronizar permisos cuando se crea un nuevo módulo
+Route::post('/dev/sync-permissions', function () {
+    \App\Observers\UsuarioObserver::sincronizarPermisosExistentes();
+    return response()->json(['message' => 'Permisos sincronizados para todos los usuarios']);
+});
+
+// Manejar preflight OPTIONS requests
+Route::options('{any}', function () {
+    return response('', 200);
+})->where('any', '.*');
 // ================================================================
 // Total: 20 Controladores | 150+ Endpoints | Sistema Completo
 // ================================================================

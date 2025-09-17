@@ -25,52 +25,28 @@ class Empleado extends Model
     protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
-        'deleted_at' => 'datetime',
+        'deleted_at' => 'datetime'
     ];
 
-    // Relación con Agencia
+    // RELACIONES REALES
     public function agencia()
     {
         return $this->belongsTo(Agencia::class, 'id_agencias', 'id_agencias');
     }
 
-    // Relación con Cargo
     public function cargo()
     {
         return $this->belongsTo(Cargo::class, 'id_cargo', 'id_cargo');
     }
 
-    // Relación con Usuario
     public function usuario()
     {
-        return $this->hasOne(User::class, 'id_empleados', 'id_empleados');
+        return $this->hasOne(Usuario::class, 'id_empleados', 'id_empleados');
     }
 
-    // Relación con quien creó el registro
-    public function createdBy()
-    {
-        return $this->belongsTo(User::class, 'created_by', 'id_usuarios');
-    }
-
-    // Accessor para nombre completo
+    // ACCESSOR BÁSICO
     public function getNombreCompletoAttribute()
     {
-        return $this->empleados_nombres . ' ' . $this->empleados_apellidos;
-    }
-
-    // Scopes útiles
-    public function scopePorAgencia($query, $agenciaId)
-    {
-        return $query->where('id_agencias', $agenciaId);
-    }
-
-    public function scopePorCargo($query, $cargoId)
-    {
-        return $query->where('id_cargo', $cargoId);
-    }
-
-    public function scopeConUsuario($query)
-    {
-        return $query->whereHas('usuario');
+        return "{$this->empleados_nombres} {$this->empleados_apellidos}";
     }
 }

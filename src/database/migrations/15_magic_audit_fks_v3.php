@@ -6,16 +6,17 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     /**
-     * MIGRACIÓN FK AUDITORÍA MAGIC TRAVEL v3.0 - ESTRUCTURA COMPLETA CON NUEVAS TABLAS
-     * Agregar FKs de auditoría para nueva estructura v3
+     * MIGRACIÓN FK AUDITORÍA MAGIC TRAVEL v4.0 - ESTRUCTURA MODULAR CORREGIDA
+     * Agregar FKs de auditoría para nueva estructura v4.0
      * EXCLUYE tabla usuarios para evitar referencia circular
-     * Adaptado a nombres de tabla v3 con nuevas tablas agregadas
-     * INCLUYE: caja, egresos_ruta_activa, facturas_sat, usuarios_permisos
+     * EXCLUYE tablas pivote que no tienen campos created_by
+     * CORREGIDO: Adaptado a tablas v4.0, eliminada tabla 'servicio'
+     * AGREGADO: Nuevas tablas v4.0 del sistema modular
      */
     public function up()
     {
         $tables = [
-            // Tablas originales
+            // Tablas base
             'agencias',
             'estado',
             'cargo',
@@ -26,15 +27,24 @@ return new class extends Migration
             // 'usuarios', - EXCLUIDO: no puede tener FK hacia sí mismo
             'ruta_activa',
             'tour_activo',
-            'servicio',
+            // 'servicio', - ELIMINADO: ya no existe en v4.0
+
+            // Nuevas tablas v4.0 - Sistema modular
+            'tipos_servicio',
+            'servicios_catalogo',
+            'agencias_servicios_precios',
+            'vouchers_sistema',
             'reservas',
+            'reservas_servicios_detalle',
             'datos_reservas_clientes',
 
-            // Nuevas tablas agregadas en migración 10
+            // Módulos ventas y contabilidad
             'usuarios_permisos',
             'caja',
             'egresos_ruta_activa',
             'facturas_sat'
+
+            // EXCLUIDAS: agencias_rutas y agencias_tours (tablas pivote sin created_by)
         ];
 
         foreach ($tables as $table) {
@@ -102,12 +112,14 @@ return new class extends Migration
             }
         }
 
-        echo "\n=== RESUMEN FK AUDITORÍA COMPLETADO ===\n";
+        echo "\n=== RESUMEN FK AUDITORÍA v4.0 COMPLETADO ===\n";
         echo "- Se procesaron " . count($tables) . " tablas\n";
         echo "- Se agregaron FKs para campos created_by donde existían\n";
         echo "- Se respetaron las FKs existentes\n";
         echo "- Tabla 'usuarios' excluida para evitar referencia circular\n";
-        echo "=========================================\n";
+        echo "- Tablas pivote excluidas (no tienen created_by)\n";
+        echo "- Estructura adaptada a v4.0 (eliminada tabla 'servicio')\n";
+        echo "==============================================\n";
     }
 
     /**
@@ -116,7 +128,7 @@ return new class extends Migration
     public function down()
     {
         $tables = [
-            // Tablas originales
+            // Tablas base
             'agencias',
             'estado',
             'cargo',
@@ -127,15 +139,24 @@ return new class extends Migration
             // 'usuarios', - EXCLUIDO
             'ruta_activa',
             'tour_activo',
-            'servicio',
+            // 'servicio', - ELIMINADO: ya no existe en v4.0
+
+            // Nuevas tablas v4.0 - Sistema modular
+            'tipos_servicio',
+            'servicios_catalogo',
+            'agencias_servicios_precios',
+            'vouchers_sistema',
             'reservas',
+            'reservas_servicios_detalle',
             'datos_reservas_clientes',
 
-            // Nuevas tablas agregadas
+            // Módulos ventas y contabilidad
             'usuarios_permisos',
             'caja',
             'egresos_ruta_activa',
             'facturas_sat'
+
+            // EXCLUIDAS: agencias_rutas y agencias_tours (tablas pivote sin created_by)
         ];
 
         foreach ($tables as $table) {
@@ -187,9 +208,11 @@ return new class extends Migration
             }
         }
 
-        echo "\n=== ROLLBACK FK AUDITORÍA COMPLETADO ===\n";
+        echo "\n=== ROLLBACK FK AUDITORÍA v4.0 COMPLETADO ===\n";
         echo "- Se procesaron " . count($tables) . " tablas\n";
         echo "- Se eliminaron FKs de auditoría donde existían\n";
-        echo "==========================================\n";
+        echo "- Tablas pivote no incluidas en el rollback\n";
+        echo "- Estructura v4.0 respetada\n";
+        echo "===========================================\n";
     }
 };

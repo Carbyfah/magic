@@ -6,9 +6,11 @@ use Illuminate\Support\ServiceProvider;
 use App\Models\Servicio;
 use App\Models\Reserva;
 use App\Models\Caja;
+use App\Models\User;
 use App\Observers\ServicioObserver;
 use App\Observers\ReservaObserver;
 use App\Observers\CajaObserver;
+use App\Observers\UsuarioObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -46,5 +48,6 @@ class AppServiceProvider extends ServiceProvider
         Servicio::observe(ServicioObserver::class);
         Reserva::observe(ReservaObserver::class);
         Caja::observe(CajaObserver::class);
+        User::observe(UsuarioObserver::class);
     }
 }

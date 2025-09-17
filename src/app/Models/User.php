@@ -89,7 +89,9 @@ class User extends Authenticatable
                     'ver' => $permiso->puede_ver,
                     'crear' => $permiso->puede_crear,
                     'editar' => $permiso->puede_editar,
-                    'eliminar' => $permiso->puede_eliminar
+                    'eliminar' => $permiso->puede_eliminar,
+                    'exportar_excel' => $permiso->puede_exportar_excel,
+                    'exportar_pdf' => $permiso->puede_exportar_pdf
                 ];
             });
     }

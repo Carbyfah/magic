@@ -24,20 +24,20 @@ class Cargo extends Model
         'deleted_at' => 'datetime'
     ];
 
-    // Relaciones
+    // RELACIONES REALES
     public function empleados()
     {
         return $this->hasMany(Empleado::class, 'id_cargo', 'id_cargo');
     }
 
-    public function createdBy()
-    {
-        return $this->belongsTo(User::class, 'created_by', 'id_usuarios');
-    }
-
-    // Scopes
+    // SOLO LÓGICA BÁSICA
     public function scopePorNombre($query, $nombre)
     {
         return $query->where('cargo_nombre', 'like', "%{$nombre}%");
+    }
+
+    public static function opciones()
+    {
+        return static::orderBy('cargo_nombre')->pluck('cargo_nombre', 'id_cargo');
     }
 }

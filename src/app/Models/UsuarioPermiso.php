@@ -20,6 +20,8 @@ class UsuarioPermiso extends Model
         'puede_crear',
         'puede_editar',
         'puede_eliminar',
+        'puede_exportar_excel',
+        'puede_exportar_pdf',
         'created_by'
     ];
 
@@ -28,73 +30,56 @@ class UsuarioPermiso extends Model
         'puede_crear' => 'boolean',
         'puede_editar' => 'boolean',
         'puede_eliminar' => 'boolean',
+        'puede_exportar_excel' => 'boolean',
+        'puede_exportar_pdf' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime'
     ];
 
-    // Módulos disponibles en el sistema
-    public static $modulosDisponibles = [
-        'reservas' => 'Reservas',
-        'rutas' => 'Rutas',
-        'tours' => 'Tours',
-        'vehiculos' => 'Vehículos',
-        'empleados' => 'Empleados',
-        'reportes' => 'Reportes',
-        'configuracion' => 'Configuración',
-        'agencias' => 'Agencias',
-        'ventas' => 'Ventas',
-        'contabilidad' => 'Contabilidad'
-    ];
+    // DINÁMICO: Obtener módulos del sistema automáticamente
+    public static function getModulosDisponibles()
+    {
+        $controllersPath = app_path('Http/Controllers/Api');
+        $controllers = glob($controllersPath . '/*Controller.php');
 
-    // Relaciones
+        $modulos = [];
+
+        foreach ($controllers as $controller) {
+            $filename = basename($controller, '.php');
+            $modulo = strtolower(str_replace('Controller', '', $filename));
+
+            // Excluir controladores que no son módulos de negocio
+            if (!in_array($modulo, [
+                'auth',
+                'dashboard',
+                'utils',
+                'notificaciones',
+                'auditoria',
+                'precio',
+                'estadoruta',
+                'transferencia',
+                'permisos'
+            ])) {
+                $nombre = ucfirst($modulo);
+                $modulos[$modulo] = $nombre;
+            }
+        }
+
+        return $modulos;
+    }
+
+    // Resto de métodos sin cambios...
     public function usuario()
     {
         return $this->belongsTo(User::class, 'id_usuarios', 'id_usuarios');
     }
 
-    public function createdBy()
-    {
-        return $this->belongsTo(User::class, 'created_by', 'id_usuarios');
-    }
-
-    // Scopes
-    public function scopePorUsuario($query, $usuarioId)
-    {
-        return $query->where('id_usuarios', $usuarioId);
-    }
-
-    public function scopePorModulo($query, $modulo)
-    {
-        return $query->where('modulo', $modulo);
-    }
-
-    public function scopeConAcceso($query, $accion)
-    {
-        return $query->where("puede_{$accion}", true);
-    }
-
-    // Métodos estáticos de utilidad
     public static function tienePermiso($usuarioId, $modulo, $accion)
     {
         return self::where('id_usuarios', $usuarioId)
             ->where('modulo', $modulo)
             ->where("puede_{$accion}", true)
             ->exists();
-    }
-
-    public static function obtenerPermisosUsuario($usuarioId)
-    {
-        return self::where('id_usuarios', $usuarioId)
-            ->get()
-            ->keyBy('modulo')
-            ->map(function ($permiso) {
-                return [
-                    'ver' => $permiso->puede_ver,
-                    'crear' => $permiso->puede_crear,
-                    'editar' => $permiso->puede_editar,
-                    'eliminar' => $permiso->puede_eliminar
-                ];
-            });
     }
 }

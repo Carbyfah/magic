@@ -79,12 +79,14 @@ class AuthController extends Controller
 
         // Si no tiene permisos configurados, devolver estructura vacía
         if ($permisos->isEmpty()) {
-            $permisos = collect(UsuarioPermiso::$modulosDisponibles)->mapWithKeys(function ($nombre, $modulo) {
+            $permisos = collect(UsuarioPermiso::getModulosDisponibles())->mapWithKeys(function ($nombre, $modulo) {
                 return [$modulo => [
                     'ver' => false,
                     'crear' => false,
                     'editar' => false,
-                    'eliminar' => false
+                    'eliminar' => false,
+                    'exportar_excel' => false,
+                    'exportar_pdf' => false
                 ]];
             });
         }
@@ -98,7 +100,7 @@ class AuthController extends Controller
                     'email' => $user->usuarios_correo,
                     'username' => $user->usuarios_nombre,
                     'permisos' => $permisos,
-                    'modulos_disponibles' => UsuarioPermiso::$modulosDisponibles,
+                    'modulos_disponibles' => UsuarioPermiso::getModulosDisponibles(),
                     'empleado' => $user->empleado ? [
                         'id' => $user->empleado->id_empleados,
                         'nombres' => $user->empleado->empleados_nombres,

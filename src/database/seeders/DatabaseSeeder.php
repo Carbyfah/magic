@@ -27,6 +27,7 @@ class DatabaseSeeder extends Seeder
             'agencias_nombre' => 'Magic Travel',
             'created_at' => now(),
             'updated_at' => now()
+            // created_by queda NULL por defecto
         ]);
         echo "Agencia Magic Travel creada\n";
     }
@@ -72,6 +73,7 @@ class DatabaseSeeder extends Seeder
                 'estado_descripcion' => $estado['descripcion'],
                 'created_at' => now(),
                 'updated_at' => now()
+                // created_by queda NULL por defecto
             ]);
         }
         echo "Estados creados (incluidos nuevos para Ventas y Contabilidad)\n";
@@ -89,6 +91,7 @@ class DatabaseSeeder extends Seeder
                 'cargo_nombre' => $cargo,
                 'created_at' => now(),
                 'updated_at' => now()
+                // created_by queda NULL por defecto
             ]);
         }
         echo "Cargos básicos creados (Desarrollador y Administrador)\n";
@@ -102,10 +105,12 @@ class DatabaseSeeder extends Seeder
         DB::table('empleados')->insert([
             'empleados_nombres' => 'Desarrollador',
             'empleados_apellidos' => 'Magic Travel',
+            'empleados_dpi' => '1234567890101',
             'id_agencias' => $agenciaMagicTravel,
             'id_cargo' => $cargoDesarrollador,
             'created_at' => now(),
             'updated_at' => now()
+            // created_by queda NULL por defecto
         ]);
         echo "Empleado Desarrollador creado\n";
     }
@@ -121,6 +126,7 @@ class DatabaseSeeder extends Seeder
             'id_empleados' => $empleadoDesarrollador,
             'created_at' => now(),
             'updated_at' => now()
+            // created_by queda NULL por defecto
         ]);
 
         echo "\n" . str_repeat("=", 60) . "\n";

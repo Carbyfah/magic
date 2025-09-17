@@ -31,7 +31,7 @@ class Vehiculo extends Model
         'deleted_at' => 'datetime'
     ];
 
-    // Relaciones
+    // RELACIONES REALES
     public function estado()
     {
         return $this->belongsTo(Estado::class, 'estado_id', 'estado_id');
@@ -47,35 +47,13 @@ class Vehiculo extends Model
         return $this->hasMany(RutaActiva::class, 'id_vehiculo', 'id_vehiculo');
     }
 
-    public function createdBy()
-    {
-        return $this->belongsTo(User::class, 'created_by', 'id_usuarios');
-    }
-
-    // Accessors
+    // ACCESSOR BÁSICO
     public function getInfoCompletaAttribute()
     {
         return "{$this->vehiculo_marca} - {$this->vehiculo_placa}";
     }
 
-    public function getEstaDisponibleAttribute()
-    {
-        return $this->estado && strtolower($this->estado->estado_nombre) === 'disponible';
-    }
-
-    // Scopes
-    public function scopeDisponibles($query)
-    {
-        return $query->whereHas('estado', function ($q) {
-            $q->where('estado_nombre', 'like', '%disponible%');
-        });
-    }
-
-    public function scopeConCapacidad($query)
-    {
-        return $query->where('vehiculo_capacidad', '>', 0);
-    }
-
+    // SCOPE BÁSICO
     public function scopePorAgencia($query, $agenciaId)
     {
         return $query->where('id_agencias', $agenciaId);

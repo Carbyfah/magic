@@ -16,7 +16,6 @@ class Ruta extends Model
     protected $fillable = [
         'rutas_origen',
         'rutas_destino',
-        'id_agencias',
         'created_by'
     ];
 
@@ -26,10 +25,10 @@ class Ruta extends Model
         'deleted_at' => 'datetime'
     ];
 
-    // Relaciones
-    public function agencia()
+    // RELACIONES REALES v4.0
+    public function agencias()
     {
-        return $this->belongsTo(Agencia::class, 'id_agencias', 'id_agencias');
+        return $this->belongsToMany(Agencia::class, 'agencias_rutas', 'id_rutas', 'id_agencias');
     }
 
     public function rutasActivas()
@@ -37,21 +36,10 @@ class Ruta extends Model
         return $this->hasMany(RutaActiva::class, 'id_rutas', 'id_rutas');
     }
 
-    public function createdBy()
-    {
-        return $this->belongsTo(User::class, 'created_by', 'id_usuarios');
-    }
-
-    // Accessors
+    // SOLO LÓGICA BÁSICA NECESARIA
     public function getRutaCompletaAttribute()
     {
-        return "{$this->rutas_origen} -> {$this->rutas_destino}";
-    }
-
-    // Scopes
-    public function scopePorAgencia($query, $agenciaId)
-    {
-        return $query->where('id_agencias', $agenciaId);
+        return "{$this->rutas_origen} → {$this->rutas_destino}";
     }
 
     public function scopePorOrigen($query, $origen)

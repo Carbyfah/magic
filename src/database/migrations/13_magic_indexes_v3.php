@@ -6,12 +6,12 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     /**
-     * MIGRACIÓN ÍNDICES MAGIC TRAVEL v3.0 - CON NUEVAS TABLAS Y MÓDULOS
-     * Índices optimizados para la nueva estructura v3
+     * MIGRACIÓN ÍNDICES MAGIC TRAVEL v4.0 - ESTRUCTURA MODULAR CORREGIDA
+     * Índices optimizados para la nueva estructura v4.0
      * Adaptados a nombres de tabla y campos actuales
-     * CON SOPORTE COMPLETO PARA TOURS, RUTAS, VENTAS Y CONTABILIDAD
-     * AGREGADO: Índices para tablas nuevas (caja, egresos_ruta_activa, facturas_sat, usuarios_permisos)
-     * ELIMINADOS: todos los campos *_situacion (soft delete hace este trabajo)
+     * CON SOPORTE COMPLETO PARA SISTEMA MODULAR DE SERVICIOS
+     * CORREGIDO: Eliminados índices de tablas/campos que ya no existen
+     * AGREGADO: Índices para nuevas tablas v4.0 (tipos_servicio, servicios_catalogo, etc.)
      */
     public function up()
     {
@@ -19,17 +19,73 @@ return new class extends Migration
     }
 
     /**
-     * Crear índices optimizados según estructura v3 completa
+     * Crear índices optimizados según estructura v4.0 completa
      */
     private function createOptimizedIndexes()
     {
         // =====================================================
-        // ÍNDICES DE REPORTES Y DASHBOARD
+        // ÍNDICES PARA NUEVAS TABLAS PIVOTE
         // =====================================================
-        DB::statement('CREATE INDEX idx_reservas_ingresos ON reservas(created_at, deleted_at, reservas_cobrar_a_pax)');
+        DB::statement('CREATE INDEX idx_agencias_rutas_agencia ON agencias_rutas(id_agencias)');
+        DB::statement('CREATE INDEX idx_agencias_rutas_ruta ON agencias_rutas(id_rutas)');
+        DB::statement('CREATE INDEX idx_agencias_rutas_completo ON agencias_rutas(id_agencias, id_rutas)');
+
+        DB::statement('CREATE INDEX idx_agencias_tours_agencia ON agencias_tours(id_agencias)');
+        DB::statement('CREATE INDEX idx_agencias_tours_tour ON agencias_tours(id_tours)');
+        DB::statement('CREATE INDEX idx_agencias_tours_completo ON agencias_tours(id_agencias, id_tours)');
+
+        // =====================================================
+        // ÍNDICES PARA NUEVAS TABLAS v4.0 - SISTEMA MODULAR
+        // =====================================================
+
+        // Índices para tipos_servicio
+        DB::statement('CREATE INDEX idx_tipos_servicio_nombre ON tipos_servicio(nombre_tipo, deleted_at)');
+        DB::statement('CREATE INDEX idx_tipos_servicio_deleted ON tipos_servicio(deleted_at)');
+        DB::statement('CREATE INDEX idx_tipos_servicio_timestamps ON tipos_servicio(created_at, updated_at)');
+        DB::statement('CREATE INDEX idx_tipos_servicio_created_by ON tipos_servicio(created_by)');
+
+        // Índices para servicios_catalogo
+        DB::statement('CREATE INDEX idx_servicios_catalogo_tipo ON servicios_catalogo(id_tipo_servicio, deleted_at)');
+        DB::statement('CREATE INDEX idx_servicios_catalogo_nombre ON servicios_catalogo(nombre_servicio, deleted_at)');
+        DB::statement('CREATE INDEX idx_servicios_catalogo_modalidad ON servicios_catalogo(modalidad_servicio, deleted_at)');
+        DB::statement('CREATE INDEX idx_servicios_catalogo_deleted ON servicios_catalogo(deleted_at)');
+        DB::statement('CREATE INDEX idx_servicios_catalogo_timestamps ON servicios_catalogo(created_at, updated_at)');
+        DB::statement('CREATE INDEX idx_servicios_catalogo_created_by ON servicios_catalogo(created_by)');
+
+        // Índices para agencias_servicios_precios
+        DB::statement('CREATE INDEX idx_agencias_servicios_precios_agencia ON agencias_servicios_precios(id_agencias, deleted_at)');
+        DB::statement('CREATE INDEX idx_agencias_servicios_precios_servicio ON agencias_servicios_precios(id_servicio_catalogo, deleted_at)');
+        DB::statement('CREATE INDEX idx_agencias_servicios_precios_activo ON agencias_servicios_precios(activo, deleted_at)');
+        DB::statement('CREATE INDEX idx_agencias_servicios_precios_precios ON agencias_servicios_precios(precio_adulto, precio_nino, deleted_at)');
+        DB::statement('CREATE INDEX idx_agencias_servicios_precios_deleted ON agencias_servicios_precios(deleted_at)');
+        DB::statement('CREATE INDEX idx_agencias_servicios_precios_timestamps ON agencias_servicios_precios(created_at, updated_at)');
+
+        // Índices para vouchers_sistema
+        DB::statement('CREATE INDEX idx_vouchers_sistema_codigo ON vouchers_sistema(codigo_voucher, deleted_at)');
+        DB::statement('CREATE INDEX idx_vouchers_sistema_reserva ON vouchers_sistema(id_reservas, deleted_at)');
+        DB::statement('CREATE INDEX idx_vouchers_sistema_valido ON vouchers_sistema(es_valido, deleted_at)');
+        DB::statement('CREATE INDEX idx_vouchers_sistema_fecha ON vouchers_sistema(fecha_generacion, deleted_at)');
+        DB::statement('CREATE INDEX idx_vouchers_sistema_deleted ON vouchers_sistema(deleted_at)');
+
+        // Índices para reservas_servicios_detalle (LA TABLA MÁS IMPORTANTE)
+        DB::statement('CREATE INDEX idx_reservas_servicios_detalle_reserva ON reservas_servicios_detalle(id_reservas, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_servicios_detalle_catalogo ON reservas_servicios_detalle(id_servicio_catalogo, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_servicios_detalle_ruta ON reservas_servicios_detalle(id_ruta_activa, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_servicios_detalle_tour ON reservas_servicios_detalle(id_tour_activo, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_servicios_detalle_operadora ON reservas_servicios_detalle(agencia_operadora, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_servicios_detalle_estado_pago ON reservas_servicios_detalle(estado_pago, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_servicios_detalle_precios ON reservas_servicios_detalle(precio_venta_cliente, precio_compra_agencia, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_servicios_detalle_comision ON reservas_servicios_detalle(comision_monto, comision_porcentaje, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_servicios_detalle_segmento ON reservas_servicios_detalle(segmento_orden, es_conexion, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_servicios_detalle_orden ON reservas_servicios_detalle(orden_servicio, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_servicios_detalle_cantidades ON reservas_servicios_detalle(cantidad_adultos, cantidad_ninos, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_servicios_detalle_deleted ON reservas_servicios_detalle(deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_servicios_detalle_timestamps ON reservas_servicios_detalle(created_at, updated_at)');
+
+        // =====================================================
+        // ÍNDICES DE REPORTES Y DASHBOARD v4.0
+        // =====================================================
         DB::statement('CREATE INDEX idx_reservas_fecha_creacion ON reservas(created_at, deleted_at)');
-        DB::statement('CREATE INDEX idx_reservas_fecha_ruta ON reservas(id_ruta_activa, created_at, deleted_at)');
-        DB::statement('CREATE INDEX idx_reservas_fecha_tour ON reservas(id_tour_activo, created_at, deleted_at)');
         DB::statement('CREATE INDEX idx_ruta_activa_ocupacion ON ruta_activa(ruta_activa_fecha, estado_id, deleted_at)');
         DB::statement('CREATE INDEX idx_tour_activo_ocupacion ON tour_activo(tour_activo_fecha, estado_id, deleted_at)');
 
@@ -39,14 +95,9 @@ return new class extends Migration
         DB::statement('CREATE INDEX idx_usuarios_empleados ON usuarios(id_empleados, deleted_at)');
         DB::statement('CREATE INDEX idx_empleados_agencia ON empleados(id_agencias, deleted_at)');
         DB::statement('CREATE INDEX idx_empleados_cargo ON empleados(id_cargo, deleted_at)');
-        DB::statement('CREATE INDEX idx_reservas_ruta_join ON reservas(id_ruta_activa, deleted_at, estado_id)');
-        DB::statement('CREATE INDEX idx_reservas_tour_join ON reservas(id_tour_activo, deleted_at, estado_id)');
-        DB::statement('CREATE INDEX idx_reservas_servicio_join ON reservas(id_servicio, deleted_at)');
         DB::statement('CREATE INDEX idx_ruta_activa_vehiculo ON ruta_activa(id_vehiculo, deleted_at)');
         DB::statement('CREATE INDEX idx_ruta_activa_rutas ON ruta_activa(id_rutas, deleted_at)');
-        DB::statement('CREATE INDEX idx_tour_activo_tours ON tour_activo(id_tour, deleted_at)');
-        DB::statement('CREATE INDEX idx_servicio_ruta_activa ON servicio(id_ruta_activa, deleted_at)');
-        DB::statement('CREATE INDEX idx_servicio_tour_activo ON servicio(id_tour_activo, deleted_at)');
+        DB::statement('CREATE INDEX idx_tour_activo_tours ON tour_activo(id_tours, deleted_at)');
 
         // =====================================================
         // ÍNDICES PARA NUEVAS TABLAS - MÓDULO VENTAS
@@ -88,17 +139,32 @@ return new class extends Migration
         DB::statement('CREATE INDEX idx_usuarios_permisos_eliminar ON usuarios_permisos(puede_eliminar, modulo, deleted_at)');
 
         // =====================================================
-        // ÍNDICES DE BÚSQUEDA Y FILTRADO
+        // ÍNDICES DE BÚSQUEDA Y FILTRADO v4.0
         // =====================================================
+
+        // Reservas v4.0
         DB::statement('CREATE INDEX idx_reservas_cliente ON reservas(reservas_nombres_cliente, reservas_apellidos_cliente, deleted_at)');
-        DB::statement('CREATE INDEX idx_reservas_telefono ON reservas(reservas_telefono_cliente)');
-        DB::statement('CREATE INDEX idx_reservas_voucher ON reservas(reservas_voucher(191), deleted_at)'); // NUEVO CAMPO
+        DB::statement('CREATE INDEX idx_reservas_telefono ON reservas(reservas_telefono_cliente, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_nit ON reservas(reservas_cliente_nit, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_fecha_servicio ON reservas(fecha_servicio, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_escenario ON reservas(escenario_reserva, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_agencia_origen ON reservas(agencia_origen, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_agencia_transferida ON reservas(id_agencia_transferida, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_estado ON reservas(estado_id, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_transferido_por ON reservas(reservas_transferido_por, deleted_at)');
+        DB::statement('CREATE INDEX idx_reservas_escenario_fecha ON reservas(escenario_reserva, fecha_servicio, deleted_at)');
+
+        // Empleados
         DB::statement('CREATE INDEX idx_empleados_nombres ON empleados(empleados_nombres, empleados_apellidos, deleted_at)');
         DB::statement('CREATE INDEX idx_empleados_dpi ON empleados(empleados_dpi)');
+
+        // Vehículos
         DB::statement('CREATE INDEX idx_vehiculo_placa ON vehiculo(vehiculo_placa, deleted_at)');
         DB::statement('CREATE INDEX idx_vehiculo_marca ON vehiculo(vehiculo_marca, deleted_at)');
         DB::statement('CREATE INDEX idx_vehiculo_capacidad ON vehiculo(vehiculo_capacidad, deleted_at)');
-        DB::statement('CREATE INDEX idx_vehiculo_pago_conductor ON vehiculo(vehiculo_pago_conductor, deleted_at)'); // NUEVO CAMPO
+        DB::statement('CREATE INDEX idx_vehiculo_pago_conductor ON vehiculo(vehiculo_pago_conductor, deleted_at)');
+
+        // Rutas y Tours
         DB::statement('CREATE INDEX idx_rutas_origen_destino ON rutas(rutas_origen, rutas_destino, deleted_at)');
         DB::statement('CREATE INDEX idx_tours_nombre ON tours(tours_nombre, deleted_at)');
 
@@ -110,8 +176,6 @@ return new class extends Migration
         DB::statement('CREATE INDEX idx_agencias_nombre ON agencias(agencias_nombre, deleted_at)');
         DB::statement('CREATE INDEX idx_vehiculo_estado ON vehiculo(estado_id, deleted_at)');
         DB::statement('CREATE INDEX idx_vehiculo_agencia ON vehiculo(id_agencias, deleted_at)');
-        DB::statement('CREATE INDEX idx_rutas_agencia ON rutas(id_agencias, deleted_at)');
-        DB::statement('CREATE INDEX idx_tours_agencia ON tours(id_agencias, deleted_at)');
 
         // =====================================================
         // ÍNDICES ESPECÍFICOS PARA RUTA ACTIVA
@@ -129,30 +193,11 @@ return new class extends Migration
         DB::statement('CREATE INDEX idx_tour_activo_completo ON tour_activo(deleted_at, estado_id, tour_activo_fecha)');
 
         // =====================================================
-        // ÍNDICES PARA SERVICIO Y PRECIOS
+        // ÍNDICES COMPUESTOS PARA REPORTES AVANZADOS v4.0
         // =====================================================
-        DB::statement('CREATE INDEX idx_servicio_tipo ON servicio(tipo_servicio, deleted_at)');
-        DB::statement('CREATE INDEX idx_servicio_precio ON servicio(precio_servicio, deleted_at)');
-        DB::statement('CREATE INDEX idx_servicio_descuento ON servicio(servicio_descuento_porcentaje, servicio_precio_descuento)');
-
-        // =====================================================
-        // ÍNDICES PARA RESERVAS Y CAPACIDAD
-        // =====================================================
-        DB::statement('CREATE INDEX idx_reservas_pasajeros ON reservas(reservas_cantidad_adultos, reservas_cantidad_ninos, deleted_at)');
-        DB::statement('CREATE INDEX idx_reservas_monto ON reservas(reservas_cobrar_a_pax, deleted_at)');
-        DB::statement('CREATE INDEX idx_reservas_transferido ON reservas(reservas_transferido_por, deleted_at)');
-        DB::statement('CREATE INDEX idx_reservas_nit ON reservas(reservas_cliente_nit)');
-        DB::statement('CREATE INDEX idx_reservas_agencia_transferida ON reservas(id_agencia_transferida, deleted_at)');
-
-        // =====================================================
-        // ÍNDICES COMPUESTOS PARA REPORTES AVANZADOS
-        // =====================================================
-        DB::statement('CREATE INDEX idx_reservas_agencia_fecha ON reservas(created_at, deleted_at, reservas_cobrar_a_pax)');
-        DB::statement('CREATE INDEX idx_reservas_tipo_servicio ON reservas(id_ruta_activa, id_tour_activo, deleted_at)');
         DB::statement('CREATE INDEX idx_ruta_vehiculo_fecha ON ruta_activa(id_vehiculo, ruta_activa_fecha, deleted_at)');
         DB::statement('CREATE INDEX idx_tour_fecha_tipo ON tour_activo(tour_activo_fecha, tour_activo_tipo, deleted_at)');
         DB::statement('CREATE INDEX idx_reservas_transferencias ON reservas(id_agencia_transferida, created_at, deleted_at)');
-        DB::statement('CREATE INDEX idx_reservas_transferidas_monto ON reservas(id_agencia_transferida, reservas_cobrar_a_pax, deleted_at)');
 
         // =====================================================
         // ÍNDICES PARA OPTIMIZAR VISTAS DEL MÓDULO VENTAS
@@ -161,13 +206,6 @@ return new class extends Migration
         DB::statement('CREATE INDEX idx_caja_ventas_ingresos ON caja(servicio_cobrar_pax, servicio_precio_descuento, deleted_at)');
         DB::statement('CREATE INDEX idx_reservas_ventas_estado ON reservas(estado_id, id_agencia_transferida, deleted_at)');
         DB::statement('CREATE INDEX idx_egresos_liquidacion ON egresos_ruta_activa(id_ruta_activa, cantidad_egreso, deleted_at)');
-
-        // =====================================================
-        // ÍNDICES PARA OPTIMIZAR VISTAS DEL MÓDULO CONTABILIDAD
-        // =====================================================
-        DB::statement('CREATE INDEX idx_reservas_contabilidad ON reservas(estado_id, created_at, reservas_cobrar_a_pax, deleted_at)');
-        DB::statement('CREATE INDEX idx_reservas_voucher_estado ON reservas(reservas_voucher(191), estado_id, deleted_at)');
-        DB::statement('CREATE INDEX idx_servicio_contabilidad ON servicio(servicio_precio_descuento, precio_servicio, deleted_at)');
 
         // =====================================================
         // ÍNDICES DE TIMESTAMPS Y AUDITORÍA - TABLAS NUEVAS
@@ -188,9 +226,9 @@ return new class extends Migration
         DB::statement('CREATE INDEX idx_vehiculo_timestamps ON vehiculo(created_at, updated_at)');
         DB::statement('CREATE INDEX idx_empleados_timestamps ON empleados(created_at, updated_at)');
         DB::statement('CREATE INDEX idx_usuarios_timestamps ON usuarios(created_at, updated_at)');
+        DB::statement('CREATE INDEX idx_usuarios_ultima_sesion ON usuarios(ultima_sesion, deleted_at)');
         DB::statement('CREATE INDEX idx_ruta_activa_timestamps ON ruta_activa(created_at, updated_at)');
         DB::statement('CREATE INDEX idx_tour_activo_timestamps ON tour_activo(created_at, updated_at)');
-        DB::statement('CREATE INDEX idx_servicio_timestamps ON servicio(created_at, updated_at)');
         DB::statement('CREATE INDEX idx_reservas_timestamps ON reservas(created_at, updated_at)');
         DB::statement('CREATE INDEX idx_datos_clientes_timestamps ON datos_reservas_clientes(created_at, updated_at)');
 
@@ -215,7 +253,6 @@ return new class extends Migration
         DB::statement('CREATE INDEX idx_usuarios_deleted ON usuarios(deleted_at)');
         DB::statement('CREATE INDEX idx_ruta_activa_deleted ON ruta_activa(deleted_at)');
         DB::statement('CREATE INDEX idx_tour_activo_deleted ON tour_activo(deleted_at)');
-        DB::statement('CREATE INDEX idx_servicio_deleted ON servicio(deleted_at)');
         DB::statement('CREATE INDEX idx_reservas_deleted ON reservas(deleted_at)');
         DB::statement('CREATE INDEX idx_datos_clientes_deleted ON datos_reservas_clientes(deleted_at)');
 
@@ -245,25 +282,26 @@ return new class extends Migration
         DB::statement('CREATE INDEX idx_usuarios_created_by ON usuarios(created_by)');
         DB::statement('CREATE INDEX idx_ruta_activa_created_by ON ruta_activa(created_by)');
         DB::statement('CREATE INDEX idx_tour_activo_created_by ON tour_activo(created_by)');
-        DB::statement('CREATE INDEX idx_servicio_created_by ON servicio(created_by)');
         DB::statement('CREATE INDEX idx_reservas_created_by ON reservas(created_by)');
         DB::statement('CREATE INDEX idx_datos_clientes_created_by ON datos_reservas_clientes(created_by)');
 
         // =====================================================
-        // ÍNDICES PARA OPTIMIZAR VISTAS DE LA MIGRACIÓN 12
+        // ÍNDICES PARA OPTIMIZAR VISTAS ESPECÍFICAS v4.0
         // =====================================================
         DB::statement('CREATE INDEX idx_reservas_activas ON reservas(deleted_at, created_at)');
         DB::statement('CREATE INDEX idx_vehiculo_ruta_capacidad ON vehiculo(id_vehiculo, vehiculo_capacidad, vehiculo_pago_conductor, deleted_at)');
-        DB::statement('CREATE INDEX idx_servicio_precios_descuento ON servicio(precio_servicio, servicio_precio_descuento, deleted_at)');
-        DB::statement('CREATE INDEX idx_reservas_monto_fecha ON reservas(reservas_cobrar_a_pax, created_at, deleted_at)');
 
         // =====================================================
-        // ÍNDICES ESPECIALES PARA ESCENARIOS DE TRANSFERENCIA
+        // ÍNDICES ESPECIALES PARA ESCENARIOS DE TRANSFERENCIA v4.0
         // =====================================================
         DB::statement('CREATE INDEX idx_reservas_escenarios ON reservas(id_agencia_transferida, estado_id, deleted_at)');
         DB::statement('CREATE INDEX idx_agencias_magic_travel ON agencias(agencias_nombre, deleted_at)');
-        DB::statement('CREATE INDEX idx_servicio_agencia_ruta ON servicio(id_ruta_activa, deleted_at)');
-        DB::statement('CREATE INDEX idx_servicio_agencia_tour ON servicio(id_tour_activo, deleted_at)');
+
+        // =====================================================
+        // ÍNDICES ESPECIALES PARA CONSULTAS N:N
+        // =====================================================
+        DB::statement('CREATE INDEX idx_agencias_rutas_busqueda ON agencias_rutas(id_rutas, id_agencias)');
+        DB::statement('CREATE INDEX idx_agencias_tours_busqueda ON agencias_tours(id_tours, id_agencias)');
     }
 
     /**
@@ -271,22 +309,21 @@ return new class extends Migration
      */
     public function down()
     {
+        // Índices especiales para consultas N:N
+        DB::statement('DROP INDEX IF EXISTS idx_agencias_tours_busqueda ON agencias_tours');
+        DB::statement('DROP INDEX IF EXISTS idx_agencias_rutas_busqueda ON agencias_rutas');
+
         // Índices especiales para escenarios de transferencia
-        DB::statement('DROP INDEX IF EXISTS idx_servicio_agencia_tour ON servicio');
-        DB::statement('DROP INDEX IF EXISTS idx_servicio_agencia_ruta ON servicio');
         DB::statement('DROP INDEX IF EXISTS idx_agencias_magic_travel ON agencias');
         DB::statement('DROP INDEX IF EXISTS idx_reservas_escenarios ON reservas');
 
         // Índices para optimizar vistas
-        DB::statement('DROP INDEX IF EXISTS idx_reservas_monto_fecha ON reservas');
-        DB::statement('DROP INDEX IF EXISTS idx_servicio_precios_descuento ON servicio');
         DB::statement('DROP INDEX IF EXISTS idx_vehiculo_ruta_capacidad ON vehiculo');
         DB::statement('DROP INDEX IF EXISTS idx_reservas_activas ON reservas');
 
         // Índices de created_by - tablas existentes
         DB::statement('DROP INDEX IF EXISTS idx_datos_clientes_created_by ON datos_reservas_clientes');
         DB::statement('DROP INDEX IF EXISTS idx_reservas_created_by ON reservas');
-        DB::statement('DROP INDEX IF EXISTS idx_servicio_created_by ON servicio');
         DB::statement('DROP INDEX IF EXISTS idx_tour_activo_created_by ON tour_activo');
         DB::statement('DROP INDEX IF EXISTS idx_ruta_activa_created_by ON ruta_activa');
         DB::statement('DROP INDEX IF EXISTS idx_usuarios_created_by ON usuarios');
@@ -310,7 +347,6 @@ return new class extends Migration
         // Índices de soft deletes - tablas existentes
         DB::statement('DROP INDEX IF EXISTS idx_datos_clientes_deleted ON datos_reservas_clientes');
         DB::statement('DROP INDEX IF EXISTS idx_reservas_deleted ON reservas');
-        DB::statement('DROP INDEX IF EXISTS idx_servicio_deleted ON servicio');
         DB::statement('DROP INDEX IF EXISTS idx_tour_activo_deleted ON tour_activo');
         DB::statement('DROP INDEX IF EXISTS idx_ruta_activa_deleted ON ruta_activa');
         DB::statement('DROP INDEX IF EXISTS idx_usuarios_deleted ON usuarios');
@@ -331,9 +367,9 @@ return new class extends Migration
         // Índices de timestamps - tablas existentes
         DB::statement('DROP INDEX IF EXISTS idx_datos_clientes_timestamps ON datos_reservas_clientes');
         DB::statement('DROP INDEX IF EXISTS idx_reservas_timestamps ON reservas');
-        DB::statement('DROP INDEX IF EXISTS idx_servicio_timestamps ON servicio');
         DB::statement('DROP INDEX IF EXISTS idx_tour_activo_timestamps ON tour_activo');
         DB::statement('DROP INDEX IF EXISTS idx_ruta_activa_timestamps ON ruta_activa');
+        DB::statement('DROP INDEX IF EXISTS idx_usuarios_ultima_sesion ON usuarios');
         DB::statement('DROP INDEX IF EXISTS idx_usuarios_timestamps ON usuarios');
         DB::statement('DROP INDEX IF EXISTS idx_empleados_timestamps ON empleados');
         DB::statement('DROP INDEX IF EXISTS idx_vehiculo_timestamps ON vehiculo');
@@ -349,11 +385,6 @@ return new class extends Migration
         DB::statement('DROP INDEX IF EXISTS idx_egresos_timestamps ON egresos_ruta_activa');
         DB::statement('DROP INDEX IF EXISTS idx_caja_timestamps ON caja');
 
-        // Índices para módulo contabilidad
-        DB::statement('DROP INDEX IF EXISTS idx_servicio_contabilidad ON servicio');
-        DB::statement('DROP INDEX IF EXISTS idx_reservas_voucher_estado ON reservas');
-        DB::statement('DROP INDEX IF EXISTS idx_reservas_contabilidad ON reservas');
-
         // Índices para módulo ventas
         DB::statement('DROP INDEX IF EXISTS idx_egresos_liquidacion ON egresos_ruta_activa');
         DB::statement('DROP INDEX IF EXISTS idx_reservas_ventas_estado ON reservas');
@@ -361,24 +392,9 @@ return new class extends Migration
         DB::statement('DROP INDEX IF EXISTS idx_caja_ventas_fecha ON caja');
 
         // Índices compuestos
-        DB::statement('DROP INDEX IF EXISTS idx_reservas_transferidas_monto ON reservas');
         DB::statement('DROP INDEX IF EXISTS idx_reservas_transferencias ON reservas');
         DB::statement('DROP INDEX IF EXISTS idx_tour_fecha_tipo ON tour_activo');
         DB::statement('DROP INDEX IF EXISTS idx_ruta_vehiculo_fecha ON ruta_activa');
-        DB::statement('DROP INDEX IF EXISTS idx_reservas_tipo_servicio ON reservas');
-        DB::statement('DROP INDEX IF EXISTS idx_reservas_agencia_fecha ON reservas');
-
-        // Índices de reservas
-        DB::statement('DROP INDEX IF EXISTS idx_reservas_agencia_transferida ON reservas');
-        DB::statement('DROP INDEX IF EXISTS idx_reservas_nit ON reservas');
-        DB::statement('DROP INDEX IF EXISTS idx_reservas_transferido ON reservas');
-        DB::statement('DROP INDEX IF EXISTS idx_reservas_monto ON reservas');
-        DB::statement('DROP INDEX IF EXISTS idx_reservas_pasajeros ON reservas');
-
-        // Índices de servicio
-        DB::statement('DROP INDEX IF EXISTS idx_servicio_descuento ON servicio');
-        DB::statement('DROP INDEX IF EXISTS idx_servicio_precio ON servicio');
-        DB::statement('DROP INDEX IF EXISTS idx_servicio_tipo ON servicio');
 
         // Índices de tour activo
         DB::statement('DROP INDEX IF EXISTS idx_tour_activo_completo ON tour_activo');
@@ -392,8 +408,6 @@ return new class extends Migration
         DB::statement('DROP INDEX IF EXISTS idx_ruta_activa_fecha ON ruta_activa');
 
         // Índices de estados y FK
-        DB::statement('DROP INDEX IF EXISTS idx_tours_agencia ON tours');
-        DB::statement('DROP INDEX IF EXISTS idx_rutas_agencia ON rutas');
         DB::statement('DROP INDEX IF EXISTS idx_vehiculo_agencia ON vehiculo');
         DB::statement('DROP INDEX IF EXISTS idx_vehiculo_estado ON vehiculo');
         DB::statement('DROP INDEX IF EXISTS idx_agencias_nombre ON agencias');
@@ -409,7 +423,14 @@ return new class extends Migration
         DB::statement('DROP INDEX IF EXISTS idx_vehiculo_placa ON vehiculo');
         DB::statement('DROP INDEX IF EXISTS idx_empleados_dpi ON empleados');
         DB::statement('DROP INDEX IF EXISTS idx_empleados_nombres ON empleados');
-        DB::statement('DROP INDEX IF EXISTS idx_reservas_voucher ON reservas');
+        DB::statement('DROP INDEX IF EXISTS idx_reservas_escenario_fecha ON reservas');
+        DB::statement('DROP INDEX IF EXISTS idx_reservas_transferido_por ON reservas');
+        DB::statement('DROP INDEX IF EXISTS idx_reservas_estado ON reservas');
+        DB::statement('DROP INDEX IF EXISTS idx_reservas_agencia_transferida ON reservas');
+        DB::statement('DROP INDEX IF EXISTS idx_reservas_agencia_origen ON reservas');
+        DB::statement('DROP INDEX IF EXISTS idx_reservas_escenario ON reservas');
+        DB::statement('DROP INDEX IF EXISTS idx_reservas_fecha_servicio ON reservas');
+        DB::statement('DROP INDEX IF EXISTS idx_reservas_nit ON reservas');
         DB::statement('DROP INDEX IF EXISTS idx_reservas_telefono ON reservas');
         DB::statement('DROP INDEX IF EXISTS idx_reservas_cliente ON reservas');
 
@@ -445,14 +466,9 @@ return new class extends Migration
         DB::statement('DROP INDEX IF EXISTS idx_caja_fecha_servicio ON caja');
 
         // Índices de performance
-        DB::statement('DROP INDEX IF EXISTS idx_servicio_tour_activo ON servicio');
-        DB::statement('DROP INDEX IF EXISTS idx_servicio_ruta_activa ON servicio');
         DB::statement('DROP INDEX IF EXISTS idx_tour_activo_tours ON tour_activo');
         DB::statement('DROP INDEX IF EXISTS idx_ruta_activa_rutas ON ruta_activa');
         DB::statement('DROP INDEX IF EXISTS idx_ruta_activa_vehiculo ON ruta_activa');
-        DB::statement('DROP INDEX IF EXISTS idx_reservas_servicio_join ON reservas');
-        DB::statement('DROP INDEX IF EXISTS idx_reservas_tour_join ON reservas');
-        DB::statement('DROP INDEX IF EXISTS idx_reservas_ruta_join ON reservas');
         DB::statement('DROP INDEX IF EXISTS idx_empleados_cargo ON empleados');
         DB::statement('DROP INDEX IF EXISTS idx_empleados_agencia ON empleados');
         DB::statement('DROP INDEX IF EXISTS idx_usuarios_empleados ON usuarios');
@@ -460,9 +476,50 @@ return new class extends Migration
         // Índices de reportes
         DB::statement('DROP INDEX IF EXISTS idx_tour_activo_ocupacion ON tour_activo');
         DB::statement('DROP INDEX IF EXISTS idx_ruta_activa_ocupacion ON ruta_activa');
-        DB::statement('DROP INDEX IF EXISTS idx_reservas_fecha_tour ON reservas');
-        DB::statement('DROP INDEX IF EXISTS idx_reservas_fecha_ruta ON reservas');
         DB::statement('DROP INDEX IF EXISTS idx_reservas_fecha_creacion ON reservas');
-        DB::statement('DROP INDEX IF EXISTS idx_reservas_ingresos ON reservas');
+
+        // Índices para tablas pivote
+        DB::statement('DROP INDEX IF EXISTS idx_agencias_tours_completo ON agencias_tours');
+        DB::statement('DROP INDEX IF EXISTS idx_agencias_tours_tour ON agencias_tours');
+        DB::statement('DROP INDEX IF EXISTS idx_agencias_tours_agencia ON agencias_tours');
+        DB::statement('DROP INDEX IF EXISTS idx_agencias_rutas_completo ON agencias_rutas');
+        DB::statement('DROP INDEX IF EXISTS idx_agencias_rutas_ruta ON agencias_rutas');
+        DB::statement('DROP INDEX IF EXISTS idx_agencias_rutas_agencia ON agencias_rutas');
+
+        // Eliminar índices v4.0 - nuevas tablas
+        DB::statement('DROP INDEX IF EXISTS idx_reservas_servicios_detalle_timestamps ON reservas_servicios_detalle');
+        DB::statement('DROP INDEX IF EXISTS idx_reservas_servicios_detalle_deleted ON reservas_servicios_detalle');
+        DB::statement('DROP INDEX IF EXISTS idx_reservas_servicios_detalle_cantidades ON reservas_servicios_detalle');
+        DB::statement('DROP INDEX IF EXISTS idx_reservas_servicios_detalle_orden ON reservas_servicios_detalle');
+        DB::statement('DROP INDEX IF EXISTS idx_reservas_servicios_detalle_segmento ON reservas_servicios_detalle');
+        DB::statement('DROP INDEX IF EXISTS idx_reservas_servicios_detalle_comision ON reservas_servicios_detalle');
+        DB::statement('DROP INDEX IF EXISTS idx_reservas_servicios_detalle_precios ON reservas_servicios_detalle');
+        DB::statement('DROP INDEX IF EXISTS idx_reservas_servicios_detalle_estado_pago ON reservas_servicios_detalle');
+        DB::statement('DROP INDEX IF EXISTS idx_reservas_servicios_detalle_operadora ON reservas_servicios_detalle');
+        DB::statement('DROP INDEX IF EXISTS idx_reservas_servicios_detalle_tour ON reservas_servicios_detalle');
+        DB::statement('DROP INDEX IF EXISTS idx_reservas_servicios_detalle_ruta ON reservas_servicios_detalle');
+        DB::statement('DROP INDEX IF EXISTS idx_reservas_servicios_detalle_catalogo ON reservas_servicios_detalle');
+        DB::statement('DROP INDEX IF EXISTS idx_reservas_servicios_detalle_reserva ON reservas_servicios_detalle');
+        DB::statement('DROP INDEX IF EXISTS idx_vouchers_sistema_deleted ON vouchers_sistema');
+        DB::statement('DROP INDEX IF EXISTS idx_vouchers_sistema_fecha ON vouchers_sistema');
+        DB::statement('DROP INDEX IF EXISTS idx_vouchers_sistema_valido ON vouchers_sistema');
+        DB::statement('DROP INDEX IF EXISTS idx_vouchers_sistema_reserva ON vouchers_sistema');
+        DB::statement('DROP INDEX IF EXISTS idx_vouchers_sistema_codigo ON vouchers_sistema');
+        DB::statement('DROP INDEX IF EXISTS idx_agencias_servicios_precios_timestamps ON agencias_servicios_precios');
+        DB::statement('DROP INDEX IF EXISTS idx_agencias_servicios_precios_deleted ON agencias_servicios_precios');
+        DB::statement('DROP INDEX IF EXISTS idx_agencias_servicios_precios_precios ON agencias_servicios_precios');
+        DB::statement('DROP INDEX IF EXISTS idx_agencias_servicios_precios_activo ON agencias_servicios_precios');
+        DB::statement('DROP INDEX IF EXISTS idx_agencias_servicios_precios_servicio ON agencias_servicios_precios');
+        DB::statement('DROP INDEX IF EXISTS idx_agencias_servicios_precios_agencia ON agencias_servicios_precios');
+        DB::statement('DROP INDEX IF EXISTS idx_servicios_catalogo_created_by ON servicios_catalogo');
+        DB::statement('DROP INDEX IF EXISTS idx_servicios_catalogo_timestamps ON servicios_catalogo');
+        DB::statement('DROP INDEX IF EXISTS idx_servicios_catalogo_deleted ON servicios_catalogo');
+        DB::statement('DROP INDEX IF EXISTS idx_servicios_catalogo_modalidad ON servicios_catalogo');
+        DB::statement('DROP INDEX IF EXISTS idx_servicios_catalogo_nombre ON servicios_catalogo');
+        DB::statement('DROP INDEX IF EXISTS idx_servicios_catalogo_tipo ON servicios_catalogo');
+        DB::statement('DROP INDEX IF EXISTS idx_tipos_servicio_created_by ON tipos_servicio');
+        DB::statement('DROP INDEX IF EXISTS idx_tipos_servicio_timestamps ON tipos_servicio');
+        DB::statement('DROP INDEX IF EXISTS idx_tipos_servicio_deleted ON tipos_servicio');
+        DB::statement('DROP INDEX IF EXISTS idx_tipos_servicio_nombre ON tipos_servicio');
     }
 };
