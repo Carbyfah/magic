@@ -2,24 +2,14 @@
 
 use Illuminate\Support\Facades\Route;
 
-/*
-|--------------------------------------------------------------------------
-| Web Routes
-|--------------------------------------------------------------------------
-*/
-
-// Ruta raíz simple
 Route::get('/', function () {
-    return response()->json([
-        'app' => 'Magic Travel API',
-        'version' => '1.0',
-        'status' => 'active'
-    ]);
+    return view('welcome');
 });
 
-// Ruta login requerida por Laravel (para redirecciones de auth)
-Route::get('/login', function () {
-    return response()->json([
-        'error' => 'Use /api/auth/login for authentication'
-    ], 401);
-})->name('login');
+Auth::routes();
+
+Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
+
+Route::get('/dashboard', function () {
+    return view('argon.test');
+});
