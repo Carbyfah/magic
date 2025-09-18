@@ -1,9 +1,6 @@
+"use client";
 import { useState } from "react";
-import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "../../icons";
-import Label from "../form/Label";
-import Input from "../form/input/InputField";
-import Checkbox from "../form/input/Checkbox";
-import { useAuth } from "../../context/AuthContext";
+import { EyeIcon, EyeCloseIcon } from "../../icons";
 
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
@@ -14,8 +11,6 @@ export default function SignInForm() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const { login } = useAuth();
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -31,9 +26,21 @@ export default function SignInForm() {
     setError("");
 
     try {
-      const success = await login(formData.email, formData.password);
+      const response = await fetch('http://localhost:8080/api/auth/login', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest',
+    'Referer': 'http://localhost:3000',
+  },
+  credentials: 'include',
+  body: JSON.stringify(formData),
+});
 
-      if (success) {
+      if (response.ok) {
+        const data = await response.json();
+        localStorage.setItem('token', data.token);
         window.location.href = "/";
       } else {
         setError("Credenciales incorrectas");
@@ -68,25 +75,30 @@ export default function SignInForm() {
             <form onSubmit={handleSubmit}>
               <div className="space-y-6">
                 <div>
-                  <Label>
-                    Correo Electrónico <span className="text-error-500">*</span>
-                  </Label>
-                  <Input
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Correo Electrónico <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="email"
                     placeholder="carbyfah@gmail.com"
                     value={formData.email}
                     onChange={(e) => handleInputChange("email", e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white"
+                    required
                   />
                 </div>
                 <div>
-                  <Label>
-                    Contraseña <span className="text-error-500">*</span>
-                  </Label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Contraseña <span className="text-red-500">*</span>
+                  </label>
                   <div className="relative">
-                    <Input
+                    <input
                       type={showPassword ? "text" : "password"}
                       placeholder="Ingresa tu contraseña"
                       value={formData.password}
                       onChange={(e) => handleInputChange("password", e.target.value)}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white"
+                      required
                     />
                     <span
                       onClick={() => setShowPassword(!showPassword)}
@@ -102,7 +114,12 @@ export default function SignInForm() {
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <Checkbox checked={isChecked} onChange={setIsChecked} />
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(e) => setIsChecked(e.target.checked)}
+                      className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                    />
                     <span className="block font-normal text-gray-700 text-theme-sm dark:text-gray-400">
                       Mantener sesión iniciada
                     </span>

@@ -1,43 +1,80 @@
+"use client";
+import { useState, useCallback } from "react";
 import ComponentCard from "../../common/ComponentCard";
-import { useDropzone } from "react-dropzone";
-// import Dropzone from "react-dropzone";
 
 const DropzoneComponent: React.FC = () => {
-  const onDrop = (acceptedFiles: File[]) => {
-    console.log("Files dropped:", acceptedFiles);
-    // Handle file uploads here
-  };
+  const [isDragActive, setIsDragActive] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      "image/png": [],
-      "image/jpeg": [],
-      "image/webp": [],
-      "image/svg+xml": [],
-    },
-  });
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    const imageFiles = droppedFiles.filter(file =>
+      file.type.startsWith('image/') &&
+      ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'].includes(file.type)
+    );
+
+    if (imageFiles.length > 0) {
+      setFiles(prev => [...prev, ...imageFiles]);
+      console.log("Archivos soltados:", imageFiles);
+    }
+  }, []);
+
+  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(e.target.files || []);
+    if (selectedFiles.length > 0) {
+      setFiles(prev => [...prev, ...selectedFiles]);
+      console.log("Archivos seleccionados:", selectedFiles);
+    }
+  }, []);
+
   return (
-    <ComponentCard title="Dropzone">
-      <div className="transition border border-gray-300 border-dashed cursor-pointer dark:hover:border-brand-500 dark:border-gray-700 rounded-xl hover:border-brand-500">
-        <form
-          {...getRootProps()}
-          className={`dropzone rounded-xl   border-dashed border-gray-300 p-7 lg:p-10
-        ${
-          isDragActive
-            ? "border-brand-500 bg-gray-100 dark:bg-gray-800"
-            : "border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-900"
-        }
-      `}
-          id="demo-upload"
+    <ComponentCard title="Zona de Arrastre">
+      <div className="transition border border-gray-300 border-dashed cursor-pointer dark:hover:border-blue-500 dark:border-gray-700 rounded-xl hover:border-blue-500">
+        <div
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          className={`rounded-xl border-dashed p-7 lg:p-10 transition-colors ${
+            isDragActive
+              ? "border-blue-500 bg-gray-100 dark:bg-gray-800"
+              : "border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-900"
+          }`}
         >
-          {/* Hidden Input */}
-          <input {...getInputProps()} />
+          <input
+            type="file"
+            multiple
+            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            onChange={handleFileInput}
+            className="hidden"
+            id="file-upload"
+          />
 
-          <div className="dz-message flex flex-col items-center m-0!">
-            {/* Icon Container */}
-            <div className="mb-[22px] flex justify-center">
-              <div className="flex h-[68px] w-[68px]  items-center justify-center rounded-full bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-400">
+          <div className="flex flex-col items-center">
+            {/* Contenedor del icono */}
+            <div className="mb-6 flex justify-center">
+              <div className="flex h-17 w-17 items-center justify-center rounded-full bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-400">
                 <svg
                   className="fill-current"
                   width="29"
@@ -54,21 +91,38 @@ const DropzoneComponent: React.FC = () => {
               </div>
             </div>
 
-            {/* Text Content */}
-            <h4 className="mb-3 font-semibold text-gray-800 text-theme-xl dark:text-white/90">
-              {isDragActive ? "Drop Files Here" : "Drag & Drop Files Here"}
+            {/* Contenido de texto */}
+            <h4 className="mb-3 font-semibold text-gray-800 text-xl dark:text-white/90">
+              {isDragActive ? "Suelta los Archivos Aquí" : "Arrastra y Suelta Archivos Aquí"}
             </h4>
-
-            <span className=" text-center mb-5 block w-full max-w-[290px] text-sm text-gray-700 dark:text-gray-400">
-              Drag and drop your PNG, JPG, WebP, SVG images here or browse
+            <span className="text-center mb-5 block w-full max-w-[290px] text-sm text-gray-700 dark:text-gray-400">
+              Arrastra y suelta tus imágenes PNG, JPG, WebP, SVG aquí o navega
             </span>
-
-            <span className="font-medium underline text-theme-sm text-brand-500">
-              Browse File
-            </span>
+            <label
+              htmlFor="file-upload"
+              className="font-medium underline text-sm text-blue-600 cursor-pointer hover:text-blue-700"
+            >
+              Explorar Archivo
+            </label>
           </div>
-        </form>
+        </div>
       </div>
+
+      {/* Mostrar archivos seleccionados */}
+      {files.length > 0 && (
+        <div className="mt-4">
+          <h5 className="font-medium text-gray-800 dark:text-white mb-2">
+            Archivos seleccionados:
+          </h5>
+          <ul className="space-y-1">
+            {files.map((file, index) => (
+              <li key={index} className="text-sm text-gray-600 dark:text-gray-400">
+                {file.name} ({Math.round(file.size / 1024)}KB)
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </ComponentCard>
   );
 };

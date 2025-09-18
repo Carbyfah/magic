@@ -1,3 +1,4 @@
+"use client";
 import { useState } from "react";
 
 interface SwitchProps {
@@ -5,7 +6,7 @@ interface SwitchProps {
   defaultChecked?: boolean;
   disabled?: boolean;
   onChange?: (checked: boolean) => void;
-  color?: "blue" | "gray"; // Added prop to toggle color theme
+  color?: "blue" | "gray"; // Prop agregado para alternar tema de color
 }
 
 const Switch: React.FC<SwitchProps> = ({
@@ -13,7 +14,7 @@ const Switch: React.FC<SwitchProps> = ({
   defaultChecked = false,
   disabled = false,
   onChange,
-  color = "blue", // Default to blue color
+  color = "blue", // Por defecto color azul
 }) => {
   const [isChecked, setIsChecked] = useState(defaultChecked);
 
@@ -30,8 +31,8 @@ const Switch: React.FC<SwitchProps> = ({
     color === "blue"
       ? {
           background: isChecked
-            ? "bg-brand-500 "
-            : "bg-gray-200 dark:bg-white/10", // Blue version
+            ? "bg-blue-600"
+            : "bg-gray-200 dark:bg-white/10", // Versión azul
           knob: isChecked
             ? "translate-x-full bg-white"
             : "translate-x-0 bg-white",
@@ -39,7 +40,7 @@ const Switch: React.FC<SwitchProps> = ({
       : {
           background: isChecked
             ? "bg-gray-800 dark:bg-white/10"
-            : "bg-gray-200 dark:bg-white/10", // Gray version
+            : "bg-gray-200 dark:bg-white/10", // Versión gris
           knob: isChecked
             ? "translate-x-full bg-white"
             : "translate-x-0 bg-white",
@@ -50,7 +51,7 @@ const Switch: React.FC<SwitchProps> = ({
       className={`flex cursor-pointer select-none items-center gap-3 text-sm font-medium ${
         disabled ? "text-gray-400" : "text-gray-700 dark:text-gray-400"
       }`}
-      onClick={handleToggle} // Toggle when the label itself is clicked
+      onClick={handleToggle} // Alternar cuando se hace clic en la etiqueta misma
     >
       <div className="relative">
         <div
@@ -61,7 +62,7 @@ const Switch: React.FC<SwitchProps> = ({
           }`}
         ></div>
         <div
-          className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full shadow-theme-sm duration-150 ease-linear transform ${switchColors.knob}`}
+          className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full shadow-sm duration-150 ease-linear transform ${switchColors.knob}`}
         ></div>
       </div>
       {label}

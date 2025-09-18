@@ -1,59 +1,57 @@
+"use client";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
-  BoxIconLine,
   GroupIcon,
+  BoxIconLine,
 } from "../../icons";
-import Badge from "../ui/badge/Badge";
 
 export default function EcommerceMetrics() {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6">
-      {/* <!-- Metric Item Start --> */}
+      {/* Elemento de métrica - Inicio */}
       <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
         <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-xl dark:bg-gray-800">
-          <GroupIcon className="text-gray-800 size-6 dark:text-white/90" />
+          <GroupIcon className="text-gray-800 w-6 h-6 dark:text-white/90" />
         </div>
-
         <div className="flex items-end justify-between mt-5">
           <div>
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              Customers
+              Clientes
             </span>
-            <h4 className="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90">
+            <h4 className="mt-2 font-bold text-gray-800 text-2xl dark:text-white/90">
               3,782
             </h4>
           </div>
-          <Badge color="success">
-            <ArrowUpIcon />
+          <div className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-700 bg-green-100 rounded-full dark:bg-green-900/20 dark:text-green-400">
+            <ArrowUpIcon className="w-3 h-3" />
             11.01%
-          </Badge>
+          </div>
         </div>
       </div>
-      {/* <!-- Metric Item End --> */}
+      {/* Elemento de métrica - Fin */}
 
-      {/* <!-- Metric Item Start --> */}
+      {/* Elemento de métrica - Inicio */}
       <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
         <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-xl dark:bg-gray-800">
-          <BoxIconLine className="text-gray-800 size-6 dark:text-white/90" />
+          <BoxIconLine className="text-gray-800 w-6 h-6 dark:text-white/90" />
         </div>
         <div className="flex items-end justify-between mt-5">
           <div>
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              Orders
+              Pedidos
             </span>
-            <h4 className="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90">
+            <h4 className="mt-2 font-bold text-gray-800 text-2xl dark:text-white/90">
               5,359
             </h4>
           </div>
-
-          <Badge color="error">
-            <ArrowDownIcon />
+          <div className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-700 bg-red-100 rounded-full dark:bg-red-900/20 dark:text-red-400">
+            <ArrowDownIcon className="w-3 h-3" />
             9.05%
-          </Badge>
+          </div>
         </div>
       </div>
-      {/* <!-- Metric Item End --> */}
+      {/* Elemento de métrica - Fin */}
     </div>
   );
 }

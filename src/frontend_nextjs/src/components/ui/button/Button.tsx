@@ -1,14 +1,14 @@
 import { ReactNode } from "react";
 
 interface ButtonProps {
-  children: ReactNode; // Button text or content
-  size?: "sm" | "md"; // Button size
-  variant?: "primary" | "outline"; // Button variant
-  startIcon?: ReactNode; // Icon before the text
-  endIcon?: ReactNode; // Icon after the text
-  onClick?: () => void; // Click handler
-  disabled?: boolean; // Disabled state
-  className?: string; // Disabled state
+  children: ReactNode; // Texto o contenido del botón
+  size?: "sm" | "md"; // Tamaño del botón
+  variant?: "primary" | "outline"; // Variante del botón
+  startIcon?: ReactNode; // Icono antes del texto
+  endIcon?: ReactNode; // Icono después del texto
+  onClick?: () => void; // Manejador de clic
+  disabled?: boolean; // Estado deshabilitado
+  className?: string; // Clases adicionales
 }
 
 const Button: React.FC<ButtonProps> = ({
@@ -21,16 +21,16 @@ const Button: React.FC<ButtonProps> = ({
   className = "",
   disabled = false,
 }) => {
-  // Size Classes
+  // Clases de Tamaño
   const sizeClasses = {
     sm: "px-4 py-3 text-sm",
     md: "px-5 py-3.5 text-sm",
   };
 
-  // Variant Classes
+  // Clases de Variante
   const variantClasses = {
     primary:
-      "bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600 disabled:bg-brand-300",
+      "bg-blue-600 text-white shadow-sm hover:bg-blue-700 disabled:bg-blue-300",
     outline:
       "bg-white text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-white/[0.03] dark:hover:text-gray-300",
   };

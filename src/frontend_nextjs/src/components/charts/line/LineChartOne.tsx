@@ -1,27 +1,30 @@
-import Chart from "react-apexcharts";
+"use client";
+import dynamic from 'next/dynamic';
 import { ApexOptions } from "apexcharts";
+
+// Cargar Chart dinámicamente para evitar problemas de SSR con ApexCharts
+const Chart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
 export default function LineChartOne() {
   const options: ApexOptions = {
     legend: {
-      show: false, // Hide legend
+      show: false, // Ocultar leyenda
       position: "top",
       horizontalAlign: "left",
     },
-    colors: ["#465FFF", "#9CB9FF"], // Define line colors
+    colors: ["#465FFF", "#9CB9FF"], // Definir colores de las líneas
     chart: {
       fontFamily: "Outfit, sans-serif",
       height: 310,
-      type: "line", // Set the chart type to 'line'
+      type: "line", // Establecer el tipo de gráfico a 'línea'
       toolbar: {
-        show: false, // Hide chart toolbar
+        show: false, // Ocultar barra de herramientas del gráfico
       },
     },
     stroke: {
-      curve: "straight", // Define the line style (straight, smooth, or step)
-      width: [2, 2], // Line width for each dataset
+      curve: "straight", // Definir el estilo de línea (straight, smooth, o step)
+      width: [2, 2], // Ancho de línea para cada conjunto de datos
     },
-
     fill: {
       type: "gradient",
       gradient: {
@@ -30,69 +33,69 @@ export default function LineChartOne() {
       },
     },
     markers: {
-      size: 0, // Size of the marker points
-      strokeColors: "#fff", // Marker border color
+      size: 0, // Tamaño de los puntos marcadores
+      strokeColors: "#fff", // Color del borde del marcador
       strokeWidth: 2,
       hover: {
-        size: 6, // Marker size on hover
+        size: 6, // Tamaño del marcador al pasar el mouse
       },
     },
     grid: {
       xaxis: {
         lines: {
-          show: false, // Hide grid lines on x-axis
+          show: false, // Ocultar líneas de cuadrícula en el eje x
         },
       },
       yaxis: {
         lines: {
-          show: true, // Show grid lines on y-axis
+          show: true, // Mostrar líneas de cuadrícula en el eje y
         },
       },
     },
     dataLabels: {
-      enabled: false, // Disable data labels
+      enabled: false, // Deshabilitar etiquetas de datos
     },
     tooltip: {
-      enabled: true, // Enable tooltip
+      enabled: true, // Habilitar tooltip
       x: {
-        format: "dd MMM yyyy", // Format for x-axis tooltip
+        format: "dd MMM yyyy", // Formato para el tooltip del eje x
       },
     },
     xaxis: {
-      type: "category", // Category-based x-axis
+      type: "category", // Eje x basado en categorías
       categories: [
-        "Jan",
+        "Ene",
         "Feb",
         "Mar",
-        "Apr",
+        "Abr",
         "May",
         "Jun",
         "Jul",
-        "Aug",
+        "Ago",
         "Sep",
         "Oct",
         "Nov",
-        "Dec",
+        "Dic",
       ],
       axisBorder: {
-        show: false, // Hide x-axis border
+        show: false, // Ocultar borde del eje x
       },
       axisTicks: {
-        show: false, // Hide x-axis ticks
+        show: false, // Ocultar marcas del eje x
       },
       tooltip: {
-        enabled: false, // Disable tooltip for x-axis points
+        enabled: false, // Deshabilitar tooltip para puntos del eje x
       },
     },
     yaxis: {
       labels: {
         style: {
-          fontSize: "12px", // Adjust font size for y-axis labels
-          colors: ["#6B7280"], // Color of the labels
+          fontSize: "12px", // Ajustar tamaño de fuente para etiquetas del eje y
+          colors: ["#6B7280"], // Color de las etiquetas
         },
       },
       title: {
-        text: "", // Remove y-axis title
+        text: "", // Remover título del eje y
         style: {
           fontSize: "0px",
         },
@@ -102,14 +105,15 @@ export default function LineChartOne() {
 
   const series = [
     {
-      name: "Sales",
+      name: "Ventas",
       data: [180, 190, 170, 160, 175, 165, 170, 205, 230, 210, 240, 235],
     },
     {
-      name: "Revenue",
+      name: "Ingresos",
       data: [40, 30, 50, 40, 55, 40, 70, 100, 110, 120, 150, 140],
     },
   ];
+
   return (
     <div className="max-w-full overflow-x-auto custom-scrollbar">
       <div id="chartEight" className="min-w-[1000px]">

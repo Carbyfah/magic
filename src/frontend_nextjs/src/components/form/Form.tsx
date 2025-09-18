@@ -6,14 +6,14 @@ interface FormProps {
   className?: string;
 }
 
-const Form: FC<FormProps> = ({ onSubmit, children, className }) => {
+const Form: FC<FormProps> = ({ onSubmit, children, className = "" }) => {
   return (
     <form
       onSubmit={(event) => {
-        event.preventDefault(); // Prevent default form submission
+        event.preventDefault(); // Prevenir envío por defecto del formulario
         onSubmit(event);
       }}
-      className={` ${className}`} // Default spacing between form fields
+      className={`space-y-4 ${className}`} // Espaciado por defecto entre campos del formulario
     >
       {children}
     </form>

@@ -1,9 +1,9 @@
 export default function SixteenIsToNine() {
   return (
-    <div className="aspect-4/3 overflow-hidden rounded-lg">
+    <div className="aspect-video overflow-hidden rounded-lg">
       <iframe
         src="https://www.youtube.com/embed/dQw4w9WgXcQ"
-        title="YouTube video"
+        title="Video de YouTube"
         frameBorder="0"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowFullScreen

@@ -1,13 +1,3 @@
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../../ui/table";
-
-import Badge from "../../ui/badge/Badge";
-
 interface Order {
   id: number;
   user: {
@@ -23,16 +13,16 @@ interface Order {
   budget: string;
 }
 
-// Define the table data using the interface
+// Definir los datos de la tabla usando la interfaz
 const tableData: Order[] = [
   {
     id: 1,
     user: {
       image: "/images/user/user-17.jpg",
-      name: "Lindsey Curtis",
-      role: "Web Designer",
+      name: "Ana García",
+      role: "Agente de Ventas",
     },
-    projectName: "Agency Website",
+    projectName: "Tour Volcán Pacaya",
     team: {
       images: [
         "/images/user/user-22.jpg",
@@ -40,45 +30,45 @@ const tableData: Order[] = [
         "/images/user/user-24.jpg",
       ],
     },
-    budget: "3.9K",
-    status: "Active",
+    budget: "Q.3,500",
+    status: "Activo",
   },
   {
     id: 2,
     user: {
       image: "/images/user/user-18.jpg",
-      name: "Kaiya George",
-      role: "Project Manager",
+      name: "Carlos Morales",
+      role: "Coordinador",
     },
-    projectName: "Technology",
+    projectName: "Tikal Express",
     team: {
       images: ["/images/user/user-25.jpg", "/images/user/user-26.jpg"],
     },
-    budget: "24.9K",
-    status: "Pending",
+    budget: "Q.8,500",
+    status: "Pendiente",
   },
   {
     id: 3,
     user: {
       image: "/images/user/user-17.jpg",
-      name: "Zain Geidt",
-      role: "Content Writing",
+      name: "María López",
+      role: "Guía Turística",
     },
-    projectName: "Blog Writing",
+    projectName: "Antigua Colonial",
     team: {
       images: ["/images/user/user-27.jpg"],
     },
-    budget: "12.7K",
-    status: "Active",
+    budget: "Q.2,200",
+    status: "Activo",
   },
   {
     id: 4,
     user: {
       image: "/images/user/user-20.jpg",
-      name: "Abram Schleifer",
-      role: "Digital Marketer",
+      name: "Roberto Chen",
+      role: "Conductor",
     },
-    projectName: "Social Media",
+    projectName: "Lago Atitlán",
     team: {
       images: [
         "/images/user/user-28.jpg",
@@ -86,17 +76,17 @@ const tableData: Order[] = [
         "/images/user/user-30.jpg",
       ],
     },
-    budget: "2.8K",
-    status: "Cancel",
+    budget: "Q.1,800",
+    status: "Cancelado",
   },
   {
     id: 5,
     user: {
       image: "/images/user/user-21.jpg",
-      name: "Carla George",
-      role: "Front-end Developer",
+      name: "Sofía Hernández",
+      role: "Administradora",
     },
-    projectName: "Website",
+    projectName: "Semuc Champey",
     team: {
       images: [
         "/images/user/user-31.jpg",
@@ -104,57 +94,56 @@ const tableData: Order[] = [
         "/images/user/user-33.jpg",
       ],
     },
-    budget: "4.5K",
-    status: "Active",
+    budget: "Q.4,500",
+    status: "Activo",
   },
 ];
+
+function Badge({ children, color, size }: { children: React.ReactNode; color: string; size: string }) {
+  const colorClasses = {
+    success: "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400",
+    warning: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400",
+    error: "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
+  };
+
+  return (
+    <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${colorClasses[color as keyof typeof colorClasses]}`}>
+      {children}
+    </span>
+  );
+}
 
 export default function BasicTableOne() {
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
       <div className="max-w-full overflow-x-auto">
-        <Table>
-          {/* Table Header */}
-          <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-            <TableRow>
-              <TableCell
-                isHeader
-                className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-              >
-                User
-              </TableCell>
-              <TableCell
-                isHeader
-                className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-              >
-                Project Name
-              </TableCell>
-              <TableCell
-                isHeader
-                className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-              >
-                Team
-              </TableCell>
-              <TableCell
-                isHeader
-                className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-              >
-                Status
-              </TableCell>
-              <TableCell
-                isHeader
-                className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-              >
-                Budget
-              </TableCell>
-            </TableRow>
-          </TableHeader>
+        <table className="w-full">
+          {/* Encabezado de Tabla */}
+          <thead className="border-b border-gray-100 dark:border-white/[0.05]">
+            <tr>
+              <th className="px-5 py-3 font-medium text-gray-500 text-start text-xs dark:text-gray-400">
+                Usuario
+              </th>
+              <th className="px-5 py-3 font-medium text-gray-500 text-start text-xs dark:text-gray-400">
+                Nombre del Tour
+              </th>
+              <th className="px-5 py-3 font-medium text-gray-500 text-start text-xs dark:text-gray-400">
+                Equipo
+              </th>
+              <th className="px-5 py-3 font-medium text-gray-500 text-start text-xs dark:text-gray-400">
+                Estado
+              </th>
+              <th className="px-5 py-3 font-medium text-gray-500 text-start text-xs dark:text-gray-400">
+                Presupuesto
+              </th>
+            </tr>
+          </thead>
 
-          {/* Table Body */}
-          <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+          {/* Cuerpo de Tabla */}
+          <tbody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
             {tableData.map((order) => (
-              <TableRow key={order.id}>
-                <TableCell className="px-5 py-4 sm:px-6 text-start">
+              <tr key={order.id}>
+                <td className="px-5 py-4 sm:px-6 text-start">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 overflow-hidden rounded-full">
                       <img
@@ -162,22 +151,23 @@ export default function BasicTableOne() {
                         height={40}
                         src={order.user.image}
                         alt={order.user.name}
+                        className="w-full h-full object-cover"
                       />
                     </div>
                     <div>
-                      <span className="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
+                      <span className="block font-medium text-gray-800 text-sm dark:text-white/90">
                         {order.user.name}
                       </span>
-                      <span className="block text-gray-500 text-theme-xs dark:text-gray-400">
+                      <span className="block text-gray-500 text-xs dark:text-gray-400">
                         {order.user.role}
                       </span>
                     </div>
                   </div>
-                </TableCell>
-                <TableCell className="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
+                </td>
+                <td className="px-4 py-3 text-gray-500 text-start text-sm dark:text-gray-400">
                   {order.projectName}
-                </TableCell>
-                <TableCell className="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
+                </td>
+                <td className="px-4 py-3 text-gray-500 text-start text-sm dark:text-gray-400">
                   <div className="flex -space-x-2">
                     {order.team.images.map((teamImage, index) => (
                       <div
@@ -188,34 +178,34 @@ export default function BasicTableOne() {
                           width={24}
                           height={24}
                           src={teamImage}
-                          alt={`Team member ${index + 1}`}
-                          className="w-full size-6"
+                          alt={`Miembro del equipo ${index + 1}`}
+                          className="w-full h-full object-cover"
                         />
                       </div>
                     ))}
                   </div>
-                </TableCell>
-                <TableCell className="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
+                </td>
+                <td className="px-4 py-3 text-gray-500 text-start text-sm dark:text-gray-400">
                   <Badge
                     size="sm"
                     color={
-                      order.status === "Active"
+                      order.status === "Activo"
                         ? "success"
-                        : order.status === "Pending"
+                        : order.status === "Pendiente"
                         ? "warning"
                         : "error"
                     }
                   >
                     {order.status}
                   </Badge>
-                </TableCell>
-                <TableCell className="px-4 py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                </td>
+                <td className="px-4 py-3 text-gray-500 text-sm dark:text-gray-400">
                   {order.budget}
-                </TableCell>
-              </TableRow>
+                </td>
+              </tr>
             ))}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       </div>
     </div>
   );

@@ -1,93 +1,34 @@
-// react plugin for creating vector maps
-import { VectorMap } from "@react-jvectormap/core";
-import { worldMill } from "@react-jvectormap/world";
+"use client";
 
-// Define the component props
 interface CountryMapProps {
   mapColor?: string;
 }
 
-const CountryMap: React.FC<CountryMapProps> = ({ mapColor }) => {
+const CountryMap: React.FC<CountryMapProps> = ({ mapColor = "#3B82F6" }) => {
   return (
-    <VectorMap
-      map={worldMill}
-      backgroundColor="transparent"
-      markerStyle={{
-        initial: {
-          fill: "#465FFF",
-          r: 4, // Custom radius for markers
-        } as any, // Type assertion to bypass strict CSS property checks
-      }}
-      markersSelectable={true}
-      markers={[
-        {
-          latLng: [37.2580397, -104.657039],
-          name: "United States",
-          style: {
-            fill: "#465FFF",
-            borderWidth: 1,
-            borderColor: "white",
-            stroke: "#383f47",
-          },
-        },
-        {
-          latLng: [20.7504374, 73.7276105],
-          name: "India",
-          style: { fill: "#465FFF", borderWidth: 1, borderColor: "white" },
-        },
-        {
-          latLng: [53.613, -11.6368],
-          name: "United Kingdom",
-          style: { fill: "#465FFF", borderWidth: 1, borderColor: "white" },
-        },
-        {
-          latLng: [-25.0304388, 115.2092761],
-          name: "Sweden",
-          style: {
-            fill: "#465FFF",
-            borderWidth: 1,
-            borderColor: "white",
-            strokeOpacity: 0,
-          },
-        },
-      ]}
-      zoomOnScroll={false}
-      zoomMax={12}
-      zoomMin={1}
-      zoomAnimate={true}
-      zoomStep={1.5}
-      regionStyle={{
-        initial: {
-          fill: mapColor || "#D0D5DD",
-          fillOpacity: 1,
-          fontFamily: "Outfit",
-          stroke: "none",
-          strokeWidth: 0,
-          strokeOpacity: 0,
-        },
-        hover: {
-          fillOpacity: 0.7,
-          cursor: "pointer",
-          fill: "#465fff",
-          stroke: "none",
-        },
-        selected: {
-          fill: "#465FFF",
-        },
-        selectedHover: {},
-      }}
-      regionLabelStyle={{
-        initial: {
-          fill: "#35373e",
-          fontWeight: 500,
-          fontSize: "13px",
-          stroke: "none",
-        },
-        hover: {},
-        selected: {},
-        selectedHover: {},
-      }}
-    />
+    <div
+      className="w-full h-[300px] rounded-lg flex items-center justify-center"
+      style={{ backgroundColor: mapColor + "20" }} // Usar mapColor con opacidad
+    >
+      <div className="text-center">
+        <div
+          className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center"
+          style={{ backgroundColor: mapColor }}
+        >
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
+            <path d="M2 12h20"/>
+          </svg>
+        </div>
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2">
+          Mapa Mundial
+        </h3>
+        <p className="text-gray-600 dark:text-gray-400">
+          Distribución global de usuarios
+        </p>
+      </div>
+    </div>
   );
 };
 

@@ -1,3 +1,4 @@
+"use client";
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 interface User {
@@ -134,7 +135,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(null);
 
     // En lugar de navigate, usar window.location
-    window.location.href = '/signin';
+    window.location.href = '/login';
   };
 
   const value: AuthContextType = {

@@ -18,10 +18,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'cors' => \App\Http\Middleware\HandleCors::class,
         ]);
 
-        // Aplicar CORS a rutas API
+        // Aplicar CORS a rutas API (SIN el middleware de Sanctum que causa problemas)
         $middleware->api(prepend: [
             \App\Http\Middleware\HandleCors::class,
-            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

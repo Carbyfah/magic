@@ -1,97 +1,134 @@
+"use client";
 import { useState } from "react";
 import ComponentCard from "../../common/ComponentCard";
-import Label from "../Label";
-import Input from "../input/InputField";
-import Select from "../Select";
-import { EyeCloseIcon, EyeIcon, TimeIcon } from "../../../icons";
-import DatePicker from "../date-picker.tsx";
+import { EyeCloseIcon, EyeIcon } from "../../../icons";
 
 export default function DefaultInputs() {
   const [showPassword, setShowPassword] = useState(false);
+  const [selectedOption, setSelectedOption] = useState("");
+
   const options = [
     { value: "marketing", label: "Marketing" },
     { value: "template", label: "Template" },
-    { value: "development", label: "Development" },
+    { value: "development", label: "Desarrollo" },
   ];
+
   const handleSelectChange = (value: string) => {
-    console.log("Selected value:", value);
+    setSelectedOption(value);
+    console.log("Valor seleccionado:", value);
   };
 
   return (
-    <ComponentCard title="Default Inputs">
+    <ComponentCard title="Entradas por Defecto">
       <div className="space-y-6">
         <div>
-          <Label htmlFor="input">Input</Label>
-          <Input type="text" id="input" />
-        </div>
-        <div>
-          <Label htmlFor="inputTwo">Input with Placeholder</Label>
-          <Input type="text" id="inputTwo" placeholder="info@gmail.com" />
-        </div>
-        <div>
-          <Label>Select Input</Label>
-          <Select
-            options={options}
-            placeholder="Select an option"
-            onChange={handleSelectChange}
-            className="dark:bg-dark-900"
+          <label htmlFor="input" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Entrada
+          </label>
+          <input
+            type="text"
+            id="input"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
           />
         </div>
+
         <div>
-          <Label>Password Input</Label>
+          <label htmlFor="inputTwo" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Entrada con Placeholder
+          </label>
+          <input
+            type="text"
+            id="inputTwo"
+            placeholder="info@gmail.com"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Entrada Select
+          </label>
+          <select
+            value={selectedOption}
+            onChange={(e) => handleSelectChange(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+          >
+            <option value="">Seleccionar una opción</option>
+            {options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Entrada de Contraseña
+          </label>
           <div className="relative">
-            <Input
+            <input
               type={showPassword ? "text" : "password"}
-              placeholder="Enter your password"
+              placeholder="Ingresa tu contraseña"
+              className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
             />
             <button
               onClick={() => setShowPassword(!showPassword)}
               className="absolute z-30 -translate-y-1/2 cursor-pointer right-4 top-1/2"
             >
               {showPassword ? (
-                <EyeIcon className="fill-gray-500 dark:fill-gray-400 size-5" />
+                <EyeIcon className="fill-gray-500 dark:fill-gray-400 w-5 h-5" />
               ) : (
-                <EyeCloseIcon className="fill-gray-500 dark:fill-gray-400 size-5" />
+                <EyeCloseIcon className="fill-gray-500 dark:fill-gray-400 w-5 h-5" />
               )}
             </button>
           </div>
         </div>
 
         <div>
-          <DatePicker
+          <label htmlFor="date-picker" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Selector de Fecha
+          </label>
+          <input
+            type="date"
             id="date-picker"
-            label="Date Picker Input"
-            placeholder="Select a date"
-            onChange={(dates, currentDateString) => {
-              // Handle your logic
-              console.log({ dates, currentDateString });
-            }}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+            onChange={(e) => console.log("Fecha seleccionada:", e.target.value)}
           />
         </div>
 
         <div>
-          <Label htmlFor="tm">Time Picker Input</Label>
+          <label htmlFor="tm" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Selector de Hora
+          </label>
           <div className="relative">
-            <Input
+            <input
               type="time"
               id="tm"
               name="tm"
-              onChange={(e) => console.log(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+              onChange={(e) => console.log("Hora seleccionada:", e.target.value)}
             />
             <span className="absolute text-gray-500 -translate-y-1/2 pointer-events-none right-3 top-1/2 dark:text-gray-400">
-              <TimeIcon className="size-6" />
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C6.486 2 2 6.486 2 12s4.486 10 10 10 10-4.486 10-10S17.514 2 12 2zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8z"/>
+                <path d="M13 7h-2v5.414l3.293 3.293 1.414-1.414L13 11.586z"/>
+              </svg>
             </span>
           </div>
         </div>
+
         <div>
-          <Label htmlFor="tm">Input with Payment</Label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Entrada con Pago
+          </label>
           <div className="relative">
-            <Input
+            <input
               type="text"
-              placeholder="Card number"
-              className="pl-[62px]"
+              placeholder="Número de tarjeta"
+              className="w-full pl-16 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
             />
-            <span className="absolute left-0 top-1/2 flex h-11 w-[46px] -translate-y-1/2 items-center justify-center border-r border-gray-200 dark:border-gray-800">
+            <span className="absolute left-0 top-1/2 flex h-11 w-12 -translate-y-1/2 items-center justify-center border-r border-gray-200 dark:border-gray-800">
               <svg
                 width="20"
                 height="20"

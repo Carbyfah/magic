@@ -1,8 +1,8 @@
 interface AvatarProps {
-  src: string; // URL of the avatar image
-  alt?: string; // Alt text for the avatar
-  size?: "xsmall" | "small" | "medium" | "large" | "xlarge" | "xxlarge"; // Avatar size
-  status?: "online" | "offline" | "busy" | "none"; // Status indicator
+  src: string; // URL de la imagen del avatar
+  alt?: string; // Texto alt para el avatar
+  size?: "xsmall" | "small" | "medium" | "large" | "xlarge" | "xxlarge"; // Tamaño del avatar
+  status?: "online" | "offline" | "busy" | "none"; // Indicador de estado
 }
 
 const sizeClasses = {
@@ -24,23 +24,26 @@ const statusSizeClasses = {
 };
 
 const statusColorClasses = {
-  online: "bg-success-500",
-  offline: "bg-error-400",
-  busy: "bg-warning-500",
+  online: "bg-green-500",
+  offline: "bg-red-400",
+  busy: "bg-yellow-500",
 };
 
 const Avatar: React.FC<AvatarProps> = ({
   src,
-  alt = "User Avatar",
+  alt = "Avatar de Usuario",
   size = "medium",
   status = "none",
 }) => {
   return (
-    <div className={`relative  rounded-full ${sizeClasses[size]}`}>
-      {/* Avatar Image */}
-      <img src={src} alt={alt} className="object-cover rounded-full" />
-
-      {/* Status Indicator */}
+    <div className={`relative rounded-full ${sizeClasses[size]}`}>
+      {/* Imagen del Avatar */}
+      <img
+        src={src}
+        alt={alt}
+        className="w-full h-full object-cover rounded-full"
+      />
+      {/* Indicador de Estado */}
       {status !== "none" && (
         <span
           className={`absolute bottom-0 right-0 rounded-full border-[1.5px] border-white dark:border-gray-900 ${

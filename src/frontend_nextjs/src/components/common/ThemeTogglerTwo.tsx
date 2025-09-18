@@ -1,12 +1,16 @@
+"use client";
 import { useTheme } from "../../context/ThemeContext";
 
 export default function ThemeTogglerTwo() {
   const { toggleTheme } = useTheme();
+
   return (
     <button
       onClick={toggleTheme}
-      className="inline-flex items-center justify-center text-white transition-colors rounded-full size-14 bg-brand-500 hover:bg-brand-600"
+      className="inline-flex items-center justify-center text-white transition-colors rounded-full size-14 bg-blue-600 hover:bg-blue-700"
+      aria-label="Cambiar tema"
     >
+      {/* Icono de sol para modo oscuro */}
       <svg
         className="hidden dark:block"
         width="20"
@@ -22,6 +26,8 @@ export default function ThemeTogglerTwo() {
           fill="currentColor"
         />
       </svg>
+
+      {/* Icono de luna para modo claro */}
       <svg
         className="dark:hidden"
         width="20"
