@@ -13,6 +13,19 @@ RUN apt-get update && apt-get install -y \
     && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip \
     && apt-get clean
 
+# NUEVO: Configurar OPcache
+RUN docker-php-ext-install opcache
+
+# NUEVO: Configuración PHP optimizada
+RUN echo "opcache.enable=1" >> /usr/local/etc/php/conf.d/opcache.ini \
+    && echo "opcache.memory_consumption=128" >> /usr/local/etc/php/conf.d/opcache.ini \
+    && echo "opcache.interned_strings_buffer=8" >> /usr/local/etc/php/conf.d/opcache.ini \
+    && echo "opcache.max_accelerated_files=4000" >> /usr/local/etc/php/conf.d/opcache.ini \
+    && echo "opcache.revalidate_freq=2" >> /usr/local/etc/php/conf.d/opcache.ini \
+    && echo "opcache.fast_shutdown=1" >> /usr/local/etc/php/conf.d/opcache.ini \
+    && echo "realpath_cache_size=4096K" >> /usr/local/etc/php/conf.d/opcache.ini \
+    && echo "realpath_cache_ttl=600" >> /usr/local/etc/php/conf.d/opcache.ini
+
 # Instalar Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 

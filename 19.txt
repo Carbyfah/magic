@@ -1,0 +1,5 @@
+agencia: magic travel no tener opcion de editar
+paginado en cada tabla
+si un usuario no tiene permiso de ver un modulo no le debe aparecer en el sidebar, solo si es puede ver false no le sale en opciones de navegacion en el sidebar
+mostrar inactivos: no esta mostra los inactivos, cuando se muestren los que son inactivos en la tabla deben tener la opcion de play (icono: sino existe 
+creas el .svg y lo exportamos en su index.ts) para volver habilitar un registro

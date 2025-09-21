@@ -5,7 +5,8 @@ services:
     ports:
       - "8080:80"
     volumes:
-      - ./src:/var/www/html
+      # CAMBIO: Apuntar a la nueva ubicación del proyecto Laravel
+      - ./magic/backend:/var/www/html
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - php
@@ -19,15 +20,18 @@ services:
       dockerfile: Dockerfile
     container_name: magictravel_php
     volumes:
-      - ./src:/var/www/html
+      # CAMBIO: Apuntar a la nueva ubicación del proyecto Laravel
+      - ./magic/backend:/var/www/html
     environment:
-      - APP_ENV=local
-      - APP_DEBUG=true
+      - APP_ENV=production # Cambiado a 'production' para entorno de producción
+      - APP_DEBUG=false # Cambiado a 'false' para entorno de producción
       - DB_HOST=mysql
       - DB_DATABASE=magictravel_v_2
       - MYSQL_USER=mt_app
       - MYSQL_PASSWORD=MagicTravel_2025!
       - REDIS_HOST=redis
+      - CACHE_DRIVER=redis # Agregar esta línea
+      - SESSION_DRIVER=redis # Agregar esta línea
     depends_on:
       - mysql
       - redis
@@ -47,6 +51,7 @@ services:
       - MYSQL_PASSWORD=MagicTravel_2025!
     volumes:
       - mysql_data:/var/lib/mysql
+    command: --innodb-buffer-pool-size=512M --query-cache-size=64M --query-cache-type=ON
     networks:
       - magictravel_network
     restart: unless-stopped
