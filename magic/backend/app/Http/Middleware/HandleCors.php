@@ -8,22 +8,21 @@ class HandleCors
 {
     public function handle($request, Closure $next)
     {
-        // Aplicar headers antes de procesar la request
+        // Manejar requests OPTIONS (preflight)
         if ($request->getMethod() === "OPTIONS") {
             return response('', 200)
-                ->header('Access-Control-Allow-Origin', '*')
+                ->header('Access-Control-Allow-Origin', 'http://localhost:5173')
                 ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
                 ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin')
-                ->header('Access-Control-Allow-Credentials', 'true');
+                ->header('Access-Control-Max-Age', '86400');
         }
 
         $response = $next($request);
 
-        // Aplicar headers a todas las respuestas
-        $response->headers->set('Access-Control-Allow-Origin', '*');
+        // Aplicar headers CORS a todas las respuestas
+        $response->headers->set('Access-Control-Allow-Origin', 'http://localhost:5173');
         $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
         $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-        $response->headers->set('Access-Control-Allow-Credentials', 'true');
 
         return $response;
     }

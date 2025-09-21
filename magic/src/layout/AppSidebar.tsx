@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { Link, useLocation } from "react-router";
 
 // Iconos de Magic Travel
@@ -14,13 +14,20 @@ import {
   TaskIcon,
 } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
+import { usePermisos } from "../hooks/usePermisos";
 import SidebarWidget from "./SidebarWidget";
 
 type NavItem = {
   name: string;
   icon: React.ReactNode;
   path?: string;
-  subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
+  subItems?: { 
+    name: string; 
+    path: string; 
+    pro?: boolean; 
+    new?: boolean;
+    modulo?: string;
+  }[];
 };
 
 // MÓDULOS PRINCIPALES DE MAGIC TRAVEL
@@ -34,30 +41,30 @@ const modulosPrincipales: NavItem[] = [
     icon: <UserCircleIcon />,
     name: "Administración",
     subItems: [
-      { name: "Agencias", path: "/agencias", pro: false },
-      { name: "Empleados", path: "/empleados", pro: false },
-      { name: "Usuarios y Permisos", path: "/usuarios", pro: false },
+      { name: "Agencias", path: "/agencias", pro: false, modulo: "agencias" },
+      { name: "Empleados", path: "/empleados", pro: false, modulo: "empleados" },
+      { name: "Usuarios y Permisos", path: "/usuarios", pro: false, modulo: "empleados" },
     ],
   },
   {
     icon: <BoxCubeIcon />,
     name: "Catálogos",
     subItems: [
-      { name: "Servicios", path: "/servicios", pro: false },
-      { name: "Rutas", path: "/rutas", pro: false },
-      { name: "Tours", path: "/tours", pro: false },
-      { name: "Vehículos", path: "/vehiculos", pro: false },
-      { name: "Estados", path: "/estados", pro: false },
-      { name: "Cargos", path: "/cargos", pro: false },
+      { name: "Servicios", path: "/servicios", pro: false, modulo: "servicios" },
+      { name: "Rutas", path: "/rutas", pro: false, modulo: "rutas" },
+      { name: "Tours", path: "/tours", pro: false, modulo: "tours" },
+      { name: "Vehículos", path: "/vehiculos", pro: false, modulo: "vehiculos" },
+      { name: "Estados", path: "/estados", pro: false, modulo: "estados" },
+      { name: "Cargos", path: "/cargos", pro: false, modulo: "cargos" },
     ],
   },
   {
     name: "Operaciones",
     icon: <TaskIcon />,
     subItems: [
-      { name: "Reservas", path: "/reservas", pro: false },
-      { name: "Rutas Activas", path: "/rutas-activas", pro: false },
-      { name: "Tours Activos", path: "/tours-activos", pro: false },
+      { name: "Reservas", path: "/reservas", pro: false, modulo: "reservas" },
+      { name: "Rutas Activas", path: "/rutas-activas", pro: false, modulo: "rutas" },
+      { name: "Tours Activos", path: "/tours-activos", pro: false, modulo: "tours" },
     ],
   },
 ];
@@ -68,43 +75,42 @@ const modulosFinancieros: NavItem[] = [
     icon: <DollarLineIcon />,
     name: "Financiero",
     subItems: [
-      { name: "Caja", path: "/caja", pro: false },
-      { name: "Ventas", path: "/ventas", pro: false },
-      { name: "Contabilidad", path: "/contabilidad", pro: false },
-      { name: "Egresos", path: "/egresos", pro: false },
-      { name: "Facturas SAT", path: "/facturas", pro: false },
+      { name: "Caja", path: "/caja", pro: false, modulo: "caja" },
+      { name: "Ventas", path: "/ventas", pro: false, modulo: "ventas" },
+      { name: "Contabilidad", path: "/contabilidad", pro: false, modulo: "contabilidad" },
+      { name: "Egresos", path: "/egresos", pro: false, modulo: "egresos" },
+      { name: "Facturas SAT", path: "/facturas", pro: false, modulo: "facturas" },
     ],
   },
   {
     icon: <PieChartIcon />,
     name: "Reportes",
     subItems: [
-      { name: "Dashboard Ejecutivo", path: "/dashboard/metricas", pro: false },
-      { name: "Auditoría", path: "/auditoria", pro: false },
-      { name: "Notificaciones", path: "/notificaciones", pro: false },
+      { name: "Dashboard Ejecutivo", path: "/dashboard/metricas", pro: false, modulo: "contabilidad" },
+      { name: "Auditoría", path: "/auditoria", pro: false, modulo: "contabilidad" },
+      { name: "Notificaciones", path: "/notificaciones", pro: false, modulo: "contabilidad" },
     ],
   },
   {
     icon: <PlugInIcon />,
     name: "Sistema",
     subItems: [
-      { name: "Utilidades", path: "/utils", pro: false },
-      { name: "Configuración", path: "/configuracion", pro: false },
+      { name: "Utilidades", path: "/utils", pro: false, modulo: "contabilidad" },
+      { name: "Configuración", path: "/configuracion", pro: false, modulo: "empleados" },
     ],
   },
 ];
 
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
+  const { puedeVer, tienePermisos } = usePermisos();
   const location = useLocation();
 
   const [openSubmenu, setOpenSubmenu] = useState<{
     type: "main" | "others";
     index: number;
   } | null>(null);
-  const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>(
-    {}
-  );
+  const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>({});
   const subMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const isActive = useCallback(
@@ -112,10 +118,42 @@ const AppSidebar: React.FC = () => {
     [location.pathname]
   );
 
+  // Memoizar el filtrado de elementos para evitar recálculos innecesarios
+  const modulosFiltrados = useMemo(() => {
+    const filtrarElementos = (items: NavItem[]) => {
+      if (!tienePermisos) return items;
+
+      return items.map(item => {
+        if (item.subItems) {
+          const subItemsFiltrados = item.subItems.filter(subItem => {
+            if (!subItem.modulo) return true;
+            return puedeVer(subItem.modulo);
+          });
+
+          // Solo mostrar el dropdown si tiene al menos un subItem visible
+          if (subItemsFiltrados.length > 0) {
+            return {
+              ...item,
+              subItems: subItemsFiltrados
+            };
+          }
+          return null;
+        }
+        return item;
+      }).filter(Boolean) as NavItem[];
+    };
+
+    return {
+      principales: filtrarElementos(modulosPrincipales),
+      financieros: filtrarElementos(modulosFinancieros)
+    };
+  }, [puedeVer, tienePermisos]);
+
+  // Detectar si el submenu actual está activo
   useEffect(() => {
     let submenuMatched = false;
     ["main", "others"].forEach((menuType) => {
-      const items = menuType === "main" ? modulosPrincipales : modulosFinancieros;
+      const items = menuType === "main" ? modulosFiltrados.principales : modulosFiltrados.financieros;
       items.forEach((nav, index) => {
         if (nav.subItems) {
           nav.subItems.forEach((subItem) => {
@@ -134,16 +172,23 @@ const AppSidebar: React.FC = () => {
     if (!submenuMatched) {
       setOpenSubmenu(null);
     }
-  }, [location, isActive]);
+  }, [location.pathname, isActive]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Calcular altura del submenu cuando se abre
   useEffect(() => {
     if (openSubmenu !== null) {
       const key = `${openSubmenu.type}-${openSubmenu.index}`;
-      if (subMenuRefs.current[key]) {
-        setSubMenuHeight((prevHeights) => ({
-          ...prevHeights,
-          [key]: subMenuRefs.current[key]?.scrollHeight || 0,
-        }));
+      const element = subMenuRefs.current[key];
+      
+      if (element) {
+        // Usar setTimeout para asegurar que el DOM se ha actualizado
+        setTimeout(() => {
+          const height = element.scrollHeight;
+          setSubMenuHeight((prevHeights) => ({
+            ...prevHeights,
+            [key]: height,
+          }));
+        }, 0);
       }
     }
   }, [openSubmenu]);
@@ -335,38 +380,45 @@ const AppSidebar: React.FC = () => {
       <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar">
         <nav className="mb-6">
           <div className="flex flex-col gap-4">
-            <div>
-              <h2
-                className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
-                  !isExpanded && !isHovered
-                    ? "lg:justify-center"
-                    : "justify-start"
-                }`}
-              >
-                {isExpanded || isHovered || isMobileOpen ? (
-                  "Principal"
-                ) : (
-                  <HorizontaLDots className="size-6" />
-                )}
-              </h2>
-              {renderMenuItems(modulosPrincipales, "main")}
-            </div>
-            <div className="">
-              <h2
-                className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
-                  !isExpanded && !isHovered
-                    ? "lg:justify-center"
-                    : "justify-start"
-                }`}
-              >
-                {isExpanded || isHovered || isMobileOpen ? (
-                  "Financiero"
-                ) : (
-                  <HorizontaLDots />
-                )}
-              </h2>
-              {renderMenuItems(modulosFinancieros, "others")}
-            </div>
+            {/* Sección Principal - Solo mostrar si tiene elementos visibles */}
+            {modulosFiltrados.principales.length > 0 && (
+              <div>
+                <h2
+                  className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
+                    !isExpanded && !isHovered
+                      ? "lg:justify-center"
+                      : "justify-start"
+                  }`}
+                >
+                  {isExpanded || isHovered || isMobileOpen ? (
+                    "Principal"
+                  ) : (
+                    <HorizontaLDots className="size-6" />
+                  )}
+                </h2>
+                {renderMenuItems(modulosFiltrados.principales, "main")}
+              </div>
+            )}
+
+            {/* Sección Financiero - Solo mostrar si tiene elementos visibles */}
+            {modulosFiltrados.financieros.length > 0 && (
+              <div>
+                <h2
+                  className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
+                    !isExpanded && !isHovered
+                      ? "lg:justify-center"
+                      : "justify-start"
+                  }`}
+                >
+                  {isExpanded || isHovered || isMobileOpen ? (
+                    "Financiero"
+                  ) : (
+                    <HorizontaLDots />
+                  )}
+                </h2>
+                {renderMenuItems(modulosFiltrados.financieros, "others")}
+              </div>
+            )}
           </div>
         </nav>
         {isExpanded || isHovered || isMobileOpen ? <SidebarWidget /> : null}

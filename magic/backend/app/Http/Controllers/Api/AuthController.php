@@ -33,12 +33,18 @@ class AuthController extends Controller
             ]);
         }
 
-        // Verificar que el usuario esté activo (no soft deleted)
+        // Verificar que el usuario esté activo
         if ($user->deleted_at !== null) {
             throw ValidationException::withMessages([
                 'email' => ['Este usuario está inactivo.'],
             ]);
         }
+
+        // AGREGAR ESTA LÍNEA - Cargar permisos
+        $user->load(['empleado.agencia', 'empleado.cargo', 'permisos']);
+
+        // Obtener permisos organizados por módulo
+        $permisos = $user->obtenerPermisos();
 
         // Crear token de acceso
         $token = $user->createToken('magic-travel-token')->plainTextToken;
@@ -49,9 +55,10 @@ class AuthController extends Controller
             'data' => [
                 'user' => [
                     'id' => $user->id_usuarios,
-                    'name' => $user->name, // Usa el accessor que definimos
+                    'name' => $user->name,
                     'email' => $user->usuarios_correo,
                     'username' => $user->usuarios_nombre,
+                    'permisos' => $permisos, // AGREGAR ESTA LÍNEA
                     'empleado' => $user->empleado ? [
                         'id' => $user->empleado->id_empleados,
                         'nombres' => $user->empleado->empleados_nombres,

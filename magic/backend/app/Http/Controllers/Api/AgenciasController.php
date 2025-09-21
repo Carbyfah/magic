@@ -11,51 +11,29 @@ use App\Models\Agencia;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 
 class AgenciasController extends Controller
 {
     /**
-     * Listar agencias activas
+     * Listar agencias activas - VERSIÓN COMPLETA OPTIMIZADA
      * GET /api/agencias
      */
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = Agencia::activas();
 
-        // Filtro por nombre
         if ($request->filled('nombre')) {
             $query->where('agencias_nombre', 'like', '%' . $request->get('nombre') . '%');
         }
 
-        // Filtro de búsqueda general
         if ($request->filled('buscar')) {
             $termino = $request->get('buscar');
             $query->where('agencias_nombre', 'like', "%{$termino}%");
         }
 
-        // Incluir relaciones si se solicita
-        if ($request->get('con_empleados') === 'true') {
-            $query->withCount('empleados');
-        }
-
-        if ($request->get('con_rutas') === 'true') {
-            $query->withCount('rutas');
-        }
-
-        if ($request->get('con_tours') === 'true') {
-            $query->withCount('tours');
-        }
-
-        if ($request->get('con_vehiculos') === 'true') {
-            $query->withCount('vehiculos');
-        }
-
-        // Ordenamiento
         $query->orderBy('agencias_nombre', 'asc');
-
-        // Paginación
-        $perPage = min($request->get('per_page', 15), 50);
-        $agencias = $query->paginate($perPage);
+        $agencias = $query->paginate(15);
 
         return AgenciaResource::collection($agencias);
     }
@@ -136,20 +114,8 @@ class AgenciasController extends Controller
     public function store(AgenciaRequest $request): JsonResponse
     {
         try {
-            // Verificar si ya existe Magic Travel al crear una nueva
-            $nombreAgencia = $request->validated()['agencias_nombre'];
-            if (strtolower($nombreAgencia) === 'magic travel') {
-                $existeMagicTravel = Agencia::magicTravel();
-                if ($existeMagicTravel) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Ya existe una agencia llamada Magic Travel en el sistema',
-                        'errors' => [
-                            'agencias_nombre' => ['Magic Travel ya existe']
-                        ]
-                    ], 422);
-                }
-            }
+            // Los datos ya vienen validados y limpios del AgenciaRequest
+            // NO necesitamos re-validar aquí
 
             $agencia = Agencia::create(array_merge(
                 $request->validated(),

@@ -26,8 +26,11 @@ class AgenciaRequest extends FormRequest
             'agencias_nombre' => [
                 'required',
                 'string',
-                'max:45', // Según la migración: string(45)
-                Rule::unique('agencias', 'agencias_nombre')->ignore($agenciaId, 'id_agencias')
+                'max:45',
+                // ÚNICA consulta DB - valida nombre único
+                Rule::unique('agencias', 'agencias_nombre')
+                    ->ignore($agenciaId, 'id_agencias')
+                    ->whereNull('deleted_at') // Solo considerar agencias activas
             ]
         ];
     }
@@ -60,11 +63,10 @@ class AgenciaRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
-        // Limpiar y formatear nombre
         if ($this->has('agencias_nombre')) {
             $nombre = trim($this->agencias_nombre);
 
-            // Formatear nombre: Primera letra mayúscula de cada palabra
+            // Formatear: Primera letra mayúscula de cada palabra
             $nombre = ucwords(strtolower($nombre));
 
             $this->merge([
@@ -79,30 +81,13 @@ class AgenciaRequest extends FormRequest
     public function withValidator($validator): void
     {
         $validator->after(function ($validator) {
-            // Validación especial: No permitir crear otra "Magic Travel"
-            if ($this->agencias_nombre && strtolower(trim($this->agencias_nombre)) === 'magic travel') {
-                $agenciaId = $this->route('agencia') ? $this->route('agencia')->id_agencias : null;
-
-                // Si es creación (no update)
-                if (!$agenciaId) {
-                    $existeMagicTravel = \App\Models\Agencia::where('agencias_nombre', 'Magic Travel')->first();
-                    if ($existeMagicTravel) {
-                        $validator->errors()->add('agencias_nombre', 'Magic Travel ya existe en el sistema.');
-                    }
-                }
-                // Si es actualización, verificar que no se cambie desde otro nombre a Magic Travel
-                else {
-                    $agenciaActual = $this->route('agencia');
-                    if ($agenciaActual->agencias_nombre !== 'Magic Travel') {
-                        $validator->errors()->add('agencias_nombre', 'No se puede cambiar el nombre a Magic Travel.');
-                    }
-                }
-            }
-
-            // Validación: Nombre no puede estar vacío después del formateo
+            // ÚNICA validación adicional: nombre no vacío después del formateo
             if (empty(trim($this->agencias_nombre ?? ''))) {
                 $validator->errors()->add('agencias_nombre', 'El nombre no puede estar vacío.');
             }
+
+            // NO validar Magic Travel aquí - se hace en el controlador
+            // Mantiene separación de responsabilidades
         });
     }
 }

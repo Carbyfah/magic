@@ -146,3 +146,62 @@ docker exec -it magictravel_php bash
 cd /var/www/html
 php artisan migrate
 php artisan db:seed
+
+<!-- # 1. Copiar archivo local al contenedor -->
+
+docker cp C:\magic\magic\backend\database\migrations\16_agencias_optimizadas.php magictravel_php:/var/www/html/database/migrations/
+
+<!-- # 2. Ver status de migraciones (opcional) -->
+
+docker exec -it magictravel_php php artisan migrate:status
+
+<!-- # 3. Ejecutar migración específica -->
+
+docker exec -it magictravel_php php artisan migrate --path=database/migrations/16_agencias_optimizadas.php
+
+PROTOCOLO DE MIGRACIONES DOCKER - MAGIC TRAVEL
+Basado en tu experiencia, aquí están los códigos documentados:
+FLUJO NORMAL (3 comandos básicos)
+
+<!-- # 1. Copiar archivo local al contenedor -->
+
+docker cp C:\magic\magic\backend\database\migrations\[ARCHIVO].php magictravel_php:/var/www/html/database/migrations/
+
+<!-- # 2. Ver status de migraciones (opcional) -->
+
+docker exec -it magictravel_php php artisan migrate:status
+
+<!-- # 3. Ejecutar migración específica -->
+
+docker exec -it magictravel_php php artisan migrate --path=database/migrations/[ARCHIVO].php
+PROTOCOLO DE RECUPERACIÓN (cuando falla a medias)
+
+<!-- # 1. Ver qué migraciones están registradas -->
+
+docker exec -it magictravel_php php artisan migrate:status
+
+<!-- # 2. Si la migración aparece como "Pending" (falló parcialmente) -->
+<!-- # Limpiar objetos residuales manualmente: -->
+
+docker exec -it magictravel_mysql mysql -u root -p'root_secure_2025' magictravel_v_2
+
+<!-- # 3. En MySQL, eliminar todo lo que pudo haberse creado: -->
+
+DROP VIEW IF EXISTS [nombre_vista];
+DROP INDEX IF EXISTS [nombre_indice] ON [tabla];
+EXIT;
+
+<!-- # 4. Recopiar archivo corregido y ejecutar -->
+
+docker cp C:\magic\magic\backend\database\migrations\[ARCHIVO].php magictravel_php:/var/www/html/database/migrations/
+docker exec -it magictravel_php php artisan migrate --path=database/migrations/[ARCHIVO].php
+ROLLBACK ESPECÍFICO (si se equivoca)
+
+<!-- # Rollback de las últimas N migraciones -->
+
+docker exec -it magictravel_php php artisan migrate:rollback --step=1
+
+<!-- # Restaurar migración eliminada por error -->
+
+docker exec -it magictravel_php php artisan migrate --path=database/migrations/[ARCHIVO_CORRECTO].php
+ÉXITO CONFIRMADO: La optimización de agencias se ejecutó correctamente en 227ms. Ahora podemos probar si mejora el rendimiento del controlador
